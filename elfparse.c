@@ -46,9 +46,6 @@ void elfparse_parse(struct elfparse_info *hndl)
 {
 	ElfW(Ehdr) *ehdr = hndl->mapping;
 	hndl->ehdr = ehdr;
-	printf("e_ident=%s\n", ehdr->e_ident);
-	printf("e_phoff=%zu\ne_shoff=%zu\n", ehdr->e_phoff, ehdr->e_shoff);
-	printf("e_shentsize=%u\ne_shnum=%u\n", ehdr->e_shentsize, ehdr->e_shnum);
 
 	ElfW(Shdr) *shdr = hndl->mapping + ehdr->e_shoff;
 	char *strtab = hndl->mapping + shdr[ehdr->e_shstrndx].sh_offset;
@@ -60,23 +57,19 @@ void elfparse_parse(struct elfparse_info *hndl)
 		{
 			hndl->symtab = hndl->mapping + cur_shdr->sh_offset;
 			hndl->symtab_entries = cur_shdr->sh_size / cur_shdr->sh_entsize;
-			printf("Found symbol table (%u entries): %p\n", hndl->symtab_entries, hndl->symtab);
 		}
 		else if(!strcmp(name, ".strtab"))
 		{
 			hndl->strtab = hndl->mapping + cur_shdr->sh_offset;
-			printf("Found string table: %p\n", hndl->strtab);
 		}
 		else if(!strcmp(name, ".dynsym"))
 		{
 			hndl->dynsym = hndl->mapping + cur_shdr->sh_offset;
 			hndl->dynsym_entries = cur_shdr->sh_size / cur_shdr->sh_entsize;
-			printf("Found dynsym (%u entries): %p\n", hndl->dynsym_entries, hndl->dynsym);
 		}
 		else if(!strcmp(name, ".dynstr"))
 		{
 			hndl->dynstr = hndl->mapping + cur_shdr->sh_offset;
-			printf("Found dynstr: %p\n", hndl->dynstr);
 		}
 	}
 }
@@ -104,11 +97,9 @@ char *elfparse_getfuncaddr(void *handle, const char *funcname)
 	char *fn = elfparse_findfunction(hndl->strtab, hndl->symtab, hndl->symtab_entries, funcname);
 	if(fn)
 		goto ret;
-	printf("Function %s not found in symtab, trying dynsym..\n", funcname);
 	fn = elfparse_findfunction(hndl->dynstr, hndl->dynsym, hndl->dynsym_entries, funcname);
 	if(fn)
 		goto ret;
-	printf("function %s not found in dynsym either, I give up\n", funcname);
 	return 0;
 ret:
 	if(hndl->ehdr->e_machine == EM_ARM) /* apply fix for Thumb functions */
