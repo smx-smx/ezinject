@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 {
 	if(argc < 3)
 	{
-		puts("You're using it wrong.\nUsage: %s pid FunctionName=patchfile [FunctionName2=patchfile2 ...]");
+		printf("You're using it wrong.\nUsage: %s pid FunctionName=patchfile [FunctionName2=patchfile2 ...]\n", argv[0]);
 		return 1;
 	}
 	pid_t target = atoi(argv[1]);
