@@ -1,11 +1,12 @@
 ALLSOURCES=$(wildcard *.c)
+ALLHEADERS=$(wildcard *.h)
 TARGETSOURCES=target.c
 EZPATCHSOURCES=$(filter-out ${TARGETSOURCES},${ALLSOURCES})
 
-ezpatch: ${EZPATCHSOURCES}
-	gcc -Wall -ggdb ${EZPATCHSOURCES} -o ezpatch
-ezpatcharm: ${EZPATCHSOURCES}
-	arm-lg115x-linux-gnueabi-gcc -std=gnu99 -Wall -ggdb ${EZPATCHSOURCES} -o ezpatcharm
+ezpatch: ${EZPATCHSOURCES} ${ALLHEADERS}
+	gcc $(CFLAGS) -Wall -ggdb ${EZPATCHSOURCES} -o ezpatch
+ezpatcharm: ${EZPATCHSOURCES} ${ALLHEADERS}
+	arm-lg115x-linux-gnueabi-gcc $(CFLAGS) -std=gnu99 -Wall -ggdb ${EZPATCHSOURCES} -o ezpatcharm
 
 .PHONY: ezpatchup
 

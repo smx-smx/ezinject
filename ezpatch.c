@@ -17,9 +17,11 @@
 #include "util.h"
 #include "elfparse.h"
 
+enum verbosity_level verbosity = V_INFO;
+
 #define CHECK(x) ({\
 long _tmp = (x);\
-printf("%s = %lu\n", #x, _tmp);\
+DBG("%s = %lu", #x, _tmp);\
 if(_tmp==-1)perror("ptrace");\
 _tmp;})
 
@@ -42,7 +44,8 @@ int main(int argc, char *argv[])
 {
 	if(argc < 3)
 	{
-		printf("You're using it wrong.\nUsage: %s pid FunctionName=patchfile [FunctionName2=patchfile2 ...]\n", argv[0]);
+		ERR("You're using it wrong.");
+		ERR("Usage: %s pid FunctionName=patchfile [FunctionName2=patchfile2 ...]", argv[0]);
 		return 1;
 	}
 	pid_t target = atoi(argv[1]);
@@ -52,7 +55,6 @@ int main(int argc, char *argv[])
 	chdir(dir);
 	chdir("patches");
 	snprintf(path, 128, "/proc/%u/exe", target);
-	puts(path);
 
 	void *hndl = elfparse_createhandle(path);
 	bool needs_reloc = elfparse_needs_reloc(hndl);
@@ -61,7 +63,8 @@ int main(int argc, char *argv[])
 
 	char *target_base = get_base(target, 0);
 	char *target_libc_base = get_base(target, "libc");
-	printf("Target base: %p\nTarget libc base: %p\n", target_base, target_libc_base);
+	DBG("Target base: %p", target_base);
+	DBG("Target libc base: %p", target_libc_base);
 
 	for(int i = 2; i < argc; ++i)
 	{
@@ -75,7 +78,7 @@ int main(int argc, char *argv[])
 		char *funcadr = elfparse_getfuncaddr(hndl, funcname);
 		if(!funcadr)
 		{
-			printf("Function %s not found!\n", funcname);
+			WARN("Function %s not found!", funcname);
 			goto out;
 		}
 		if(needs_reloc)
@@ -84,7 +87,7 @@ int main(int argc, char *argv[])
 		FILE *patchfile = fopen(filename, "r");
 		if(!patchfile)
 		{
-			printf("Failed to open patch file %s: %s\n", filename, strerror(errno));
+			WARN("Failed to open patch file %s: %s", filename, strerror(errno));
 			goto out;
 		}
 
@@ -95,8 +98,8 @@ int main(int argc, char *argv[])
 		fread(patchdata, 1, patchsz, patchfile);
 		fclose(patchfile);
 		
-		printf("Applying patch: %s -> %s\n", funcname, filename);
-		printf("%u bytes at at %p\n", patchsz, funcadr);
+		INFO("Applying patch: %s -> %s", funcname, filename);
+		DBG("%u bytes at at %p", patchsz, funcadr);
 		apply_patch(target, funcadr, patchdata, patchsz);
 
 		free(patchdata);
