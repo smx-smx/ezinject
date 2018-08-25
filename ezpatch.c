@@ -15,6 +15,7 @@
 #include <sys/ptrace.h>
 
 #include "util.h"
+#include "elfparse.h"
 
 #define CHECK(x) ({\
 long _tmp = (x);\
@@ -52,15 +53,9 @@ int main(int argc, char *argv[])
 	chdir("patches");
 	snprintf(path, 128, "/proc/%u/exe", target);
 	puts(path);
-	void *hndl = dlopen(path, RTLD_LAZY);
-	printf("dlopen()=%p\n", hndl);
-	puts(dlerror());
-	struct link_map *lmap;
-	int ret = dlinfo(hndl, RTLD_DI_LINKMAP, &lmap);
-	printf("dlinfo() = %u, lmap=%p\n", ret, lmap);
 
-	char *sym_base = 0; //(char *)lmap->l_addr;
-	printf("sym_base=%p\n", sym_base);
+	void *hndl = elfparse_createhandle(path);
+	bool needs_reloc = elfparse_needs_reloc(hndl);
 
 	CHECK(ptrace(PTRACE_ATTACH, target, 0, 0));
 
@@ -77,15 +72,14 @@ int main(int argc, char *argv[])
 		*(filename++) = 0;
 		char *funcname = cmd;
 
-//		char *funcadr = dlsym(hndl, funcname);
-		char *funcadr = (char*)0x00022b10; 
+		char *funcadr = elfparse_getfuncaddr(hndl, funcname);
 		if(!funcadr)
 		{
 			printf("Function %s not found!\n", funcname);
 			goto out;
 		}
-		
-//		funcadr = funcadr - sym_base + target_base;
+		if(needs_reloc)
+			funcadr += (uintptr_t)target_base;
 
 		FILE *patchfile = fopen(filename, "r");
 		if(!patchfile)
@@ -111,7 +105,7 @@ out:
 		free(cmd);
 	}
 
-//	dlclose(hndl);
+	elfparse_destroyhandle(hndl);
 
 	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
 
