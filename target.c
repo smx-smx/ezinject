@@ -10,7 +10,7 @@ int return1(void)
 int main(int argc, char *argv[])
 {
 	int interactive = argc > 1;
-	printf("pid=%d\n&return1=%p\n", getpid(), return1);
+	printf("pid=%d\n&main=%p\n&return1=%p\n", getpid(), main, return1);
 	for(;;)
 	{
 		int val = return1();
