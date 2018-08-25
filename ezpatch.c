@@ -31,6 +31,7 @@ void apply_patch(pid_t target, void *target_addr, void *patch, size_t patchlen)
 		ptrace(PTRACE_POKETEXT, target, target_addr_p++, *(patch_p++));
 		patchlen -= sizeof(void*);
 	}
+	if(!patchlen) return;
 	void *last = (void*)ptrace(PTRACE_PEEKTEXT, target, target_addr_p, 0);
 	memcpy((char*)&last, patch_p, patchlen);
 	ptrace(PTRACE_POKETEXT, target, target_addr_p, last);
