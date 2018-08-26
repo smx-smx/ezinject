@@ -7,10 +7,15 @@ int return1(void)
 	return 1;
 }
 
+void func2(void)
+{
+	puts("Func2 called!");
+}
+
 int main(int argc, char *argv[])
 {
 	int interactive = argc > 1;
-	printf("pid=%d\n&main=%p\n&return1=%p\n", getpid(), main, return1);
+	printf("pid=%d\n&main=%p\n&return2=%p\n&func2=%p\n", getpid(), main, return1, func2);
 	for(;;)
 	{
 		int val = return1();
