@@ -1,1 +1,1 @@
-#cmakedefine DEBUG_ENABLE
+#cmakedefine DEBUG

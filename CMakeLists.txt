@@ -11,9 +11,9 @@ if( NOT CMAKE_BUILD_TYPE )
 endif()
 
 IF(CMAKE_BUILD_TYPE MATCHES Debug)
-	set(DEBUG_ENABLE ON)
+	set(DEBUG ON)
 else()
-	set(DEBUG_ENABLE OFF)
+	set(DEBUG OFF)
 endif()
 
 configure_file(
