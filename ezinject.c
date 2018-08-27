@@ -135,6 +135,7 @@ int main(int argc, char *argv[])
 	}
 	
 	char *my_libc_syscall_func = dlsym(RTLD_DEFAULT, "syscall");
+	void *target_libc_syscall_func = my_libc_syscall_func - (uintptr_t)my_libc_base + (uintptr_t)target_libc_base;
 	char *my_libc_syscall_insn = 0;
 	for(int i = 0; i < 0x1000; ++i)
 	{
@@ -193,7 +194,11 @@ int main(int argc, char *argv[])
 	char *my_libc_dlopen_mode = dlsym(RTLD_DEFAULT, "__libc_dlopen_mode");
 	void *target_libc_dlopen_mode = my_libc_dlopen_mode - (uintptr_t)my_libc_base + (uintptr_t)target_libc_base;
 	DBGPTR(target_libc_dlopen_mode);
-	struct injcode_bearing br = {.libc_dlopen_mode = target_libc_dlopen_mode};
+	struct injcode_bearing br =
+	{
+		.libc_dlopen_mode = target_libc_dlopen_mode,
+		.libc_syscall = target_libc_syscall_func
+	};
 	strncpy(br.libname, sopath, sizeof(br.libname));
 	char *target_bearing = syscall_ret_gadget_end + MEMALIGN;
 	target_bearing = (char *)((uintptr_t)target_bearing & ALIGNMSK);
