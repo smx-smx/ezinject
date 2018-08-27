@@ -29,22 +29,34 @@ struct elfparse_info
 	int dynsym_entries;
 };
 
-void elfparse_parse(struct elfparse_info *hndl);
+static void elfparse_parse(struct elfparse_info *hndl);
 
 void *elfparse_createhandle(const char *procpath)
 {
 	struct elfparse_info *hndl = malloc(sizeof(struct elfparse_info));
+	if(!hndl) return 0;
 	memset(hndl, 0, sizeof(struct elfparse_info));
 	hndl->path = strdup(procpath);
+	if(!hndl->path)
+		goto free_mem;
 	hndl->fd = open(hndl->path, O_RDONLY);
+	if(hndl->fd < 0)
+		goto free_path;
 	hndl->len = lseek(hndl->fd, 0, SEEK_END);
 	lseek(hndl->fd, 0, SEEK_SET);
 	hndl->mapping = mmap(0, hndl->len, PROT_READ, MAP_SHARED, hndl->fd, 0);
+	if(hndl->mapping == MAP_FAILED)
+		goto free_path;
 	elfparse_parse(hndl);
 	return hndl;
+free_path:
+	free(hndl->path);
+free_mem:
+	free(hndl);
+	return 0;
 }
 
-void elfparse_parse(struct elfparse_info *hndl)
+static void elfparse_parse(struct elfparse_info *hndl)
 {
 	ElfW(Ehdr) *ehdr = hndl->mapping;
 	hndl->ehdr = ehdr;
@@ -91,7 +103,7 @@ bool elfparse_needs_reloc(void *handle)
 	return hndl->ehdr->e_type != ET_EXEC;
 }
 
-char *elfparse_findfunction(char *strtab, ElfW(Sym) *symtab, int symtab_entries, const char *funcname)
+static char *elfparse_findfunction(char *strtab, ElfW(Sym) *symtab, int symtab_entries, const char *funcname)
 {
 	for(int i = 0; i < symtab_entries; ++i)
 	{
@@ -108,11 +120,11 @@ char *elfparse_getfuncaddr(void *handle, const char *funcname)
 	char *fn = elfparse_findfunction(hndl->strtab, hndl->symtab, hndl->symtab_entries, funcname);
 	if(fn)
 		goto ret;
-	DBG("Function %s not found in symtab, trying dynsym..", funcname);
+	DBG("Function %s not found in symtab, trying dynsym", funcname);
 	fn = elfparse_findfunction(hndl->dynstr, hndl->dynsym, hndl->dynsym_entries, funcname);
 	if(fn)
 		goto ret;
-	WARN("function %s not found in dynsym either, I give up", funcname);
+	WARN("Function %s not found in symtab or dynsym", funcname);
 	return 0;
 ret:
 	if(hndl->ehdr->e_machine == EM_ARM) /* apply fix for Thumb functions */
