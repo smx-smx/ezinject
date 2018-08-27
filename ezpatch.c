@@ -19,12 +19,6 @@
 
 enum verbosity_level verbosity = V_INFO;
 
-#define CHECK(x) ({\
-long _tmp = (x);\
-DBG("%s = %lu", #x, _tmp);\
-if(_tmp==-1)perror("ptrace");\
-_tmp;})
-
 void apply_patch(pid_t target, void *target_addr, void *patch, size_t patchlen)
 {
 	void **target_addr_p = (void**)target_addr;

@@ -1,3 +1,5 @@
+#include <errno.h>
+
 extern enum verbosity_level
 {
 	V_ERR = 0,
@@ -23,3 +25,9 @@ extern enum verbosity_level
 #define INFO(fmt, ...) LOG(V_INFO, "[INFO] " fmt, ##__VA_ARGS__)
 #define WARN(fmt, ...) LOG(V_WARN, "[WARN] " fmt, ##__VA_ARGS__)
 #define ERR(fmt, ...) LOG(V_ERR, "[ERR ] " fmt, ##__VA_ARGS__)
+
+#define PERROR(str) ERR("%s: %s", str, strerror(errno));
+#define CHECK(x) ({\
+long _tmp = (x);\
+DBG("%s = %lu", #x, _tmp);\
+_tmp;})
