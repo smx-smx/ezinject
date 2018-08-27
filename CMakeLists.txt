@@ -7,7 +7,7 @@ include_directories(
 )
 
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
 
 if( NOT CMAKE_BUILD_TYPE )
 	set(CMAKE_BUILD_TYPE Debug)
