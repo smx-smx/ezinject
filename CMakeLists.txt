@@ -6,6 +6,8 @@ include_directories(
 	${CMAKE_BINARY_DIR}
 )
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99 -Wall")
+
 if( NOT CMAKE_BUILD_TYPE )
 	set(CMAKE_BUILD_TYPE Debug)
 endif()
