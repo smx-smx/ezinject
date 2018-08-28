@@ -72,6 +72,7 @@ void *get_base(pid_t pid, char *libname)
 	return base;
 }
 
+#if 0
 ssize_t memcpy_to(pid_t pid, void *remote_dest, void* local_src, size_t n)
 {
 	struct iovec local_iov = {.iov_base = local_src, .iov_len = n};
@@ -87,3 +88,4 @@ ssize_t memcpy_from(pid_t pid, void *local_dest, void* remote_src, size_t n)
 
 	return process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
 }
+#endif

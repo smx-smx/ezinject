@@ -8,13 +8,16 @@
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <sched.h>
+#ifdef __mips
+#include <linux/shm.h>
+#endif
 #include <sys/mman.h>
 #include <sys/ptrace.h>
 #include <sys/syscall.h>
 #include <sys/uio.h>
-#include <sys/user.h>
 #include <sys/wait.h>
 #include <sys/shm.h>
+#include <sys/user.h>
 
 #define CHECK(x) ({\
 long _tmp = (x);\
@@ -62,6 +65,25 @@ const char RET_INSN[] = {0xc3}; /* ret */
 #define REG_ARG6 r9
 const char SYSCALL_INSN[] = {0x0f, 0x05}; /* syscall */
 const char RET_INSN[] = {0xc3}; /* ret */
+#elif defined(__mips__)
+#define REG_PC regs[EF_CP0_EPC]
+#define REG_RET regs[2] //$v0
+#define REG_NR regs[2] //$v0
+#define REG_ARG1 regs[4] //$a0
+#define REG_ARG2 regs[5] //$a1
+#define REG_ARG3 regs[6] //$a2
+#define REG_ARG4 regs[7] //$a3
+char SYSCALL_INSN[] = {0x00, 0x00, 0x00, 0x0c}; //syscall
+char RET_INSN[] = {
+	0x8f, 0xbf, 0x00, 0x00, //lw $ra, 0($sp)
+	0x23, 0xbd, 0x00, 0x04, //addi $sp, $sp, 4
+	0x03, 0xe0, 0x00, 0x08  //jr $ra
+};
+
+static int isBigEndian(){
+	int i=1;
+    return ! *((char *)&i);
+}
 #else
 #error "Unsupported architecture"
 #endif
@@ -87,7 +109,7 @@ typedef struct {
 #define EZ_REMOTE(ref, local) (ref.base_remote + (((uintptr_t)local) - ref.base_local))
 
 
-uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
+uintptr_t remote_call(pid_t target, void *insn_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
 {
 	struct user orig_ctx, new_ctx;
 	memset(&orig_ctx, 0x00, sizeof(orig_ctx));
@@ -95,7 +117,7 @@ uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg
 	ptrace(PTRACE_GETREGS, target, 0, &orig_ctx);
 	memcpy(&new_ctx, &orig_ctx, sizeof(orig_ctx));
 
-	new_ctx.regs.REG_PC = (uintptr_t)syscall_addr;
+	new_ctx.regs.REG_PC = (uintptr_t)insn_addr;
 	new_ctx.regs.REG_NR = nr;
 	new_ctx.regs.REG_ARG1 = arg1;
 	new_ctx.regs.REG_ARG2 = arg2;
@@ -104,6 +126,7 @@ uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg
 	/*new_ctx.regs.REG_ARG5 = arg5;
 	new_ctx.regs.REG_ARG6 = arg6;*/
 	ptrace(PTRACE_SETREGS, target, 0, &new_ctx);
+
 	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall entry */
 	waitpid(target, 0, 0);
 	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall return */
@@ -111,7 +134,7 @@ uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg
 	ptrace(PTRACE_GETREGS, target, 0, &new_ctx); /* Get return value */
 	
 	ptrace(PTRACE_SETREGS, target, 0, &orig_ctx);
-	DBG("remote_syscall(%d) = %zu", nr, (uintptr_t)new_ctx.regs.REG_RET);
+	DBG("remote_call(%d) = %zu", nr, (uintptr_t)new_ctx.regs.REG_RET);
 
 	return new_ctx.regs.REG_RET;
 }
@@ -145,6 +168,16 @@ int main(int argc, char *argv[])
 		PERROR("realpath");
 		return 1;
 	}
+
+	#ifdef __mips__
+	if(!isBigEndian()){
+		*(uint32_t *)SYSCALL_INSN = __builtin_bswap32(*(uint32_t *)SYSCALL_INSN);
+		uint32_t *ret_ptr = (uint32_t *)RET_INSN;
+		ret_ptr[0] = __builtin_bswap32(ret_ptr[0]);
+		ret_ptr[1] = __builtin_bswap32(ret_ptr[1]);
+		ret_ptr[2] = __builtin_bswap32(ret_ptr[2]);
+	}
+	#endif
 
 	ez_addr libc = {
 		.base_local  = (uintptr_t) get_base(getpid(), "libc-"),
@@ -191,9 +224,9 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	#define REMOTE_SC(nr, arg0, arg1, arg2, arg3) remote_syscall(target, (void *)libc_syscall_insn.base_remote, nr, arg0, arg1, arg2, arg3)
+	#define REMOTE_SC(nr, arg0, arg1, arg2, arg3) remote_call(target, (void *)libc_syscall_insn.base_remote, nr, arg0, arg1, arg2, arg3)
 	
-	/* Verify that remote_syscall works correctly */
+	/* Verify that remote_call works correctly */
 	pid_t remote_pid = REMOTE_SC(__NR_getpid, 0, 0, 0, 0);
 	if(remote_pid != target)
 	{
@@ -236,14 +269,35 @@ int main(int argc, char *argv[])
 	char *syscall_ret_gadget_end = syscall_ret_gadget + sizeof(SYSCALL_INSN) + sizeof(RET_INSN);
 
 	/* Help the new thread get its bearings */
-	char *my_libc_dlopen_mode = dlsym(RTLD_DEFAULT, "__libc_dlopen_mode");
-	void *target_libc_dlopen_mode = (void *)EZ_REMOTE(libc, my_libc_dlopen_mode);
-	DBGPTR(target_libc_dlopen_mode);
+	ez_addr libc_dlopen_mode = {
+		.base_local = (uintptr_t) dlsym(RTLD_DEFAULT, "__libc_dlopen_mode")
+	};
+	libc_dlopen_mode.base_remote = (uintptr_t) EZ_REMOTE(libc, libc_dlopen_mode.base_local);
+
+	ez_addr libc_shmget = {
+		.base_local = (uintptr_t) &shmget
+	};
+	libc_shmget.base_remote = (uintptr_t) EZ_REMOTE(libc, libc_shmget.base_local);
+
+	ez_addr libc_shmat = {
+		.base_local = (uintptr_t) &shmat
+	};
+	libc_shmat.base_remote = (uintptr_t) EZ_REMOTE(libc, libc_shmat.base_local);
+
+	ez_addr libc_shmdt = {
+		.base_local = (uintptr_t) &shmdt
+	};
+	libc_shmdt.base_remote = (uintptr_t) EZ_REMOTE(libc, libc_shmdt.base_local);
+
+	DBGPTR(libc_dlopen_mode.base_remote);
 	
 	struct injcode_bearing br =
 	{
-		.libc_dlopen_mode = target_libc_dlopen_mode,
-		.libc_syscall = (void *)libc_syscall.base_remote
+		.libc_dlopen_mode = (void *)libc_dlopen_mode.base_remote,
+		.libc_syscall = (void *)libc_syscall.base_remote,
+		.libc_shmget = (void *)libc_shmget.base_remote,
+		.libc_shmat = (void *)libc_shmat.base_remote,
+		.libc_shmdt = (void *)libc_shmdt.base_remote
 	};
 	strncpy(br.libname, sopath, sizeof(br.libname));
 	char *target_bearing = ALIGN(syscall_ret_gadget_end);
@@ -253,12 +307,13 @@ int main(int argc, char *argv[])
 	DBGPTR(syscall_ret_gadget);
 	DBGPTR(target_bearing);
 
-	int remote_shm_id = (int)CHECK(REMOTE_SC(__NR_shmget, target, MAPPINGSIZE, S_IRWXO, 0));
+	//int remote_shm_id = (int)CHECK(REMOTE_SC(__NR_shmget, target, MAPPINGSIZE, S_IRWXO, 0));
+	int remote_shm_id = (int)CHECK(remote_call(target, (void *)libc_shmget.base_remote, 0, target, MAPPINGSIZE, S_IRWXO, 0));
 	if(remote_shm_id < 0){
 		ERR("Remote shmget failed: %d", remote_shm_id);
 		goto cleanup_shm;
 	}
-	uintptr_t remote_shm_ptr = CHECK(REMOTE_SC(__NR_shmat, remote_shm_id, 0, SHM_EXEC, 0));
+	uintptr_t remote_shm_ptr = CHECK(remote_call(target, (void *)libc_shmat.base_remote, 0, remote_shm_id, SHM_EXEC, 0, 0));
 	if(remote_shm_ptr == (uintptr_t)MAP_FAILED){
 		ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
 		goto cleanup_shm;
@@ -274,7 +329,7 @@ int main(int argc, char *argv[])
 	DBGPTR(target_sp[1]);
 
 	char *target_syscall_ret = PL_REMOTE(syscall_ret_gadget);
-	#define REMOTE_SC_RET(nr, arg0, arg1, arg2, arg3) remote_syscall(target, (void *)target_syscall_ret, nr, arg0, arg1, arg2, arg3)
+	#define REMOTE_SC_RET(nr, arg0, arg1, arg2, arg3) remote_call(target, (void *)target_syscall_ret, nr, arg0, arg1, arg2, arg3)
 
 	if(shmdt(mapped_mem) < 0){
 		PERROR("shmdt");

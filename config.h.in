@@ -1,1 +1,5 @@
 #cmakedefine DEBUG
+#cmakedefine EZ_ARCH_ARM
+#cmakedefine EZ_ARCH_I386
+#cmakedefine EZ_ARCH_AMD64
+#cmakedefine EZ_ARCH_MIPS

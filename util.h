@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <string.h>
 
-#include "config.h"
 #include "log.h"
 
 void hexdump(void *pAddressIn, long lSize);

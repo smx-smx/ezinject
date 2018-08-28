@@ -4,8 +4,8 @@ if [ "$1" == "clean" ]; then
 	echo "Removing build directory..."
 	rm -r build
 	exit 0
-elif [ "$1" == "arm" ]; then
-	TOOLCHAINFILE="-DCMAKE_TOOLCHAIN_FILE=arm.cmake"
+elif [ ! -z "$1" ] && [ -f "$1.cmake" ]; then
+	TOOLCHAINFILE="-DCMAKE_TOOLCHAIN_FILE=$1.cmake"
 fi
 [ ! -d build ] && mkdir build
 cd build
