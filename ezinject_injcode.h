@@ -1,3 +1,5 @@
+#include <sys/types.h>
+
 struct injcode_bearing
 {
 	void (*libc_dlopen_mode)(const char *name, int mode);
@@ -5,5 +7,5 @@ struct injcode_bearing
 	char libname[128];
 };
 
-extern __attribute__((naked)) void injected_code(void);
+extern __attribute__((naked, noreturn)) void injected_code();
 extern __attribute__((naked)) void injected_code_end(void);

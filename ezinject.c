@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <dlfcn.h>
 #include <sched.h>
 #include <sys/mman.h>
@@ -13,6 +14,7 @@
 #include <sys/uio.h>
 #include <sys/user.h>
 #include <sys/wait.h>
+#include <sys/shm.h>
 
 #define CHECK(x) ({\
 long _tmp = (x);\
@@ -23,7 +25,7 @@ _tmp;})
 #include "elfparse.h"
 #include "ezinject_injcode.h"
 
-enum verbosity_level verbosity = V_INFO;
+enum verbosity_level verbosity = V_DBG;
 
 #if defined(__arm__)
 #define regs user_regs
@@ -71,6 +73,14 @@ const char RET_INSN[] = {0xc3}; /* ret */
 #ifndef __NR_mmap
 #define __NR_mmap __NR_mmap2 /* Functionally equivalent for our use case. */
 #endif
+
+#define MAPPINGSIZE 4096
+#define MEMALIGN 4 /* MUST be a power of 2 */
+#define ALIGNMSK ~(MEMALIGN-1)
+
+#define ALIGN(x) ((void *)(((uintptr_t)x + MEMALIGN) & ALIGNMSK))
+
+#define CLONE_FLAGS (CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD|CLONE_IO)
 
 uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, uintptr_t arg6)
 {
@@ -121,6 +131,13 @@ int main(int argc, char *argv[])
 		ERR("Failed to parse ELF file %s", buf);
 		return 1;
 	}
+
+	int shm_id;
+	if((shm_id = shmget(target, MAPPINGSIZE, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+		PERROR("shmget");
+		return 1;
+	}
+
 	char *target_libc_base = get_base(target, "libc-");
 	char *my_libc_base = get_base(getpid(), "libc-");
 
@@ -133,7 +150,7 @@ int main(int argc, char *argv[])
 		err = 1;
 		goto out_elfparse;
 	}
-	
+
 	char *my_libc_syscall_func = dlsym(RTLD_DEFAULT, "syscall");
 	void *target_libc_syscall_func = my_libc_syscall_func - (uintptr_t)my_libc_base + (uintptr_t)target_libc_base;
 	char *my_libc_syscall_insn = 0;
@@ -167,66 +184,83 @@ int main(int argc, char *argv[])
 		err = 1;
 		goto out_ptrace;
 	}
-	
-#define MAPPINGSIZE 4096
-#define MEMALIGN 4 /* MUST be a power of 2 */
-#define ALIGNMSK ~(MEMALIGN-1)
-	char *mapped_mem = (char *)remote_syscall(target, target_libc_syscall_insn, __NR_mmap, 0, MAPPINGSIZE, PROT_READ|PROT_WRITE|PROT_EXEC, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+
+	char *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
+	if(mapped_mem == MAP_FAILED){
+		PERROR("shmat");
+		err = 1;
+		goto out_ptrace;
+	}
 	
 	size_t injected_size = (size_t)(injected_code_end - (uintptr_t)injected_code);
 	
 	DBG("injsize=%zu", injected_size);
 	
 	/* Copy code */
-	CHECK(memcpy_to(target, mapped_mem, injected_code, injected_size));
+	memcpy(mapped_mem, injected_code, injected_size);
 	
 	/* Install syscall->ret gadget (will be used when creating thread) */
-	char *syscall_ret_gadget = mapped_mem + injected_size + MEMALIGN;
-	syscall_ret_gadget = (char *)((uintptr_t)syscall_ret_gadget & ALIGNMSK);
+	char *syscall_ret_gadget = ALIGN(mapped_mem + injected_size);
 	DBGPTR(syscall_ret_gadget);
-	CHECK(memcpy_to(target, syscall_ret_gadget, (void*)SYSCALL_INSN, sizeof(SYSCALL_INSN)));
+	
+	// copy 'syscall' insn
+	memcpy(syscall_ret_gadget, (void*)SYSCALL_INSN, sizeof(SYSCALL_INSN));
 	usleep(100);
-	DBGPTR(syscall_ret_gadget+sizeof(SYSCALL_INSN));
-	CHECK(memcpy_to(target, syscall_ret_gadget + sizeof(SYSCALL_INSN), (void*)RET_INSN, sizeof(RET_INSN)));
+	DBGPTR(syscall_ret_gadget + sizeof(SYSCALL_INSN));
+
+	// copy 'ret' insn
+	memcpy(syscall_ret_gadget + sizeof(SYSCALL_INSN), (void*)RET_INSN, sizeof(RET_INSN));
 	char *syscall_ret_gadget_end = syscall_ret_gadget + sizeof(SYSCALL_INSN) + sizeof(RET_INSN);
 
 	/* Help the new thread get its bearings */
 	char *my_libc_dlopen_mode = dlsym(RTLD_DEFAULT, "__libc_dlopen_mode");
 	void *target_libc_dlopen_mode = my_libc_dlopen_mode - (uintptr_t)my_libc_base + (uintptr_t)target_libc_base;
 	DBGPTR(target_libc_dlopen_mode);
+	
 	struct injcode_bearing br =
 	{
 		.libc_dlopen_mode = target_libc_dlopen_mode,
 		.libc_syscall = target_libc_syscall_func
 	};
 	strncpy(br.libname, sopath, sizeof(br.libname));
-	char *target_bearing = syscall_ret_gadget_end + MEMALIGN;
-	target_bearing = (char *)((uintptr_t)target_bearing & ALIGNMSK);
-	memcpy_to(target, target_bearing, &br, sizeof(struct injcode_bearing));
-
-	/* Set up stack */
-	void *stack[2] = {mapped_mem, target_bearing};
-	void *target_sp = mapped_mem + MAPPINGSIZE - sizeof(stack);
-	CHECK(memcpy_to(target, target_sp, stack, sizeof(stack)));
+	char *target_bearing = ALIGN(syscall_ret_gadget_end);
+	memcpy(target_bearing, &br, sizeof(struct injcode_bearing));
 	
 	DBGPTR(mapped_mem);
 	DBGPTR(syscall_ret_gadget);
 	DBGPTR(target_bearing);
-	DBGPTR(target_sp);
+
+	int remote_shm_id = (int)CHECK(remote_syscall(target, target_libc_syscall_insn, __NR_shmget, target, MAPPINGSIZE, S_IRWXO, 0, 0, 0));
+	uintptr_t remote_shm_ptr = CHECK(remote_syscall(target, target_libc_syscall_insn, __NR_shmat, remote_shm_id, 0, SHM_EXEC, 0, 0, 0));
+
+	#define TO_REMOTE(pl_addr) ((void *)(remote_shm_ptr + ((uintptr_t)(pl_addr) - (uintptr_t)mapped_mem)))
+
+	uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 2));
+	target_sp[0] = (uintptr_t)remote_shm_ptr; //code base
+	target_sp[1] = (uintptr_t)TO_REMOTE(target_bearing);
+	
+	char *target_syscall_ret = TO_REMOTE(syscall_ret_gadget);
+	DBGPTR(target_sp[0]);
+	DBGPTR(target_sp[1]);
+
+	if(shmdt(mapped_mem) < 0){
+		PERROR("shmdt");
+	}
 
 	/* Make the call */
-#define CLONE_FLAGS (CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD|CLONE_IO)
 	/* !! VERY IMPORTANT !! */
 	/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
-	pid_t tid = CHECK(remote_syscall(target, syscall_ret_gadget, __NR_clone, CLONE_FLAGS, (uintptr_t)target_sp, 0, 0, 0, 0));
+	pid_t tid = CHECK(remote_syscall(target, target_syscall_ret, __NR_clone, CLONE_FLAGS, (uintptr_t)TO_REMOTE(target_sp), 0, 0, 0, 0));
 	/* Wait for new thread to exit before unmapping its memory */
+	CHECK(tid);
 	do
 	{
 		usleep(100);
 	} while(kill(tid, 0) != -1); /* TODO this is vulnerable to a race condition */
 	/* What if the new thread dies, and a new process spawns and takes its pid? */
 	/* Unluckily it is impossible to waitpid() for a process you don't own. */
-	remote_syscall(target, target_libc_syscall_insn, __NR_munmap, (uintptr_t)mapped_mem, MAPPINGSIZE, 0, 0, 0, 0);
+
+	shmctl(shm_id, IPC_RMID, NULL);
 
 out_ptrace:
 	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));

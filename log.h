@@ -19,7 +19,7 @@ extern enum verbosity_level
 #define LOG_PREFIX ""
 #endif
 
-#define DBGPTR(p) DBG("%s=%p", #p, p)
+#define DBGPTR(p) DBG("%s=%p", #p, (void *)p)
 
 #define LOG(verb, fmt, ...) do{if(verbosity>=verb){printf(LOG_PREFIX fmt "\n", ##__VA_ARGS__);}}while(0)
 #define INFO(fmt, ...) LOG(V_INFO, "[INFO] " fmt, ##__VA_ARGS__)
