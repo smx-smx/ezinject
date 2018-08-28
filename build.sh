@@ -9,5 +9,5 @@ elif [ "$1" == "arm" ]; then
 fi
 [ ! -d build ] && mkdir build
 cd build
-cmake .. ${TOOLCHAINFILE:+"$TOOLCHAINFILE"} # Only pass the parameter if it's set
+cmake .. ${TOOLCHAINFILE}
 cmake --build . -- -j$(nproc)
