@@ -144,12 +144,6 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	int shm_id;
-	if((shm_id = shmget(target, MAPPINGSIZE, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
-		PERROR("shmget");
-		return 1;
-	}
-
 	ez_addr libc = {
 		.base_local  = (uintptr_t) get_base(getpid(), "libc-"),
 		.base_remote = (uintptr_t) get_base(target, "libc-")
@@ -185,10 +179,7 @@ int main(int argc, char *argv[])
 	}
 
 	DBGPTR(libc_syscall_insn.base_local);
-	
 	CHECK(ptrace(PTRACE_ATTACH, target, 0, 0));
-
-	usleep(100);
 
 	#define REMOTE_SC(nr, arg0, arg1, arg2, arg3) remote_syscall(target, (void *)libc_syscall_insn.base_remote, nr, arg0, arg1, arg2, arg3)
 	
@@ -199,14 +190,20 @@ int main(int argc, char *argv[])
 		ERR("Remote syscall returned incorrect result!");
 		ERR("Expected: %u, actual: %u", target, remote_pid);
 		err = 1;
-		goto out_ptrace;
+		goto cleanup_ptrace;
+	}
+
+	int shm_id;
+	if((shm_id = shmget(target, MAPPINGSIZE, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+		PERROR("shmget");
+		return 1;
 	}
 
 	char *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
 	if(mapped_mem == MAP_FAILED){
 		PERROR("shmat");
 		err = 1;
-		goto out_ptrace;
+		goto cleanup_shm;
 	}
 	
 	size_t injected_size = (size_t)(injected_code_end - (uintptr_t)injected_code);
@@ -222,7 +219,6 @@ int main(int argc, char *argv[])
 	
 	// copy 'syscall' insn
 	memcpy(syscall_ret_gadget, (void*)SYSCALL_INSN, sizeof(SYSCALL_INSN));
-	usleep(100);
 	DBGPTR(syscall_ret_gadget + sizeof(SYSCALL_INSN));
 
 	// copy 'ret' insn
@@ -248,21 +244,27 @@ int main(int argc, char *argv[])
 	DBGPTR(target_bearing);
 
 	int remote_shm_id = (int)CHECK(REMOTE_SC(__NR_shmget, target, MAPPINGSIZE, S_IRWXO, 0));
+	if(remote_shm_id < 0){
+		ERR("Remote shmget failed: %d", remote_shm_id);
+		goto cleanup_shm;
+	}
 	uintptr_t remote_shm_ptr = CHECK(REMOTE_SC(__NR_shmat, remote_shm_id, 0, SHM_EXEC, 0));
+	if(remote_shm_ptr == (uintptr_t)MAP_FAILED){
+		ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
+		goto cleanup_shm;
+	}
 
-	#define TO_REMOTE(pl_addr) ((void *)(remote_shm_ptr + ((uintptr_t)(pl_addr) - (uintptr_t)mapped_mem)))
+	#define PL_REMOTE(pl_addr) ((void *)(remote_shm_ptr + ((uintptr_t)(pl_addr) - (uintptr_t)mapped_mem)))
 
 	uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 2));
 	target_sp[0] = (uintptr_t)remote_shm_ptr; //code base
-	target_sp[1] = (uintptr_t)TO_REMOTE(target_bearing);
+	target_sp[1] = (uintptr_t)PL_REMOTE(target_bearing);
 	
-
-	char *target_syscall_ret = TO_REMOTE(syscall_ret_gadget);
-	#define REMOTE_SC_RET(nr, arg0, arg1, arg2, arg3) remote_syscall(target, (void *)target_syscall_ret, nr, arg0, arg1, arg2, arg3)
-	
-
 	DBGPTR(target_sp[0]);
 	DBGPTR(target_sp[1]);
+
+	char *target_syscall_ret = PL_REMOTE(syscall_ret_gadget);
+	#define REMOTE_SC_RET(nr, arg0, arg1, arg2, arg3) remote_syscall(target, (void *)target_syscall_ret, nr, arg0, arg1, arg2, arg3)
 
 	if(shmdt(mapped_mem) < 0){
 		PERROR("shmdt");
@@ -271,7 +273,7 @@ int main(int argc, char *argv[])
 	/* Make the call */
 	/* !! VERY IMPORTANT !! */
 	/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
-	pid_t tid = CHECK(REMOTE_SC_RET(__NR_clone, CLONE_FLAGS, (uintptr_t)TO_REMOTE(target_sp), 0, 0));
+	pid_t tid = CHECK(REMOTE_SC_RET(__NR_clone, CLONE_FLAGS, (uintptr_t)PL_REMOTE(target_sp), 0, 0));
 	/* Wait for new thread to exit before unmapping its memory */
 	CHECK(tid);
 	do
@@ -281,9 +283,11 @@ int main(int argc, char *argv[])
 	/* What if the new thread dies, and a new process spawns and takes its pid? */
 	/* Unluckily it is impossible to waitpid() for a process you don't own. */
 
-	shmctl(shm_id, IPC_RMID, NULL);
+cleanup_shm:
+	// mark shared memory for deletion, when the process dies
+	CHECK(shmctl(shm_id, IPC_RMID, NULL));
 
-out_ptrace:
+cleanup_ptrace:
 	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
 	return err;
 }
