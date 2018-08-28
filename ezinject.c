@@ -109,6 +109,7 @@ uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg
 	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall return */
 	waitpid(target, 0, 0);
 	ptrace(PTRACE_GETREGS, target, 0, &new_ctx); /* Get return value */
+	
 	ptrace(PTRACE_SETREGS, target, 0, &orig_ctx);
 	DBG("remote_syscall(%d) = %zu", nr, (uintptr_t)new_ctx.regs.REG_RET);
 
@@ -181,6 +182,14 @@ int main(int argc, char *argv[])
 
 	DBGPTR(libc_syscall_insn.base_local);
 	CHECK(ptrace(PTRACE_ATTACH, target, 0, 0));
+
+	{
+		pid_t proc_pid;
+		int status = 0;
+		while ((proc_pid=waitpid(target, &status, __WALL | WUNTRACED)) != target && proc_pid >= 0){
+			DBG("Skipping process '%d'", proc_pid);
+		}
+	}
 
 	#define REMOTE_SC(nr, arg0, arg1, arg2, arg3) remote_syscall(target, (void *)libc_syscall_insn.base_remote, nr, arg0, arg1, arg2, arg3)
 	
