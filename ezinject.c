@@ -90,6 +90,8 @@ typedef struct {
 uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
 {
 	struct user orig_ctx, new_ctx;
+	memset(&orig_ctx, 0x00, sizeof(orig_ctx));
+
 	ptrace(PTRACE_GETREGS, target, 0, &orig_ctx.regs);
 	memcpy(&new_ctx, &orig_ctx, sizeof(orig_ctx));
 
