@@ -27,7 +27,6 @@ _tmp;})
 enum verbosity_level verbosity = V_DBG;
 
 #if defined(__arm__)
-#define regs user_regs
 #define REG_PC uregs[15]
 #define REG_NR uregs[7]
 #define REG_RET uregs[0]
@@ -40,7 +39,6 @@ enum verbosity_level verbosity = V_DBG;
 const char SYSCALL_INSN[] = {0x00, 0x00, 0x00, 0xef}; /* swi 0 */
 const char RET_INSN[] = {0x04, 0xf0, 0x9d, 0xe4}; /* pop {pc} */
 #elif defined(__i386__)
-#define regs user_regs_struct
 #define REG_PC eip
 #define REG_NR eax
 #define REG_RET eax
@@ -53,7 +51,6 @@ const char RET_INSN[] = {0x04, 0xf0, 0x9d, 0xe4}; /* pop {pc} */
 const char SYSCALL_INSN[] = {0xcd, 0x80}; /* int 0x80 */
 const char RET_INSN[] = {0xc3}; /* ret */
 #elif defined(__amd64__)
-#define regs user_regs_struct
 #define REG_PC rip
 #define REG_NR rax
 #define REG_RET rax
@@ -92,26 +89,28 @@ typedef struct {
 
 uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
 {
-	struct regs orig_regs, new_regs;
-	ptrace(PTRACE_GETREGS, target, 0, &orig_regs);
-	memcpy(&new_regs, &orig_regs, sizeof(struct regs));
-	new_regs.REG_PC = (uintptr_t)syscall_addr;
-	new_regs.REG_NR = nr;
-	new_regs.REG_ARG1 = arg1;
-	new_regs.REG_ARG2 = arg2;
-	new_regs.REG_ARG3 = arg3;
-	new_regs.REG_ARG4 = arg4;
-	/*new_regs.REG_ARG5 = arg5;
-	new_regs.REG_ARG6 = arg6;*/
-	ptrace(PTRACE_SETREGS, target, 0, &new_regs);
+	struct user orig_ctx, new_ctx;
+	ptrace(PTRACE_GETREGS, target, 0, &orig_ctx.regs);
+	memcpy(&new_ctx, &orig_ctx, sizeof(orig_ctx));
+
+	new_ctx.regs.REG_PC = (uintptr_t)syscall_addr;
+	new_ctx.regs.REG_NR = nr;
+	new_ctx.regs.REG_ARG1 = arg1;
+	new_ctx.regs.REG_ARG2 = arg2;
+	new_ctx.regs.REG_ARG3 = arg3;
+	new_ctx.regs.REG_ARG4 = arg4;
+	/*new_ctx.regs.REG_ARG5 = arg5;
+	new_ctx.regs.REG_ARG6 = arg6;*/
+	ptrace(PTRACE_SETREGS, target, 0, &new_ctx.regs);
 	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall entry */
 	waitpid(target, 0, 0);
 	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall return */
 	waitpid(target, 0, 0);
-	ptrace(PTRACE_GETREGS, target, 0, &new_regs); /* Get return value */
-	ptrace(PTRACE_SETREGS, target, 0, &orig_regs);
-	DBG("remote_syscall(%d) = %zu", nr, (uintptr_t)new_regs.REG_RET);
-	return new_regs.REG_RET;
+	ptrace(PTRACE_GETREGS, target, 0, &new_ctx.regs); /* Get return value */
+	ptrace(PTRACE_SETREGS, target, 0, &orig_ctx.regs);
+	DBG("remote_syscall(%d) = %zu", nr, (uintptr_t)new_ctx.regs.REG_RET);
+
+	return new_ctx.regs.REG_RET;
 }
 
 void *locate_gadget(uint8_t *base, size_t limit, uint8_t *search, size_t searchSz){
