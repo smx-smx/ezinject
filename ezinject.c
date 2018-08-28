@@ -92,7 +92,7 @@ uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg
 	struct user orig_ctx, new_ctx;
 	memset(&orig_ctx, 0x00, sizeof(orig_ctx));
 
-	ptrace(PTRACE_GETREGS, target, 0, &orig_ctx.regs);
+	ptrace(PTRACE_GETREGS, target, 0, &orig_ctx);
 	memcpy(&new_ctx, &orig_ctx, sizeof(orig_ctx));
 
 	new_ctx.regs.REG_PC = (uintptr_t)syscall_addr;
@@ -103,13 +103,13 @@ uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg
 	new_ctx.regs.REG_ARG4 = arg4;
 	/*new_ctx.regs.REG_ARG5 = arg5;
 	new_ctx.regs.REG_ARG6 = arg6;*/
-	ptrace(PTRACE_SETREGS, target, 0, &new_ctx.regs);
+	ptrace(PTRACE_SETREGS, target, 0, &new_ctx);
 	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall entry */
 	waitpid(target, 0, 0);
 	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall return */
 	waitpid(target, 0, 0);
-	ptrace(PTRACE_GETREGS, target, 0, &new_ctx.regs); /* Get return value */
-	ptrace(PTRACE_SETREGS, target, 0, &orig_ctx.regs);
+	ptrace(PTRACE_GETREGS, target, 0, &new_ctx); /* Get return value */
+	ptrace(PTRACE_SETREGS, target, 0, &orig_ctx);
 	DBG("remote_syscall(%d) = %zu", nr, (uintptr_t)new_ctx.regs.REG_RET);
 
 	return new_ctx.regs.REG_RET;
