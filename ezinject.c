@@ -22,7 +22,6 @@ DBG("%s = %lu", #x, _tmp);\
 _tmp;})
 
 #include "util.h"
-#include "elfparse.h"
 #include "ezinject_injcode.h"
 
 enum verbosity_level verbosity = V_DBG;
@@ -82,7 +81,16 @@ const char RET_INSN[] = {0xc3}; /* ret */
 
 #define CLONE_FLAGS (CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD|CLONE_IO)
 
-uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, uintptr_t arg6)
+typedef struct {
+	uintptr_t base_remote;
+	uintptr_t base_local;
+} ez_addr;
+
+#define EZ_LOCAL(ref, remote) (ref.base_local + (((uintptr_t)remote) - ref.base_remote))
+#define EZ_REMOTE(ref, local) (ref.base_remote + (((uintptr_t)local) - ref.base_local))
+
+
+uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
 {
 	struct regs orig_regs, new_regs;
 	ptrace(PTRACE_GETREGS, target, 0, &orig_regs);
@@ -93,8 +101,8 @@ uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg
 	new_regs.REG_ARG2 = arg2;
 	new_regs.REG_ARG3 = arg3;
 	new_regs.REG_ARG4 = arg4;
-	new_regs.REG_ARG5 = arg5;
-	new_regs.REG_ARG6 = arg6;
+	/*new_regs.REG_ARG5 = arg5;
+	new_regs.REG_ARG6 = arg6;*/
 	ptrace(PTRACE_SETREGS, target, 0, &new_regs);
 	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall entry */
 	waitpid(target, 0, 0);
@@ -104,6 +112,17 @@ uintptr_t remote_syscall(pid_t target, void *syscall_addr, int nr, uintptr_t arg
 	ptrace(PTRACE_SETREGS, target, 0, &orig_regs);
 	DBG("remote_syscall(%d) = %zu", nr, (uintptr_t)new_regs.REG_RET);
 	return new_regs.REG_RET;
+}
+
+void *locate_gadget(uint8_t *base, size_t limit, uint8_t *search, size_t searchSz){
+	for(size_t i = 0; i < limit; ++i)
+	{
+		if(!memcmp(&base[i], search, searchSz))
+		{
+			return (void *)&base[i];
+		}
+	}
+	return NULL;
 }
 
 int main(int argc, char *argv[])
@@ -125,58 +144,56 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	void *hndl = elfparse_createhandle(buf);
-	if(!hndl)
-	{
-		ERR("Failed to parse ELF file %s", buf);
-		return 1;
-	}
-
 	int shm_id;
 	if((shm_id = shmget(target, MAPPINGSIZE, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
 		PERROR("shmget");
 		return 1;
 	}
 
-	char *target_libc_base = get_base(target, "libc-");
-	char *my_libc_base = get_base(getpid(), "libc-");
+	ez_addr libc = {
+		.base_local  = (uintptr_t) get_base(getpid(), "libc-"),
+		.base_remote = (uintptr_t) get_base(target, "libc-")
+	};
 
-	DBGPTR(target_libc_base);
-	DBGPTR(my_libc_base);
+	DBGPTR(libc.base_remote);
+	DBGPTR(libc.base_local);
 	
-	if(!target_libc_base || !my_libc_base)
+	if(!libc.base_local || !libc.base_remote)
 	{
 		ERR("Failed to get libc base");
-		err = 1;
-		goto out_elfparse;
+		return 1;
 	}
 
-	char *my_libc_syscall_func = dlsym(RTLD_DEFAULT, "syscall");
-	void *target_libc_syscall_func = my_libc_syscall_func - (uintptr_t)my_libc_base + (uintptr_t)target_libc_base;
-	char *my_libc_syscall_insn = 0;
-	for(int i = 0; i < 0x1000; ++i)
-	{
-		if(!memcmp(&my_libc_syscall_func[i], SYSCALL_INSN, sizeof(SYSCALL_INSN)))
-		{
-			my_libc_syscall_insn = &my_libc_syscall_func[i];
-			break;
-		}
-	}
-	if(!my_libc_syscall_insn)
+	ez_addr libc_syscall = {
+		.base_local  = (uintptr_t)&syscall,
+		.base_remote = EZ_REMOTE(libc, &syscall)
+	};
+
+	ez_addr libc_syscall_insn = {
+		.base_local = (uintptr_t)locate_gadget(
+			(uint8_t *)libc_syscall.base_local, 0x1000,
+			(uint8_t *)SYSCALL_INSN, sizeof(SYSCALL_INSN)
+		),
+	};
+	libc_syscall_insn.base_remote = EZ_REMOTE(libc, libc_syscall_insn.base_local);
+
+	if(!libc_syscall_insn.base_local)
 	{
 		ERR("Failed to find syscall instruction in libc");
 		err = 1;
 		return 1;
 	}
-	char *target_libc_syscall_insn = my_libc_syscall_insn - (uintptr_t)my_libc_base + (uintptr_t)target_libc_base;
-	DBGPTR(target_libc_syscall_insn);
+
+	DBGPTR(libc_syscall_insn.base_local);
 	
 	CHECK(ptrace(PTRACE_ATTACH, target, 0, 0));
 
 	usleep(100);
+
+	#define REMOTE_SC(nr, arg0, arg1, arg2, arg3) remote_syscall(target, (void *)libc_syscall_insn.base_remote, nr, arg0, arg1, arg2, arg3)
 	
 	/* Verify that remote_syscall works correctly */
-	pid_t remote_pid = remote_syscall(target, target_libc_syscall_insn, __NR_getpid, 0, 0, 0, 0, 0, 0);
+	pid_t remote_pid = REMOTE_SC(__NR_getpid, 0, 0, 0, 0);
 	if(remote_pid != target)
 	{
 		ERR("Remote syscall returned incorrect result!");
@@ -214,13 +231,13 @@ int main(int argc, char *argv[])
 
 	/* Help the new thread get its bearings */
 	char *my_libc_dlopen_mode = dlsym(RTLD_DEFAULT, "__libc_dlopen_mode");
-	void *target_libc_dlopen_mode = my_libc_dlopen_mode - (uintptr_t)my_libc_base + (uintptr_t)target_libc_base;
+	void *target_libc_dlopen_mode = (void *)EZ_REMOTE(libc, my_libc_dlopen_mode);
 	DBGPTR(target_libc_dlopen_mode);
 	
 	struct injcode_bearing br =
 	{
 		.libc_dlopen_mode = target_libc_dlopen_mode,
-		.libc_syscall = target_libc_syscall_func
+		.libc_syscall = (void *)libc_syscall.base_remote
 	};
 	strncpy(br.libname, sopath, sizeof(br.libname));
 	char *target_bearing = ALIGN(syscall_ret_gadget_end);
@@ -230,8 +247,8 @@ int main(int argc, char *argv[])
 	DBGPTR(syscall_ret_gadget);
 	DBGPTR(target_bearing);
 
-	int remote_shm_id = (int)CHECK(remote_syscall(target, target_libc_syscall_insn, __NR_shmget, target, MAPPINGSIZE, S_IRWXO, 0, 0, 0));
-	uintptr_t remote_shm_ptr = CHECK(remote_syscall(target, target_libc_syscall_insn, __NR_shmat, remote_shm_id, 0, SHM_EXEC, 0, 0, 0));
+	int remote_shm_id = (int)CHECK(REMOTE_SC(__NR_shmget, target, MAPPINGSIZE, S_IRWXO, 0));
+	uintptr_t remote_shm_ptr = CHECK(REMOTE_SC(__NR_shmat, remote_shm_id, 0, SHM_EXEC, 0));
 
 	#define TO_REMOTE(pl_addr) ((void *)(remote_shm_ptr + ((uintptr_t)(pl_addr) - (uintptr_t)mapped_mem)))
 
@@ -239,7 +256,11 @@ int main(int argc, char *argv[])
 	target_sp[0] = (uintptr_t)remote_shm_ptr; //code base
 	target_sp[1] = (uintptr_t)TO_REMOTE(target_bearing);
 	
+
 	char *target_syscall_ret = TO_REMOTE(syscall_ret_gadget);
+	#define REMOTE_SC_RET(nr, arg0, arg1, arg2, arg3) remote_syscall(target, (void *)target_syscall_ret, nr, arg0, arg1, arg2, arg3)
+	
+
 	DBGPTR(target_sp[0]);
 	DBGPTR(target_sp[1]);
 
@@ -250,7 +271,7 @@ int main(int argc, char *argv[])
 	/* Make the call */
 	/* !! VERY IMPORTANT !! */
 	/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
-	pid_t tid = CHECK(remote_syscall(target, target_syscall_ret, __NR_clone, CLONE_FLAGS, (uintptr_t)TO_REMOTE(target_sp), 0, 0, 0, 0));
+	pid_t tid = CHECK(REMOTE_SC_RET(__NR_clone, CLONE_FLAGS, (uintptr_t)TO_REMOTE(target_sp), 0, 0));
 	/* Wait for new thread to exit before unmapping its memory */
 	CHECK(tid);
 	do
@@ -264,7 +285,5 @@ int main(int argc, char *argv[])
 
 out_ptrace:
 	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
-out_elfparse:
-	elfparse_destroyhandle(hndl);
 	return err;
 }
