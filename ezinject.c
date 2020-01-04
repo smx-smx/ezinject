@@ -209,13 +209,13 @@ int libc_init(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-struct injcode_bearing prepare_bearing(struct ezinj_ctx *ctx){
+struct injcode_bearing prepare_bearing(struct ezinj_ctx ctx){
 	/**
 	 * Rebase local symbols to remote
 	 */
 	#define GETSYM(sym) { \
 		.base_local = (uintptr_t) (sym), \
-		.base_remote = (uintptr_t) EZ_REMOTE(ctx->libc, (uintptr_t)(sym)) \
+		.base_remote = (uintptr_t) EZ_REMOTE(ctx.libc, (uintptr_t)(sym)) \
 	}
 
 	ez_addr libc_dlopen_mode = GETSYM(dlsym(RTLD_DEFAULT, "__libc_dlopen_mode"));
@@ -224,7 +224,7 @@ struct injcode_bearing prepare_bearing(struct ezinj_ctx *ctx){
 	ez_addr libc_shmdt = GETSYM(&shmdt);
 
 	struct injcode_bearing br = {
-		.libc_syscall = (void *)ctx->libc_syscall.base_remote,
+		.libc_syscall = (void *)ctx.libc_syscall.base_remote,
 		.libc_dlopen_mode = (void *)libc_dlopen_mode.base_remote,
 		.libc_shmget = (void *)libc_shmget.base_remote,
 		.libc_shmat = (void *)libc_shmat.base_remote,
@@ -296,7 +296,7 @@ int ezinject_main(struct ezinj_ctx ctx, const char *argLib, int *pshm_id){
 		return 1;
 	}
 
-	struct injcode_bearing br = prepare_bearing(&ctx);
+	struct injcode_bearing br = prepare_bearing(ctx);
 	br.mapped_mem = mapped_mem;
 	if(!realpath(argLib, br.libname))
 	{
@@ -329,8 +329,6 @@ int ezinject_main(struct ezinj_ctx ctx, const char *argLib, int *pshm_id){
 	DBGPTR(target_sp[0]);
 	DBGPTR(target_sp[1]);
 
-	uint8_t *target_syscall_ret = PL_REMOTE(pl.syscall_insn);
-
 	if(shmdt(mapped_mem) < 0){
 		PERROR("shmdt");
 		return 1;
@@ -338,6 +336,7 @@ int ezinject_main(struct ezinj_ctx ctx, const char *argLib, int *pshm_id){
 
 	/* Make the call */
 	/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
+	uint8_t *target_syscall_ret = PL_REMOTE(pl.syscall_insn);
 	pid_t tid = CHECK(__RCALL(ctx, target_syscall_ret, __NR_clone, CLONE_FLAGS, (uintptr_t)PL_REMOTE(target_sp), 0));
 	CHECK(tid);
 
@@ -368,9 +367,15 @@ int main(int argc, char *argv[]){
 	/* Wait for attached process to stop */
 	{
 		int status = 0;
-		do {
+		for(;;){
 			waitpid(target, &status, 0);
-		} while(!WIFSTOPPED(status) || IS_IGNORED_SIG(WSTOPSIG(status)));
+			if(WIFSTOPPED(status)){
+				if(!IS_IGNORED_SIG(WSTOPSIG(status))){
+					break;
+				}
+				CHECK(ptrace(PTRACE_CONT, target, 0, 0));
+			}
+		}
 	}
 	
 	do {
