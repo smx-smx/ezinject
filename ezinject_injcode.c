@@ -18,11 +18,9 @@ __attribute__((naked, noreturn)) void injected_code()
 	asm volatile("pop {%0}" : "=r"(br));
 #elif defined(__mips__)
  	asm volatile (
-		 "lw $t0, 0($sp)\n\t"
+		 "lw %0, 0($sp)\n\t"
 		 "addi $sp, $sp, 4\n\t"
-		 "add %0, $0, $t0\n"
 		 : "=r" (br)
-		 :: "t0"
 	);
 #else
 #error "Unsupported architecture"
@@ -34,7 +32,6 @@ __attribute__((naked, noreturn)) void injected_code()
 	int shm_id = br->libc_shmget(pid, MAPPINGSIZE, S_IRWXO);
 	void *mem = br->libc_shmat(shm_id, 0, 0);
 	br->libc_shmdt(mem);
-
 	br->libc_syscall(__NR_exit, 0);
 }
 

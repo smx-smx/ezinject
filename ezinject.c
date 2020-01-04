@@ -80,10 +80,6 @@ char RET_INSN[] = {
 	0x03, 0xe0, 0x00, 0x08  //jr $ra
 };
 
-static int isBigEndian(){
-	int i=1;
-    return ! *((char *)&i);
-}
 #else
 #error "Unsupported architecture"
 #endif
@@ -169,16 +165,6 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	#ifdef __mips__
-	if(!isBigEndian()){
-		*(uint32_t *)SYSCALL_INSN = __builtin_bswap32(*(uint32_t *)SYSCALL_INSN);
-		uint32_t *ret_ptr = (uint32_t *)RET_INSN;
-		ret_ptr[0] = __builtin_bswap32(ret_ptr[0]);
-		ret_ptr[1] = __builtin_bswap32(ret_ptr[1]);
-		ret_ptr[2] = __builtin_bswap32(ret_ptr[2]);
-	}
-	#endif
-
 	/**
 	 * locate glibc in /proc/<pid>/maps
 	 * both for local and remote procs
@@ -223,11 +209,10 @@ int main(int argc, char *argv[])
 
 	/* Wait for attached process to stop */
 	{
-		pid_t proc_pid;
 		int status = 0;
-		while ((proc_pid=waitpid(target, &status, __WALL | WUNTRACED)) != target && proc_pid >= 0){
-			DBG("Skipping process '%d'", proc_pid);
-		}
+		do {
+			waitpid(target, &status, 0);
+		} while(!WIFSTOPPED(status));
 	}
 
 	#define REMOTE_SC(nr, arg0, arg1, arg2, arg3) \
@@ -305,6 +290,7 @@ int main(int argc, char *argv[])
 	DBGPTR(syscall_ret_gadget);
 	DBGPTR(target_bearing);
 
+
 	//int remote_shm_id = (int)CHECK(REMOTE_SC(__NR_shmget, target, MAPPINGSIZE, S_IRWXO, 0));
 	int remote_shm_id = (int)CHECK(remote_call(target, (void *)libc_shmget.base_remote, 0, target, MAPPINGSIZE, S_IRWXO, 0));
 	if(remote_shm_id < 0){
@@ -319,7 +305,8 @@ int main(int argc, char *argv[])
 		goto cleanup_shm;
 	}
 
-	#define PL_REMOTE(pl_addr) ((void *)(remote_shm_ptr + ((uintptr_t)(pl_addr) - (uintptr_t)mapped_mem)))
+	#define PL_REMOTE(pl_addr) \
+		((void *)(remote_shm_ptr + ((uintptr_t)(pl_addr) - (uintptr_t)mapped_mem)))
 
 	uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 2));
 	target_sp[0] = (uintptr_t)remote_shm_ptr; //code base
@@ -329,7 +316,8 @@ int main(int argc, char *argv[])
 	DBGPTR(target_sp[1]);
 
 	char *target_syscall_ret = PL_REMOTE(syscall_ret_gadget);
-	#define REMOTE_SC_RET(nr, arg0, arg1, arg2, arg3) remote_call(target, (void *)target_syscall_ret, nr, arg0, arg1, arg2, arg3)
+	#define REMOTE_SC_RET(nr, arg0, arg1, arg2, arg3) \
+		remote_call(target, (void *)target_syscall_ret, nr, arg0, arg1, arg2, arg3)
 
 	if(shmdt(mapped_mem) < 0){
 		PERROR("shmdt");
@@ -339,14 +327,7 @@ int main(int argc, char *argv[])
 	/* !! VERY IMPORTANT !! */
 	/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
 	pid_t tid = CHECK(REMOTE_SC_RET(__NR_clone, CLONE_FLAGS, (uintptr_t)PL_REMOTE(target_sp), 0, 0));
-	/* Wait for new thread to exit before unmapping its memory */
 	CHECK(tid);
-	do
-	{
-		usleep(100);
-	} while(kill(tid, 0) != -1); /* TODO this is vulnerable to a race condition */
-	/* What if the new thread dies, and a new process spawns and takes its pid? */
-	/* Unluckily it is impossible to waitpid() for a process you don't own. */
 
 cleanup_shm:
 	// mark shared memory for deletion, when the process dies
