@@ -93,6 +93,7 @@ char RET_INSN[] = {
 #define ALIGNMSK ~(MEMALIGN-1)
 
 #define ALIGN(x) ((void *)(((uintptr_t)x + MEMALIGN) & ALIGNMSK))
+#define PTRDIFF(a, b) ( ((uintptr_t)(a)) - ((uintptr_t)(b)) )
 
 #define CLONE_FLAGS (CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD|CLONE_IO)
 
@@ -101,8 +102,8 @@ typedef struct {
 	uintptr_t base_local;
 } ez_addr;
 
-#define EZ_LOCAL(ref, remote) (ref.base_local + (((uintptr_t)remote) - ref.base_remote))
-#define EZ_REMOTE(ref, local) (ref.base_remote + (((uintptr_t)local) - ref.base_local))
+#define EZ_LOCAL(ref, remote) (ref.base_local + PTRDIFF(remote, ref.base_remote))
+#define EZ_REMOTE(ref, local) (ref.base_remote + PTRDIFF(local, ref.base_local))
 
 
 uintptr_t remote_call(pid_t target, void *insn_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
@@ -146,32 +147,28 @@ void *locate_gadget(uint8_t *base, size_t limit, uint8_t *search, size_t searchS
 	return NULL;
 }
 
-int main(int argc, char *argv[])
-{
-	char buf[128];
-	char sopath[PATH_MAX];
-	int err = 0;
-	if(argc != 3)
-	{
-		ERR("Usage: %s pid library-to-inject", argv[0]);
-		return 1;
-	}
-	pid_t target = atoi(argv[1]);
-	snprintf(buf, 128, "/proc/%u/exe", target);
+struct ezinj_ctx {
+	pid_t target;
+	ez_addr libc;
+	ez_addr libc_syscall;
+	ez_addr libc_syscall_insn;
+};
 
-	if(!realpath(argv[2], sopath))
-	{
-		PERROR("realpath");
-		return 1;
-	}
+struct ezinj_pl {
+	uint8_t *code_start;
+	uint8_t *syscall_insn;
+	uint8_t *ret_insn;
+	uint8_t *br_start;
+};
 
+int libc_init(struct ezinj_ctx *ctx){
 	/**
 	 * locate glibc in /proc/<pid>/maps
 	 * both for local and remote procs
 	 */
 	ez_addr libc = {
 		.base_local  = (uintptr_t) get_base(getpid(), "libc-"),
-		.base_remote = (uintptr_t) get_base(target, "libc-")
+		.base_remote = (uintptr_t) get_base(ctx->target, "libc-")
 	};
 
 	DBGPTR(libc.base_remote);
@@ -200,13 +197,173 @@ int main(int argc, char *argv[])
 	if(!libc_syscall_insn.base_local)
 	{
 		ERR("Failed to find syscall instruction in libc");
-		err = 1;
+		return 1;
+	}
+	DBGPTR(libc_syscall_insn.base_local);
+
+	ctx->libc = libc;
+	ctx->libc_syscall = libc_syscall;
+	ctx->libc_syscall_insn = libc_syscall_insn;
+	return 0;
+}
+
+struct injcode_bearing prepare_bearing(struct ezinj_ctx *ctx){
+	/**
+	 * Rebase local symbols to remote
+	 */
+	#define GETSYM(sym) { \
+		.base_local = (uintptr_t) (sym), \
+		.base_remote = (uintptr_t) EZ_REMOTE(ctx->libc, (uintptr_t)(sym)) \
+	}
+
+	ez_addr libc_dlopen_mode = GETSYM(dlsym(RTLD_DEFAULT, "__libc_dlopen_mode"));
+	ez_addr libc_shmget = GETSYM(&shmget);
+	ez_addr libc_shmat = GETSYM(&shmat);
+	ez_addr libc_shmdt = GETSYM(&shmdt);
+
+	struct injcode_bearing br = {
+		.libc_syscall = (void *)ctx->libc_syscall.base_remote,
+		.libc_dlopen_mode = (void *)libc_dlopen_mode.base_remote,
+		.libc_shmget = (void *)libc_shmget.base_remote,
+		.libc_shmat = (void *)libc_shmat.base_remote,
+		.libc_shmdt = (void *)libc_shmdt.base_remote
+	};
+	return br;
+}
+
+
+struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing br){
+	size_t injected_size = (size_t)PTRDIFF(injected_code_end, injected_code);
+	DBG("injsize=%zu", injected_size);
+
+	uint8_t *code_start = (uint8_t *)mapped_mem;
+	uint8_t *syscall_insn = ALIGN(code_start + injected_size);
+	uint8_t *ret_insn = syscall_insn + sizeof(SYSCALL_INSN);
+	uint8_t *br_start = ALIGN(ret_insn + sizeof(RET_INSN));
+
+	memcpy(code_start, injected_code, injected_size);
+	memcpy(syscall_insn, (void *)SYSCALL_INSN, sizeof(SYSCALL_INSN));
+	memcpy(ret_insn, (void*)RET_INSN, sizeof(RET_INSN));
+	memcpy(br_start, &br, sizeof(br));
+
+	struct ezinj_pl pl = {
+		.code_start = code_start,
+		.syscall_insn = syscall_insn,
+		.ret_insn = ret_insn,
+		.br_start = br_start
+	};
+	return pl;
+}
+
+#define UPTR(x) ((uintptr_t)x)
+#define __RCALL(ctx, x, ...) remote_call(ctx.target, (void *)x, __VA_ARGS__)
+#define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx.libc_syscall_insn.base_remote, n, __VA_ARGS__)
+
+// Remote Call
+#define RCALL0(ctx,x)                __RCALL(ctx,x,0,0,0,0,0)
+#define RCALL1(ctx,x,a1)             __RCALL(ctx,x,0,UPTR(a1),0,0,0)
+#define RCALL2(ctx,x,a1,a2)          __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),0,0)
+#define RCALL3(ctx,x,a1,a2,a3)       __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),UPTR(a3),0)
+#define RCALL4(ctx,x,a1,a2,a3,a4)    __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
+
+// Remote System Call
+#define RSCALL0(ctx,n)               __RCALL_SC(ctx,n,0,0,0,0)
+#define RSCALL1(ctx,n,a1)            __RCALL_SC(ctx,n,UPTR(a1),0,0,0)
+#define RSCALL2(ctx,n,a1,a2)         __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),0,0)
+#define RSCALL3(ctx,n,a1,a2,a3)      __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3),0)
+#define RSCALL4(ctx,n,a1,a2,a3,a4)   __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
+
+int ezinject_main(struct ezinj_ctx ctx, const char *argLib, int *pshm_id){
+	int shm_id;
+
+	/* Verify that remote_call works correctly */
+	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
+	if(remote_pid != ctx.target)
+	{
+		ERR("Remote syscall returned incorrect result!");
+		ERR("Expected: %u, actual: %u", ctx.target, remote_pid);
 		return 1;
 	}
 
-	DBGPTR(libc_syscall_insn.base_local);
+	if((shm_id = shmget(ctx.target, MAPPINGSIZE, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+		PERROR("shmget");
+		return 1;
+	}
+
+	void *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
+	if(mapped_mem == MAP_FAILED){
+		PERROR("shmat");
+		return 1;
+	}
+
+	struct injcode_bearing br = prepare_bearing(&ctx);
+	if(!realpath(argLib, br.libname))
+	{
+		PERROR("realpath");
+		return 1;
+	}
+	
+	struct ezinj_pl pl = prepare_payload(mapped_mem, br);
+
+	int remote_shm_id = (int)CHECK(RCALL3(ctx, br.libc_shmget, ctx.target, MAPPINGSIZE, S_IRWXO));
+	if(remote_shm_id < 0){
+		ERR("Remote shmget failed: %d", remote_shm_id);
+		return 1;
+	}
+	INFO("Shm id: %d", remote_shm_id);
+
+	uintptr_t remote_shm_ptr = CHECK(RCALL3(ctx, br.libc_shmat, remote_shm_id, NULL, SHM_EXEC));
+	if(remote_shm_ptr == (uintptr_t)MAP_FAILED){
+		ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
+		return 1;
+	}
+
+	#define PL_REMOTE(pl_addr) \
+		( (void *)(remote_shm_ptr + PTRDIFF(pl_addr, mapped_mem)) )
+
+	uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 2));
+	target_sp[0] = (uintptr_t)PL_REMOTE(pl.code_start);
+	target_sp[1] = (uintptr_t)PL_REMOTE(pl.br_start);
+	
+	DBGPTR(target_sp[0]);
+	DBGPTR(target_sp[1]);
+
+	uint8_t *target_syscall_ret = PL_REMOTE(pl.syscall_insn);
+
+	if(shmdt(mapped_mem) < 0){
+		PERROR("shmdt");
+		return 1;
+	}
+
+	/* Make the call */
+	/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
+	pid_t tid = CHECK(__RCALL(ctx, target_syscall_ret, __NR_clone, CLONE_FLAGS, (uintptr_t)PL_REMOTE(target_sp), 0, 0));
+	CHECK(tid);
+
+	*pshm_id = shm_id;
+	return 0;
+}
+
+int main(int argc, char *argv[]){
+	if(argc != 3) {
+		ERR("Usage: %s pid library-to-inject", argv[0]);
+		return 1;
+	}
+
+	const char *argPid = argv[1];
+	const char *argLib = argv[2];
+
+	pid_t target = atoi(argPid);
+	
+	struct ezinj_ctx ctx;
+	ctx.target = target;
+	if(libc_init(&ctx) != 0){
+		return 1;
+	}
+	
 	CHECK(ptrace(PTRACE_ATTACH, target, 0, 0));
 
+	int err = 0;
 	/* Wait for attached process to stop */
 	{
 		int status = 0;
@@ -214,126 +371,18 @@ int main(int argc, char *argv[])
 			waitpid(target, &status, 0);
 		} while(!WIFSTOPPED(status));
 	}
-
-	#define REMOTE_SC(nr, arg0, arg1, arg2, arg3) \
-		remote_call(target, (void *)libc_syscall_insn.base_remote, nr, arg0, arg1, arg2, arg3)
 	
-	/* Verify that remote_call works correctly */
-	pid_t remote_pid = REMOTE_SC(__NR_getpid, 0, 0, 0, 0);
-	if(remote_pid != target)
-	{
-		ERR("Remote syscall returned incorrect result!");
-		ERR("Expected: %u, actual: %u", target, remote_pid);
-		err = 1;
-		goto cleanup_ptrace;
-	}
-
-	int shm_id;
-	if((shm_id = shmget(target, MAPPINGSIZE, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
-		PERROR("shmget");
-		return 1;
-	}
-
-	char *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
-	if(mapped_mem == MAP_FAILED){
-		PERROR("shmat");
-		err = 1;
-		goto cleanup_shm;
-	}
-	
-	size_t injected_size = (size_t)(injected_code_end - (uintptr_t)injected_code);
-	
-	DBG("injsize=%zu", injected_size);
-	
-	/* Copy code */
-	memcpy(mapped_mem, injected_code, injected_size);
-	
-	/* Install syscall->ret gadget (will be used when creating thread) */
-	char *syscall_ret_gadget = ALIGN(mapped_mem + injected_size);
-	DBGPTR(syscall_ret_gadget);
-	
-	// copy 'syscall' insn
-	memcpy(syscall_ret_gadget, (void*)SYSCALL_INSN, sizeof(SYSCALL_INSN));
-	DBGPTR(syscall_ret_gadget + sizeof(SYSCALL_INSN));
-
-	// copy 'ret' insn
-	memcpy(syscall_ret_gadget + sizeof(SYSCALL_INSN), (void*)RET_INSN, sizeof(RET_INSN));
-	char *syscall_ret_gadget_end = syscall_ret_gadget + sizeof(SYSCALL_INSN) + sizeof(RET_INSN);
-
-	#define GETSYM(sym) { \
-		.base_local = (uintptr_t) (sym), \
-		.base_remote = (uintptr_t) EZ_REMOTE(libc, (uintptr_t)(sym)) \
-	}
-
-	/**
-	 * Rebase local symbols to remote
-	 */
-	ez_addr libc_dlopen_mode = GETSYM(dlsym(RTLD_DEFAULT, "__libc_dlopen_mode"));
-	ez_addr libc_shmget = GETSYM(&shmget);
-	ez_addr libc_shmat = GETSYM(&shmat);
-	ez_addr libc_shmdt = GETSYM(&shmdt);
-
-	DBGPTR(libc_dlopen_mode.base_remote);	
-	struct injcode_bearing br =
-	{
-		.libc_dlopen_mode = (void *)libc_dlopen_mode.base_remote,
-		.libc_syscall = (void *)libc_syscall.base_remote,
-		.libc_shmget = (void *)libc_shmget.base_remote,
-		.libc_shmat = (void *)libc_shmat.base_remote,
-		.libc_shmdt = (void *)libc_shmdt.base_remote
-	};
-	strncpy(br.libname, sopath, sizeof(br.libname));
-	char *target_bearing = ALIGN(syscall_ret_gadget_end);
-	memcpy(target_bearing, &br, sizeof(struct injcode_bearing));
-	
-	DBGPTR(mapped_mem);
-	DBGPTR(syscall_ret_gadget);
-	DBGPTR(target_bearing);
-
-
-	//int remote_shm_id = (int)CHECK(REMOTE_SC(__NR_shmget, target, MAPPINGSIZE, S_IRWXO, 0));
-	int remote_shm_id = (int)CHECK(remote_call(target, (void *)libc_shmget.base_remote, 0, target, MAPPINGSIZE, S_IRWXO, 0));
-	if(remote_shm_id < 0){
-		ERR("Remote shmget failed: %d", remote_shm_id);
-		goto cleanup_shm;
-	}
-	INFO("Shm id: %d", remote_shm_id);
-
-	uintptr_t remote_shm_ptr = CHECK(remote_call(target, (void *)libc_shmat.base_remote, 0, remote_shm_id, 0, SHM_EXEC, 0));
-	if(remote_shm_ptr == (uintptr_t)MAP_FAILED){
-		ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
-		goto cleanup_shm;
-	}
-
-	#define PL_REMOTE(pl_addr) \
-		((void *)(remote_shm_ptr + ((uintptr_t)(pl_addr) - (uintptr_t)mapped_mem)))
-
-	uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 2));
-	target_sp[0] = (uintptr_t)remote_shm_ptr; //code base
-	target_sp[1] = (uintptr_t)PL_REMOTE(target_bearing);
-	
-	DBGPTR(target_sp[0]);
-	DBGPTR(target_sp[1]);
-
-	char *target_syscall_ret = PL_REMOTE(syscall_ret_gadget);
-	#define REMOTE_SC_RET(nr, arg0, arg1, arg2, arg3) \
-		remote_call(target, (void *)target_syscall_ret, nr, arg0, arg1, arg2, arg3)
-
-	if(shmdt(mapped_mem) < 0){
-		PERROR("shmdt");
-	}
-
-	/* Make the call */
-	/* !! VERY IMPORTANT !! */
-	/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
-	pid_t tid = CHECK(REMOTE_SC_RET(__NR_clone, CLONE_FLAGS, (uintptr_t)PL_REMOTE(target_sp), 0, 0));
-	CHECK(tid);
-
-cleanup_shm:
-	// mark shared memory for deletion, when the process dies
-	CHECK(shmctl(shm_id, IPC_RMID, NULL));
-
-cleanup_ptrace:
+	do {
+		int shm_id = -1;
+		if((err = ezinject_main(ctx, argLib, &shm_id)) != 0){
+			break;
+		}
+		
+		if(shm_id > -1){
+			// mark shared memory for deletion, when the process dies
+			CHECK(shmctl(shm_id, IPC_RMID, NULL));
+		}
+	} while(0);
 	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
 	return err;
 }

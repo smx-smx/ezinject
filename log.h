@@ -1,4 +1,5 @@
 #include <errno.h>
+#include "config.h"
 
 extern enum verbosity_level
 {
