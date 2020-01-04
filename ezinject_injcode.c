@@ -27,11 +27,7 @@ __attribute__((naked, noreturn)) void injected_code()
 #endif
 
 	br->libc_dlopen_mode(br->libname, RTLD_NOW | __RTLD_DLOPEN);
-
-	pid_t pid = br->libc_syscall(__NR_getpid);
-	int shm_id = br->libc_shmget(pid, MAPPINGSIZE, S_IRWXO);
-	void *mem = br->libc_shmat(shm_id, 0, 0);
-	br->libc_shmdt(mem);
+	br->libc_shmdt(br->mapped_mem);
 	br->libc_syscall(__NR_exit, 0);
 }
 

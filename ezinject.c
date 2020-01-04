@@ -106,7 +106,7 @@ typedef struct {
 #define EZ_REMOTE(ref, local) (ref.base_remote + PTRDIFF(local, ref.base_local))
 
 
-uintptr_t remote_call(pid_t target, void *insn_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4)
+uintptr_t remote_call(pid_t target, void *insn_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3)
 {
 	struct user orig_ctx, new_ctx;
 	memset(&orig_ctx, 0x00, sizeof(orig_ctx));
@@ -119,8 +119,8 @@ uintptr_t remote_call(pid_t target, void *insn_addr, int nr, uintptr_t arg1, uin
 	new_ctx.regs.REG_ARG1 = arg1;
 	new_ctx.regs.REG_ARG2 = arg2;
 	new_ctx.regs.REG_ARG3 = arg3;
-	new_ctx.regs.REG_ARG4 = arg4;
-	/*new_ctx.regs.REG_ARG5 = arg5;
+	/*new_ctx.regs.REG_ARG4 = arg4;
+	new_ctx.regs.REG_ARG5 = arg5;
 	new_ctx.regs.REG_ARG6 = arg6;*/
 	ptrace(PTRACE_SETREGS, target, 0, &new_ctx);
 
@@ -260,18 +260,16 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing br){
 #define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx.libc_syscall_insn.base_remote, n, __VA_ARGS__)
 
 // Remote Call
-#define RCALL0(ctx,x)                __RCALL(ctx,x,0,0,0,0,0)
-#define RCALL1(ctx,x,a1)             __RCALL(ctx,x,0,UPTR(a1),0,0,0)
-#define RCALL2(ctx,x,a1,a2)          __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),0,0)
-#define RCALL3(ctx,x,a1,a2,a3)       __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),UPTR(a3),0)
-#define RCALL4(ctx,x,a1,a2,a3,a4)    __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
+#define RCALL0(ctx,x)                __RCALL(ctx,x,0,0,0,0)
+#define RCALL1(ctx,x,a1)             __RCALL(ctx,x,0,UPTR(a1),0,0)
+#define RCALL2(ctx,x,a1,a2)          __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),0)
+#define RCALL3(ctx,x,a1,a2,a3)       __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),UPTR(a3))
 
 // Remote System Call
-#define RSCALL0(ctx,n)               __RCALL_SC(ctx,n,0,0,0,0)
-#define RSCALL1(ctx,n,a1)            __RCALL_SC(ctx,n,UPTR(a1),0,0,0)
-#define RSCALL2(ctx,n,a1,a2)         __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),0,0)
-#define RSCALL3(ctx,n,a1,a2,a3)      __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3),0)
-#define RSCALL4(ctx,n,a1,a2,a3,a4)   __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
+#define RSCALL0(ctx,n)               __RCALL_SC(ctx,n,0,0,0)
+#define RSCALL1(ctx,n,a1)            __RCALL_SC(ctx,n,UPTR(a1),0,0)
+#define RSCALL2(ctx,n,a1,a2)         __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),0)
+#define RSCALL3(ctx,n,a1,a2,a3)      __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3))
 
 int ezinject_main(struct ezinj_ctx ctx, const char *argLib, int *pshm_id){
 	int shm_id;
@@ -297,6 +295,7 @@ int ezinject_main(struct ezinj_ctx ctx, const char *argLib, int *pshm_id){
 	}
 
 	struct injcode_bearing br = prepare_bearing(&ctx);
+	br.mapped_mem = mapped_mem;
 	if(!realpath(argLib, br.libname))
 	{
 		PERROR("realpath");
@@ -337,7 +336,7 @@ int ezinject_main(struct ezinj_ctx ctx, const char *argLib, int *pshm_id){
 
 	/* Make the call */
 	/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
-	pid_t tid = CHECK(__RCALL(ctx, target_syscall_ret, __NR_clone, CLONE_FLAGS, (uintptr_t)PL_REMOTE(target_sp), 0, 0));
+	pid_t tid = CHECK(__RCALL(ctx, target_syscall_ret, __NR_clone, CLONE_FLAGS, (uintptr_t)PL_REMOTE(target_sp), 0));
 	CHECK(tid);
 
 	*pshm_id = shm_id;
