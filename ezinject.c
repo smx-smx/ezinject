@@ -97,6 +97,8 @@ char RET_INSN[] = {
 
 #define CLONE_FLAGS (CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD|CLONE_IO)
 
+#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
+
 typedef struct {
 	uintptr_t base_remote;
 	uintptr_t base_local;
@@ -368,7 +370,7 @@ int main(int argc, char *argv[]){
 		int status = 0;
 		do {
 			waitpid(target, &status, 0);
-		} while(!WIFSTOPPED(status));
+		} while(!WIFSTOPPED(status) || IS_IGNORED_SIG(WSTOPSIG(status)));
 	}
 	
 	do {
