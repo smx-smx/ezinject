@@ -29,60 +29,7 @@ _tmp;})
 
 enum verbosity_level verbosity = V_DBG;
 
-#if defined(__arm__)
-#define REG_PC uregs[15]
-#define REG_NR uregs[7]
-#define REG_RET uregs[0]
-#define REG_ARG1 uregs[0]
-#define REG_ARG2 uregs[1]
-#define REG_ARG3 uregs[2]
-#define REG_ARG4 uregs[3]
-#define REG_ARG5 uregs[4]
-#define REG_ARG6 uregs[5]
-const char SYSCALL_INSN[] = {0x00, 0x00, 0x00, 0xef}; /* swi 0 */
-const char RET_INSN[] = {0x04, 0xf0, 0x9d, 0xe4}; /* pop {pc} */
-#elif defined(__i386__)
-#define REG_PC eip
-#define REG_NR eax
-#define REG_RET eax
-#define REG_ARG1 ebx
-#define REG_ARG2 ecx
-#define REG_ARG3 edx
-#define REG_ARG4 esi
-#define REG_ARG5 edi
-#define REG_ARG6 ebp
-const char SYSCALL_INSN[] = {0xcd, 0x80}; /* int 0x80 */
-const char RET_INSN[] = {0xc3}; /* ret */
-#elif defined(__amd64__)
-#define REG_PC rip
-#define REG_NR rax
-#define REG_RET rax
-#define REG_ARG1 rdi
-#define REG_ARG2 rsi
-#define REG_ARG3 rdx
-#define REG_ARG4 r10
-#define REG_ARG5 r8
-#define REG_ARG6 r9
-const char SYSCALL_INSN[] = {0x0f, 0x05}; /* syscall */
-const char RET_INSN[] = {0xc3}; /* ret */
-#elif defined(__mips__)
-#define REG_PC regs[EF_CP0_EPC]
-#define REG_RET regs[2] //$v0
-#define REG_NR regs[2] //$v0
-#define REG_ARG1 regs[4] //$a0
-#define REG_ARG2 regs[5] //$a1
-#define REG_ARG3 regs[6] //$a2
-#define REG_ARG4 regs[7] //$a3
-char SYSCALL_INSN[] = {0x00, 0x00, 0x00, 0x0c}; //syscall
-char RET_INSN[] = {
-	0x8f, 0xbf, 0x00, 0x00, //lw $ra, 0($sp)
-	0x23, 0xbd, 0x00, 0x04, //addi $sp, $sp, 4
-	0x03, 0xe0, 0x00, 0x08  //jr $ra
-};
-
-#else
-#error "Unsupported architecture"
-#endif
+#include "ezinject_arch.h"
 
 #ifndef __NR_mmap
 #define __NR_mmap __NR_mmap2 /* Functionally equivalent for our use case. */

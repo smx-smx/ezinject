@@ -9,5 +9,5 @@ elif [ ! -z "$1" ] && [ -f "$1.cmake" ]; then
 fi
 [ ! -d build ] && mkdir build
 cd build
-cmake .. ${TOOLCHAINFILE}
+cmake .. ${TOOLCHAINFILE} -DDEBUG=ON
 cmake --build . -- -j$(nproc)
