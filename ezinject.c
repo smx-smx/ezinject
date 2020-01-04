@@ -179,6 +179,10 @@ int main(int argc, char *argv[])
 	}
 	#endif
 
+	/**
+	 * locate glibc in /proc/<pid>/maps
+	 * both for local and remote procs
+	 */
 	ez_addr libc = {
 		.base_local  = (uintptr_t) get_base(getpid(), "libc-"),
 		.base_remote = (uintptr_t) get_base(target, "libc-")
@@ -201,7 +205,8 @@ int main(int argc, char *argv[])
 	ez_addr libc_syscall_insn = {
 		.base_local = (uintptr_t)locate_gadget(
 			(uint8_t *)libc_syscall.base_local, 0x1000,
-			(uint8_t *)SYSCALL_INSN, sizeof(SYSCALL_INSN)
+			(uint8_t *)SYSCALL_INSN,
+			sizeof(SYSCALL_INSN)
 		),
 	};
 	libc_syscall_insn.base_remote = EZ_REMOTE(libc, libc_syscall_insn.base_local);
@@ -216,6 +221,7 @@ int main(int argc, char *argv[])
 	DBGPTR(libc_syscall_insn.base_local);
 	CHECK(ptrace(PTRACE_ATTACH, target, 0, 0));
 
+	/* Wait for attached process to stop */
 	{
 		pid_t proc_pid;
 		int status = 0;
@@ -224,7 +230,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	#define REMOTE_SC(nr, arg0, arg1, arg2, arg3) remote_call(target, (void *)libc_syscall_insn.base_remote, nr, arg0, arg1, arg2, arg3)
+	#define REMOTE_SC(nr, arg0, arg1, arg2, arg3) \
+		remote_call(target, (void *)libc_syscall_insn.base_remote, nr, arg0, arg1, arg2, arg3)
 	
 	/* Verify that remote_call works correctly */
 	pid_t remote_pid = REMOTE_SC(__NR_getpid, 0, 0, 0, 0);
@@ -268,29 +275,20 @@ int main(int argc, char *argv[])
 	memcpy(syscall_ret_gadget + sizeof(SYSCALL_INSN), (void*)RET_INSN, sizeof(RET_INSN));
 	char *syscall_ret_gadget_end = syscall_ret_gadget + sizeof(SYSCALL_INSN) + sizeof(RET_INSN);
 
-	/* Help the new thread get its bearings */
-	ez_addr libc_dlopen_mode = {
-		.base_local = (uintptr_t) dlsym(RTLD_DEFAULT, "__libc_dlopen_mode")
-	};
-	libc_dlopen_mode.base_remote = (uintptr_t) EZ_REMOTE(libc, libc_dlopen_mode.base_local);
+	#define GETSYM(sym) { \
+		.base_local = (uintptr_t) (sym), \
+		.base_remote = (uintptr_t) EZ_REMOTE(libc, (uintptr_t)(sym)) \
+	}
 
-	ez_addr libc_shmget = {
-		.base_local = (uintptr_t) &shmget
-	};
-	libc_shmget.base_remote = (uintptr_t) EZ_REMOTE(libc, libc_shmget.base_local);
+	/**
+	 * Rebase local symbols to remote
+	 */
+	ez_addr libc_dlopen_mode = GETSYM(dlsym(RTLD_DEFAULT, "__libc_dlopen_mode"));
+	ez_addr libc_shmget = GETSYM(&shmget);
+	ez_addr libc_shmat = GETSYM(&shmat);
+	ez_addr libc_shmdt = GETSYM(&shmdt);
 
-	ez_addr libc_shmat = {
-		.base_local = (uintptr_t) &shmat
-	};
-	libc_shmat.base_remote = (uintptr_t) EZ_REMOTE(libc, libc_shmat.base_local);
-
-	ez_addr libc_shmdt = {
-		.base_local = (uintptr_t) &shmdt
-	};
-	libc_shmdt.base_remote = (uintptr_t) EZ_REMOTE(libc, libc_shmdt.base_local);
-
-	DBGPTR(libc_dlopen_mode.base_remote);
-	
+	DBGPTR(libc_dlopen_mode.base_remote);	
 	struct injcode_bearing br =
 	{
 		.libc_dlopen_mode = (void *)libc_dlopen_mode.base_remote,
@@ -313,7 +311,9 @@ int main(int argc, char *argv[])
 		ERR("Remote shmget failed: %d", remote_shm_id);
 		goto cleanup_shm;
 	}
-	uintptr_t remote_shm_ptr = CHECK(remote_call(target, (void *)libc_shmat.base_remote, 0, remote_shm_id, SHM_EXEC, 0, 0));
+	INFO("Shm id: %d", remote_shm_id);
+
+	uintptr_t remote_shm_ptr = CHECK(remote_call(target, (void *)libc_shmat.base_remote, 0, remote_shm_id, 0, SHM_EXEC, 0));
 	if(remote_shm_ptr == (uintptr_t)MAP_FAILED){
 		ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
 		goto cleanup_shm;
