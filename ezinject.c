@@ -19,11 +19,6 @@
 #include <sys/shm.h>
 #include <sys/user.h>
 
-#define CHECK(x) ({\
-long _tmp = (x);\
-DBG("%s = %lu", #x, _tmp);\
-_tmp;})
-
 #include "util.h"
 #include "ezinject_injcode.h"
 
@@ -47,15 +42,15 @@ enum verbosity_level verbosity = V_DBG;
 #define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
 
 typedef struct {
-	uintptr_t base_remote;
-	uintptr_t base_local;
+	uintptr_t remote;
+	uintptr_t local;
 } ez_addr;
 
-#define EZ_LOCAL(ref, remote) (ref.base_local + PTRDIFF(remote, ref.base_remote))
-#define EZ_REMOTE(ref, local) (ref.base_remote + PTRDIFF(local, ref.base_local))
+#define EZ_LOCAL(ref, remote_addr) (ref.local + PTRDIFF(remote_addr, ref.remote))
+#define EZ_REMOTE(ref, local_addr) (ref.remote + PTRDIFF(local_addr, ref.local))
 
 
-uintptr_t remote_call(pid_t target, void *insn_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3)
+uintptr_t remote_call(pid_t target, uintptr_t insn_addr, int nr, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3)
 {
 	struct user orig_ctx, new_ctx;
 	memset(&orig_ctx, 0x00, sizeof(orig_ctx));
@@ -116,39 +111,40 @@ int libc_init(struct ezinj_ctx *ctx){
 	 * both for local and remote procs
 	 */
 	ez_addr libc = {
-		.base_local  = (uintptr_t) get_base(getpid(), "libc-"),
-		.base_remote = (uintptr_t) get_base(ctx->target, "libc-")
+		.local  = (uintptr_t) get_base(getpid(), "libc-"),
+		.remote = (uintptr_t) get_base(ctx->target, "libc-")
 	};
 
-	DBGPTR(libc.base_remote);
-	DBGPTR(libc.base_local);
+	DBGPTR(libc.remote);
+	DBGPTR(libc.local);
 	
-	if(!libc.base_local || !libc.base_remote)
+	if(!libc.local || !libc.remote)
 	{
 		ERR("Failed to get libc base");
 		return 1;
 	}
 
 	ez_addr libc_syscall = {
-		.base_local  = (uintptr_t)&syscall,
-		.base_remote = EZ_REMOTE(libc, &syscall)
+		.local  = (uintptr_t)&syscall,
+		.remote = EZ_REMOTE(libc, &syscall)
 	};
 
 	ez_addr libc_syscall_insn = {
-		.base_local = (uintptr_t)locate_gadget(
-			(uint8_t *)libc_syscall.base_local, 0x1000,
+		.local = (uintptr_t)locate_gadget(
+			(uint8_t *)libc_syscall.local, 0x1000,
 			(uint8_t *)SYSCALL_INSN,
 			sizeof(SYSCALL_INSN)
 		),
 	};
-	libc_syscall_insn.base_remote = EZ_REMOTE(libc, libc_syscall_insn.base_local);
 
-	if(!libc_syscall_insn.base_local)
+	DBGPTR(libc_syscall_insn.local);
+	if(!libc_syscall_insn.local)
 	{
 		ERR("Failed to find syscall instruction in libc");
 		return 1;
 	}
-	DBGPTR(libc_syscall_insn.base_local);
+
+	libc_syscall_insn.remote = EZ_REMOTE(libc, libc_syscall_insn.local);
 
 	ctx->libc = libc;
 	ctx->libc_syscall = libc_syscall;
@@ -160,22 +156,22 @@ struct injcode_bearing prepare_bearing(struct ezinj_ctx ctx){
 	/**
 	 * Rebase local symbols to remote
 	 */
-	#define GETSYM(sym) { \
-		.base_local = (uintptr_t) (sym), \
-		.base_remote = (uintptr_t) EZ_REMOTE(ctx.libc, (uintptr_t)(sym)) \
+	#define SYM_ADDR(sym) { \
+		.local = (uintptr_t) (sym), \
+		.remote = (uintptr_t) EZ_REMOTE(ctx.libc, (uintptr_t)(sym)) \
 	}
 
-	ez_addr libc_dlopen_mode = GETSYM(dlsym(RTLD_DEFAULT, "__libc_dlopen_mode"));
-	ez_addr libc_shmget = GETSYM(&shmget);
-	ez_addr libc_shmat = GETSYM(&shmat);
-	ez_addr libc_shmdt = GETSYM(&shmdt);
+	ez_addr libc_dlopen_mode = SYM_ADDR(dlsym(RTLD_DEFAULT, "__libc_dlopen_mode"));
+	ez_addr libc_shmget = SYM_ADDR(&shmget);
+	ez_addr libc_shmat = SYM_ADDR(&shmat);
+	ez_addr libc_shmdt = SYM_ADDR(&shmdt);
 
 	struct injcode_bearing br = {
-		.libc_syscall = (void *)ctx.libc_syscall.base_remote,
-		.libc_dlopen_mode = (void *)libc_dlopen_mode.base_remote,
-		.libc_shmget = (void *)libc_shmget.base_remote,
-		.libc_shmat = (void *)libc_shmat.base_remote,
-		.libc_shmdt = (void *)libc_shmdt.base_remote
+		.libc_syscall = (void *)ctx.libc_syscall.remote,
+		.libc_dlopen_mode = (void *)libc_dlopen_mode.remote,
+		.libc_shmget = (void *)libc_shmget.remote,
+		.libc_shmat = (void *)libc_shmat.remote,
+		.libc_shmdt = (void *)libc_shmdt.remote
 	};
 	return br;
 }
@@ -205,8 +201,8 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing br){
 }
 
 #define UPTR(x) ((uintptr_t)x)
-#define __RCALL(ctx, x, ...) remote_call(ctx.target, (void *)x, __VA_ARGS__)
-#define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx.libc_syscall_insn.base_remote, n, __VA_ARGS__)
+#define __RCALL(ctx, x, ...) remote_call(ctx.target, UPTR(x), __VA_ARGS__)
+#define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx.libc_syscall_insn.remote, n, __VA_ARGS__)
 
 // Remote Call
 #define RCALL0(ctx,x)                __RCALL(ctx,x,0,0,0,0)
