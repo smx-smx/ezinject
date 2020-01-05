@@ -3,8 +3,8 @@
 #include "ezinject_injcode.h"
 
 
-void lib_preinit(struct injcode_bearing *br){
-	// access data in br
+void lib_preinit(struct injcode_user *user){
+	// access user data
 }
 
 int lib_main(int argc, char *argv[]){

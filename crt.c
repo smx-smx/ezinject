@@ -7,7 +7,7 @@
 #include <sys/mman.h>
 #include "ezinject_injcode.h"
 
-extern void lib_preinit(struct injcode_bearing *br);
+extern void lib_preinit(struct injcode_user *user);
 extern int lib_main(int argc, char *argv[]);
 
 __attribute__((constructor)) void entry(void)
@@ -30,15 +30,15 @@ __attribute__((constructor)) void entry(void)
 		return;
 	}
 
-	struct injcode_bearing *br = (struct injcode_bearing *)mem;
+	// copy the struct locally
+	struct injcode_bearing br = *(struct injcode_bearing *)mem;
 	
 	// remove original shmat mapping, created by ezinject
-	shmdt(br->mapped_mem);
+	shmdt(br.mapped_mem);
 
-	lib_preinit(br);
-	lib_main(br->argc, br->argv);
-	
 	shmdt(mem);
+
+	// signal ezinject to close IPC
 	struct sembuf sem_op = {
 		.sem_num = 0,
 		.sem_op = -1,
@@ -48,4 +48,8 @@ __attribute__((constructor)) void entry(void)
 		perror("semop");
 		return;
 	}
+
+	lib_preinit(&br.user);
+	lib_main(br.argc, br.argv);
+	
 }
