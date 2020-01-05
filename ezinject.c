@@ -1,7 +1,9 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+#include <signal.h>
 #include <stdint.h>
 #include <limits.h>
 #include <unistd.h>
@@ -16,6 +18,7 @@
 #include <sys/syscall.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
+#include <sys/sem.h>
 #include <sys/shm.h>
 #include <sys/user.h>
 
@@ -30,9 +33,10 @@ enum verbosity_level verbosity = V_DBG;
 #define __NR_mmap __NR_mmap2 /* Functionally equivalent for our use case. */
 #endif
 
-#define MAPPINGSIZE 4096
 #define MEMALIGN 4 /* MUST be a power of 2 */
 #define ALIGNMSK ~(MEMALIGN-1)
+
+#define STRSZ(x) (strlen(x) + 1)
 
 #define ALIGN(x) ((void *)(((uintptr_t)x + MEMALIGN) & ALIGNMSK))
 #define PTRDIFF(a, b) ( ((uintptr_t)(a)) - ((uintptr_t)(b)) )
@@ -98,11 +102,24 @@ struct ezinj_ctx {
 	ez_addr libc_syscall_insn;
 };
 
+struct ezinj_str {
+	int len;
+	char *str;
+};
+
+struct ezinj_str ezstr_new(char *str){
+	struct ezinj_str bstr = {
+		.len = STRSZ(str),
+		.str = str
+	};
+	return bstr;
+}
+
 struct ezinj_pl {
+	struct injcode_bearing *br_start;
 	uint8_t *code_start;
 	uint8_t *syscall_insn;
 	uint8_t *ret_insn;
-	uint8_t *br_start;
 };
 
 int libc_init(struct ezinj_ctx *ctx){
@@ -152,7 +169,7 @@ int libc_init(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-struct injcode_bearing prepare_bearing(struct ezinj_ctx ctx){
+struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *argv[]){
 	/**
 	 * Rebase local symbols to remote
 	 */
@@ -162,41 +179,75 @@ struct injcode_bearing prepare_bearing(struct ezinj_ctx ctx){
 	}
 
 	ez_addr libc_dlopen_mode = SYM_ADDR(dlsym(RTLD_DEFAULT, "__libc_dlopen_mode"));
-	ez_addr libc_shmget = SYM_ADDR(&shmget);
-	ez_addr libc_shmat = SYM_ADDR(&shmat);
-	ez_addr libc_shmdt = SYM_ADDR(&shmdt);
 
-	struct injcode_bearing br = {
-		.libc_syscall = (void *)ctx.libc_syscall.remote,
-		.libc_dlopen_mode = (void *)libc_dlopen_mode.remote,
-		.libc_shmget = (void *)libc_shmget.remote,
-		.libc_shmat = (void *)libc_shmat.remote,
-		.libc_shmdt = (void *)libc_shmdt.remote
-	};
+	char libName[PATH_MAX];
+	if(!realpath(argv[0], libName))
+	{
+		PERROR("realpath");
+		return NULL;
+	}
+
+	int dyn_ptr_size = argc * sizeof(char *);
+	int dyn_str_size = 0;
+
+	struct ezinj_str args[argc];
+	args[0] = ezstr_new(libName);
+	dyn_str_size += args[0].len;
+
+	for(int i=1; i<argc; i++){
+		args[i] = ezstr_new(argv[i]);
+		dyn_str_size += args[i].len;
+	}
+
+	int dyn_total_size = dyn_ptr_size + dyn_str_size;
+
+	struct injcode_bearing *br = malloc(sizeof(*br) + dyn_total_size);
+	br->libc_syscall = (void *)ctx.libc_syscall.remote;
+	br->libc_dlopen_mode = (void *)libc_dlopen_mode.remote;
+	br->argc = argc;
+	br->dyn_size = dyn_total_size;
+
+	uintptr_t stringData = (uintptr_t)br + sizeof(*br) + dyn_ptr_size;
+	for(int i=0; i<argc; i++){
+		memcpy((void *)stringData, args[i].str, args[i].len);
+		stringData += args[i].len;
+	}
 	return br;
 }
 
 
-struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing br){
+struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 	size_t injected_size = (size_t)PTRDIFF(injected_code_end, injected_code);
 	DBG("injsize=%zu", injected_size);
 
-	uint8_t *code_start = (uint8_t *)mapped_mem;
+	int dyn_ptr_size = sizeof(char *) * br->argc;
+
+	uint8_t *br_start = (uint8_t *)mapped_mem;
+	uint8_t *code_start = ALIGN(br_start + sizeof(*br) + br->dyn_size);
 	uint8_t *syscall_insn = ALIGN(code_start + injected_size);
 	uint8_t *ret_insn = syscall_insn + sizeof(SYSCALL_INSN);
-	uint8_t *br_start = ALIGN(ret_insn + sizeof(RET_INSN));
 
+	uint8_t *argv_start = br_start + offsetof(struct injcode_bearing, argv);
+	char *str_start = (char *)(argv_start + dyn_ptr_size);
+
+	memcpy(br_start, br, sizeof(*br) + br->dyn_size);
 	memcpy(code_start, injected_code, injected_size);
 	memcpy(syscall_insn, (void *)SYSCALL_INSN, sizeof(SYSCALL_INSN));
 	memcpy(ret_insn, (void*)RET_INSN, sizeof(RET_INSN));
-	memcpy(br_start, &br, sizeof(br));
+
+	struct injcode_bearing *shared_br = (struct injcode_bearing *)br_start;
+	for(int i=0; i<br->argc; i++){
+		shared_br->argv[i] = str_start;
+		str_start += STRSZ(str_start);
+	}
 
 	struct ezinj_pl pl = {
 		.code_start = code_start,
 		.syscall_insn = syscall_insn,
 		.ret_insn = ret_insn,
-		.br_start = br_start
+		.br_start = shared_br
 	};
+
 	return pl;
 }
 
@@ -216,8 +267,13 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing br){
 #define RSCALL2(ctx,n,a1,a2)         __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),0)
 #define RSCALL3(ctx,n,a1,a2,a3)      __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3))
 
-int ezinject_main(struct ezinj_ctx ctx, const char *argLib, int *pshm_id){
-	int shm_id;
+int ezinject_main(
+	struct ezinj_ctx ctx,
+	int argc, char *argv[],
+	int *pshm_id,
+	int *psem_id
+){
+	int shm_id, sem_id;
 
 	/* Verify that remote_call works correctly */
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
@@ -233,69 +289,90 @@ int ezinject_main(struct ezinj_ctx ctx, const char *argLib, int *pshm_id){
 		return 1;
 	}
 
+	if((sem_id = semget(ctx.target, 1, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+		perror("semget");
+		return 1;
+	}
+
 	void *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
 	if(mapped_mem == MAP_FAILED){
 		PERROR("shmat");
 		return 1;
 	}
 
-	struct injcode_bearing br = prepare_bearing(ctx);
-	br.mapped_mem = mapped_mem;
-	if(!realpath(argLib, br.libname))
-	{
-		PERROR("realpath");
+	// Allocate bearing: br is a *LOCAL* pointer
+	struct injcode_bearing *br = prepare_bearing(ctx, argc, argv);
+	if(br == NULL){
 		return 1;
+	}
+
+
+	int err = 1;
+	do {
+		br->mapped_mem = mapped_mem;
+	
+		// Prepare payload in shm: pl contains pointers to *SHARED* memory
+		struct ezinj_pl pl = prepare_payload(mapped_mem, br);
+
+		int remote_shm_id = (int)CHECK(RSCALL3(ctx, __NR_shmget, ctx.target, MAPPINGSIZE, S_IRWXO));
+		if(remote_shm_id < 0){
+			ERR("Remote shmget failed: %d", remote_shm_id);
+			break;
+		}
+		INFO("Shm id: %d", remote_shm_id);
+
+		uintptr_t remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, remote_shm_id, NULL, SHM_EXEC));
+		if(remote_shm_ptr == (uintptr_t)MAP_FAILED){
+			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
+			break;
+		}
+
+		#define PL_REMOTE(pl_addr) \
+			( (void *)(remote_shm_ptr + PTRDIFF(pl_addr, mapped_mem)) )
+
+		uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 2));
+		target_sp[0] = (uintptr_t)PL_REMOTE(pl.code_start);
+		target_sp[1] = (uintptr_t)PL_REMOTE(pl.br_start);
+
+		// rebase argv pointers
+		for(int i=0; i<br->argc; i++){
+			pl.br_start->argv[i] = (char *)PL_REMOTE(pl.br_start->argv[i]);
+		}
+		
+		DBGPTR(target_sp[0]);
+		DBGPTR(target_sp[1]);
+
+		if(shmdt(mapped_mem) < 0){
+			PERROR("shmdt");
+			break;
+		}
+
+		/* Make the call */
+		/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
+		uint8_t *target_syscall_ret = PL_REMOTE(pl.syscall_insn);
+		pid_t tid = CHECK(__RCALL(ctx, target_syscall_ret, __NR_clone, CLONE_FLAGS, (uintptr_t)PL_REMOTE(target_sp), 0));
+		CHECK(tid);
+
+		err = 0;
+	} while(0);
+
+	free(br);
+	if(err != 0){
+		return err;
 	}
 	
-	struct ezinj_pl pl = prepare_payload(mapped_mem, br);
-
-	int remote_shm_id = (int)CHECK(RCALL3(ctx, br.libc_shmget, ctx.target, MAPPINGSIZE, S_IRWXO));
-	if(remote_shm_id < 0){
-		ERR("Remote shmget failed: %d", remote_shm_id);
-		return 1;
-	}
-	INFO("Shm id: %d", remote_shm_id);
-
-	uintptr_t remote_shm_ptr = CHECK(RCALL3(ctx, br.libc_shmat, remote_shm_id, NULL, SHM_EXEC));
-	if(remote_shm_ptr == (uintptr_t)MAP_FAILED){
-		ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
-		return 1;
-	}
-
-	#define PL_REMOTE(pl_addr) \
-		( (void *)(remote_shm_ptr + PTRDIFF(pl_addr, mapped_mem)) )
-
-	uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 2));
-	target_sp[0] = (uintptr_t)PL_REMOTE(pl.code_start);
-	target_sp[1] = (uintptr_t)PL_REMOTE(pl.br_start);
-	
-	DBGPTR(target_sp[0]);
-	DBGPTR(target_sp[1]);
-
-	if(shmdt(mapped_mem) < 0){
-		PERROR("shmdt");
-		return 1;
-	}
-
-	/* Make the call */
-	/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
-	uint8_t *target_syscall_ret = PL_REMOTE(pl.syscall_insn);
-	pid_t tid = CHECK(__RCALL(ctx, target_syscall_ret, __NR_clone, CLONE_FLAGS, (uintptr_t)PL_REMOTE(target_sp), 0));
-	CHECK(tid);
-
 	*pshm_id = shm_id;
+	*psem_id = sem_id;
 	return 0;
 }
 
 int main(int argc, char *argv[]){
-	if(argc != 3) {
+	if(argc < 3) {
 		ERR("Usage: %s pid library-to-inject", argv[0]);
 		return 1;
 	}
 
 	const char *argPid = argv[1];
-	const char *argLib = argv[2];
-
 	pid_t target = atoi(argPid);
 	
 	struct ezinj_ctx ctx;
@@ -303,7 +380,7 @@ int main(int argc, char *argv[]){
 	if(libc_init(&ctx) != 0){
 		return 1;
 	}
-	
+
 	CHECK(ptrace(PTRACE_ATTACH, target, 0, 0));
 
 	int err = 0;
@@ -321,17 +398,42 @@ int main(int argc, char *argv[]){
 		}
 	}
 	
+	int shm_id = -1, sem_id = -1;
 	do {
-		int shm_id = -1;
-		if((err = ezinject_main(ctx, argLib, &shm_id)) != 0){
+		if((err = ezinject_main(ctx, argc - 2, &argv[2], &shm_id, &sem_id)) != 0){
 			break;
 		}
-		
-		if(shm_id > -1){
-			// mark shared memory for deletion, when the process dies
-			CHECK(shmctl(shm_id, IPC_RMID, NULL));
+		// set semaphore to 1
+		struct sembuf sem_op = {
+			.sem_num = 0,
+			.sem_op = 1,
+			.sem_flg = 0
+		};
+		if((err = semop(sem_id, &sem_op, 1)) < 0){
+			PERROR("semop");
+			break;
 		}
 	} while(0);
+
+	if(err != 0){
+		return err;
+	}
+
+	// wait for target to decrement shm
+	struct sembuf sem_op = {
+		.sem_num = 0,
+		.sem_op = 0,
+		.sem_flg = 0
+	};
+	if((err = semop(sem_id, &sem_op, 1)) < 0){
+		PERROR("semop");
+		return err;
+	}
+
 	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
+
+	INFO("Cleaning up IPC");
+	CHECK(shmctl(shm_id, IPC_RMID, NULL));
+	CHECK(semctl(sem_id, IPC_RMID, 0));
 	return err;
 }
