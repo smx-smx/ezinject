@@ -255,12 +255,6 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 #define __RCALL(ctx, x, ...) remote_call(ctx.target, UPTR(x), __VA_ARGS__)
 #define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx.libc_syscall_insn.remote, n, __VA_ARGS__)
 
-// Remote Call
-#define RCALL0(ctx,x)                __RCALL(ctx,x,0,0,0,0)
-#define RCALL1(ctx,x,a1)             __RCALL(ctx,x,0,UPTR(a1),0,0)
-#define RCALL2(ctx,x,a1,a2)          __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),0)
-#define RCALL3(ctx,x,a1,a2,a3)       __RCALL(ctx,x,0,UPTR(a1),UPTR(a2),UPTR(a3))
-
 // Remote System Call
 #define RSCALL0(ctx,n)               __RCALL_SC(ctx,n,0,0,0)
 #define RSCALL1(ctx,n,a1)            __RCALL_SC(ctx,n,UPTR(a1),0,0)
