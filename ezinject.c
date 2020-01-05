@@ -308,6 +308,10 @@ int ezinject_main(
 		// Prepare payload in shm: pl contains pointers to *SHARED* memory
 		struct ezinj_pl pl = prepare_payload(mapped_mem, br);
 
+		// swap local br pointer with shared
+		free(br);
+		br = pl.br_start;
+
 		int remote_shm_id = (int)CHECK(RSCALL3(ctx, __NR_shmget, ctx.target, MAPPINGSIZE, S_IRWXO));
 		if(remote_shm_id < 0){
 			ERR("Remote shmget failed: %d", remote_shm_id);
@@ -326,11 +330,11 @@ int ezinject_main(
 
 		uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 2));
 		target_sp[0] = (uintptr_t)PL_REMOTE(pl.code_start);
-		target_sp[1] = (uintptr_t)PL_REMOTE(pl.br_start);
+		target_sp[1] = (uintptr_t)PL_REMOTE(br);
 
 		// rebase argv pointers
 		for(int i=0; i<br->argc; i++){
-			pl.br_start->argv[i] = (char *)PL_REMOTE(pl.br_start->argv[i]);
+			br->argv[i] = (char *)PL_REMOTE(br->argv[i]);
 		}
 		
 		DBGPTR(target_sp[0]);
@@ -350,7 +354,6 @@ int ezinject_main(
 		err = 0;
 	} while(0);
 
-	free(br);
 	if(err != 0){
 		return err;
 	}
