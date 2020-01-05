@@ -1,3 +1,5 @@
+#include "config.h"
+
 #if defined(EZ_ARCH_ARM)
 #include "ezinject_arm.h"
 #elif defined(EZ_ARCH_I386)
