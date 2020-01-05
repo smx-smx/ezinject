@@ -283,14 +283,26 @@ int ezinject_main(
 		return 1;
 	}
 
+
+	void *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
+	if(mapped_mem == MAP_FAILED){
+		PERROR("shmat");
+		return 1;
+	}
+
 	if((sem_id = semget(ctx.target, 1, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
 		perror("semget");
 		return 1;
 	}
 
-	void *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
-	if(mapped_mem == MAP_FAILED){
-		PERROR("shmat");
+	// set semaphore to 1
+	struct sembuf sem_op = {
+		.sem_num = 0,
+		.sem_op = 1,
+		.sem_flg = 0
+	};
+	if(semop(sem_id, &sem_op, 1) < 0){
+		PERROR("semop");
 		return 1;
 	}
 
@@ -396,21 +408,9 @@ int main(int argc, char *argv[]){
 	}
 	
 	int shm_id = -1, sem_id = -1;
-	do {
-		if((err = ezinject_main(ctx, argc - 2, &argv[2], &shm_id, &sem_id)) != 0){
-			break;
-		}
-		// set semaphore to 1
-		struct sembuf sem_op = {
-			.sem_num = 0,
-			.sem_op = 1,
-			.sem_flg = 0
-		};
-		if((err = semop(sem_id, &sem_op, 1)) < 0){
-			PERROR("semop");
-			break;
-		}
-	} while(0);
+	err = ezinject_main(ctx, argc - 2, &argv[2], &shm_id, &sem_id);
+
+	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
 
 	if(err != 0){
 		return err;
@@ -426,8 +426,6 @@ int main(int argc, char *argv[]){
 		PERROR("semop");
 		return err;
 	}
-
-	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
 
 	INFO("Cleaning up IPC");
 	CHECK(shmctl(shm_id, IPC_RMID, NULL));
