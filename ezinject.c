@@ -29,10 +29,6 @@ enum verbosity_level verbosity = V_DBG;
 
 #include "ezinject_arch.h"
 
-#ifndef __NR_mmap
-#define __NR_mmap __NR_mmap2 /* Functionally equivalent for our use case. */
-#endif
-
 #define MEMALIGN 4 /* MUST be a power of 2 */
 #define ALIGNMSK ~(MEMALIGN-1)
 

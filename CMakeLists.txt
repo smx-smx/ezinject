@@ -51,11 +51,11 @@ target_link_libraries(ezpatch common)
 add_executable(ezinject
 	ezinject.c
 	ezinject_injcode.c
+	util.c
 )
 
-
 set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS -fno-toplevel-reorder)
-target_link_libraries(ezinject common dl rt)
+target_link_libraries(ezinject dl)
 
 add_library(dummy SHARED
 	crt.c
