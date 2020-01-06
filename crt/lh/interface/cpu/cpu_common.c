@@ -10,44 +10,6 @@
 #include "interface/hook/linux/lh_hook.h"
 #include "interface/if_cpu.h"
 
-#ifdef PAYLOAD_SLJIT
-#include "sljit/sljitLir.h"
-uint8_t *inj_build_jump(uintptr_t dstAddr, uintptr_t srcAddr, size_t *jumpSz){
-	void *sljit_code = NULL;
-	struct sljit_compiler *compiler = NULL;
-
-	compiler = sljit_create_compiler(NULL);
-	if(!compiler){
-		ERR("Unable to create sljit compiler instance");
-		return NULL;
-	}
-
-	sljit_emit_ijump(compiler, SLJIT_JUMP, SLJIT_IMM, (sljit_sw)dstAddr);
-
-
-	sljit_code = sljit_generate_code(compiler);
-	if(!sljit_code){
-		ERR("Unable to build jump!");
-	} else {
-		if(jumpSz){
-			*jumpSz = compiler->size;
-		}
-	}
-
-	if(compiler)
-		sljit_free_compiler(compiler);
-
-	return (uint8_t *)sljit_code;
-}
-
-size_t inj_getjmp_size(uintptr_t addr){
-	size_t jumpSz;
-	uint8_t *jump;
-	if(!(jump = inj_build_jump(addr, 0, &jumpSz)))
-		return -1;
-	return jumpSz;
-}
-#else
 size_t inj_getjmp_size(){
 	#ifdef LH_JUMP_ABS
 		return inj_absjmp_opcode_bytes();
@@ -80,7 +42,6 @@ uint8_t *inj_build_jump(uintptr_t dstAddr, uintptr_t srcAddr, size_t *jumpSzPtr)
 		free(buffer);
 		return NULL;
 }
-#endif
 
 #ifndef __arm__
 int inj_getinsn_count(uint8_t *buf, size_t sz, unsigned int *validbytes){
@@ -186,8 +147,10 @@ void *inj_build_payload_user(lh_fn_hook_t *fnh, uint8_t *original_code, size_t *
 	size_t jumpSz;
 	uint8_t *jump_back;			//custom -> original
 	// JUMP from Replacement back to Original code (skip the original bytes that have been replaced to avoid loop)
-	if(!(jump_back = inj_build_jump((uintptr_t)(original_code + num_opcode_bytes), 0, &jumpSz)))
+	if(!(jump_back = inj_build_jump((uintptr_t)(original_code + num_opcode_bytes), 0, &jumpSz))){
+		ERR("Cannot build jump to 0x"LX"", original_code + num_opcode_bytes);
 		return NULL;
+	}
 
 	// Allocate space for the payload (code size + jump back)
 	// Unlike needle variant, we call mmap here, as we're in the user process
