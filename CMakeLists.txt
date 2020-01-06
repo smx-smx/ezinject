@@ -57,7 +57,7 @@ add_executable(ezinject
 set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS -fno-toplevel-reorder)
 target_link_libraries(ezinject dl)
 
-add_subdirectory(crt)
-
-add_library(dummy SHARED libdummy.c)
-target_link_libraries(dummy crt)
+add_library(dummy SHARED
+	crt.c
+	libdummy.c
+)
