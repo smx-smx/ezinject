@@ -1,7 +1,7 @@
 #include <sys/types.h>
 #include <linux/limits.h>
 
-#define MAPPINGSIZE 4096
+#define MAPPINGSIZE 8192
 #define INJ_PATH_MAX 128
 
 struct injcode_user {
@@ -10,10 +10,10 @@ struct injcode_user {
 
 struct injcode_bearing
 {
-	void *mapped_mem;
 	void *(*libc_dlopen_mode)(const char *name, int mode);
 	long (*libc_syscall)(long number, ...);
 	struct injcode_user user;
+	void *lib_handle;
 	int argc;
 	int dyn_size;
 	char *argv[];

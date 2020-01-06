@@ -32,7 +32,7 @@ __attribute__((naked, noreturn)) void injected_code()
 
 	// dynStr points to first argument, argv[0], which is the library to load
 	char *dynStr = (char *)br + sizeof(*br) + (sizeof(char *) * br->argc);
-	br->libc_dlopen_mode(dynStr, RTLD_NOW | __RTLD_DLOPEN);
+	br->lib_handle = br->libc_dlopen_mode(dynStr, RTLD_NOW | __RTLD_DLOPEN);
 	br->libc_syscall(__NR_exit, 0);
 }
 

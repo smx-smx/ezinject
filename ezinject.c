@@ -96,6 +96,9 @@ struct ezinj_ctx {
 	ez_addr libc;
 	ez_addr libc_syscall;
 	ez_addr libc_syscall_insn;
+	int shm_id;
+	int sem_id;
+	void *mapped_mem;
 };
 
 struct ezinj_str {
@@ -243,8 +246,8 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 }
 
 #define UPTR(x) ((uintptr_t)x)
-#define __RCALL(ctx, x, ...) remote_call(ctx.target, UPTR(x), __VA_ARGS__)
-#define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx.libc_syscall_insn.remote, n, __VA_ARGS__)
+#define __RCALL(ctx, x, ...) remote_call(ctx->target, UPTR(x), __VA_ARGS__)
+#define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx->libc_syscall_insn.remote, n, __VA_ARGS__)
 
 // Remote System Call
 #define RSCALL0(ctx,n)               __RCALL_SC(ctx,n,0,0,0)
@@ -253,23 +256,21 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 #define RSCALL3(ctx,n,a1,a2,a3)      __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3))
 
 int ezinject_main(
-	struct ezinj_ctx ctx,
-	int argc, char *argv[],
-	int *pshm_id,
-	int *psem_id
+	struct ezinj_ctx *ctx,
+	int argc, char *argv[]
 ){
 	int shm_id, sem_id;
 
 	/* Verify that remote_call works correctly */
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
-	if(remote_pid != ctx.target)
+	if(remote_pid != ctx->target)
 	{
 		ERR("Remote syscall returned incorrect result!");
-		ERR("Expected: %u, actual: %u", ctx.target, remote_pid);
+		ERR("Expected: %u, actual: %u", ctx->target, remote_pid);
 		return 1;
 	}
 
-	if((shm_id = shmget(ctx.target, MAPPINGSIZE, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+	if((shm_id = shmget(ctx->target, MAPPINGSIZE, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
 		PERROR("shmget");
 		return 1;
 	}
@@ -281,7 +282,7 @@ int ezinject_main(
 		return 1;
 	}
 
-	if((sem_id = semget(ctx.target, 1, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+	if((sem_id = semget(ctx->target, 1, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
 		perror("semget");
 		return 1;
 	}
@@ -298,7 +299,7 @@ int ezinject_main(
 	}
 
 	// Allocate bearing: br is a *LOCAL* pointer
-	struct injcode_bearing *br = prepare_bearing(ctx, argc, argv);
+	struct injcode_bearing *br = prepare_bearing(*ctx, argc, argv);
 	if(br == NULL){
 		return 1;
 	}
@@ -306,8 +307,6 @@ int ezinject_main(
 
 	int err = 1;
 	do {
-		br->mapped_mem = mapped_mem;
-	
 		// Prepare payload in shm: pl contains pointers to *SHARED* memory
 		struct ezinj_pl pl = prepare_payload(mapped_mem, br);
 
@@ -315,7 +314,7 @@ int ezinject_main(
 		free(br);
 		br = pl.br_start;
 
-		int remote_shm_id = (int)CHECK(RSCALL3(ctx, __NR_shmget, ctx.target, MAPPINGSIZE, S_IRWXO));
+		int remote_shm_id = (int)CHECK(RSCALL3(ctx, __NR_shmget, ctx->target, MAPPINGSIZE, S_IRWXO));
 		if(remote_shm_id < 0){
 			ERR("Remote shmget failed: %d", remote_shm_id);
 			break;
@@ -331,17 +330,12 @@ int ezinject_main(
 		#define PL_REMOTE(pl_addr) \
 			( (void *)(remote_shm_ptr + PTRDIFF(pl_addr, mapped_mem)) )
 
-		uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 2));
+		uintptr_t *target_sp = (uintptr_t *)(mapped_mem + MAPPINGSIZE - (sizeof(void *) * 256));
 		target_sp[0] = (uintptr_t)PL_REMOTE(pl.code_start);
 		target_sp[1] = (uintptr_t)PL_REMOTE(br);
 
 		DBGPTR(target_sp[0]);
 		DBGPTR(target_sp[1]);
-
-		if(shmdt(mapped_mem) < 0){
-			PERROR("shmdt");
-			break;
-		}
 
 		/* Make the call */
 		/* Use the syscall->ret gadget to make the new thread safely "return" to its entrypoint */
@@ -356,8 +350,9 @@ int ezinject_main(
 		return err;
 	}
 	
-	*pshm_id = shm_id;
-	*psem_id = sem_id;
+	ctx->sem_id = sem_id;
+	ctx->shm_id = shm_id;
+	ctx->mapped_mem = mapped_mem;
 	return 0;
 }
 
@@ -393,8 +388,7 @@ int main(int argc, char *argv[]){
 		}
 	}
 	
-	int shm_id = -1, sem_id = -1;
-	err = ezinject_main(ctx, argc - 2, &argv[2], &shm_id, &sem_id);
+	err = ezinject_main(&ctx, argc - 2, &argv[2]);
 
 	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
 
@@ -408,13 +402,14 @@ int main(int argc, char *argv[]){
 		.sem_op = 0,
 		.sem_flg = 0
 	};
-	if((err = semop(sem_id, &sem_op, 1)) < 0){
+	if((err = semop(ctx.sem_id, &sem_op, 1)) < 0){
 		PERROR("semop");
 		return err;
 	}
 
 	INFO("Cleaning up IPC");
-	CHECK(shmctl(shm_id, IPC_RMID, NULL));
-	CHECK(semctl(sem_id, IPC_RMID, 0));
+	CHECK(shmdt(ctx.mapped_mem));
+	CHECK(shmctl(ctx.shm_id, IPC_RMID, NULL));
+	CHECK(semctl(ctx.sem_id, IPC_RMID, 0));
 	return err;
 }

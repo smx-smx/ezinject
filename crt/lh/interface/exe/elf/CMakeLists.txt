@@ -1,0 +1,1 @@
+add_library(lh_elf exedetails.c loader.c)

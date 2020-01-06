@@ -1,9 +1,17 @@
 cmake_minimum_required(VERSION 3.0)
 project(ezpatch C ASM)
 
+add_definitions(-fPIC)
+
 include_directories(
 	${CMAKE_SOURCE_DIR}
 	${CMAKE_BINARY_DIR}
+	${CMAKE_CURRENT_SOURCE_DIR}/crt/lh
+)
+add_definitions(
+	-DSLJIT_CONFIG_AUTO
+	-DSLJIT_DEBUG=0
+	-DLH_JUMP_ABS
 )
 
 set(CMAKE_C_STANDARD 99)
@@ -30,12 +38,20 @@ check_symbol_exists("__i386__" "" EZ_ARCH_I386)
 check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
 check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
 
+if(EZ_ARCH_I386 OR EZ_ARCH_AMD64)
+	set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")
+	if(NOT CAPSTONE_INCLUDE_DIRS AND NOT CAPSTONE_LIBRARIES)
+		find_package(CAPSTONE REQUIRED)
+	endif()
+include_directories(${CAPSTONE_INCLUDE_DIRS})
+endif()
+
 configure_file(
 	config.h.in
 	${CMAKE_BINARY_DIR}/config.h
 )
 
-add_library(common
+add_library(util
 	util.c
 	elfparse.c
 )
@@ -46,7 +62,7 @@ add_executable(ezpatch
 	elfparse.c
 	ezpatch.c
 )
-target_link_libraries(ezpatch common)
+target_link_libraries(ezpatch util)
 
 add_executable(ezinject
 	ezinject.c
@@ -58,6 +74,14 @@ set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS -fno-top
 target_link_libraries(ezinject dl)
 
 add_library(dummy SHARED
-	crt.c
 	libdummy.c
+	crt/crt.c
+	util.c
+)
+
+add_subdirectory(crt)
+target_link_libraries(dummy
+	lh_ifcpu
+	lh_sljitmod
+	lh_hook_linux
 )

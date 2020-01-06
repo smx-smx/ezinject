@@ -1,3 +1,6 @@
+#ifndef __LOG_H
+#define __LOG_H
+
 #include <errno.h>
 #include "config.h"
 
@@ -9,6 +12,15 @@ extern enum verbosity_level
 	V_DBG
 } verbosity;
 
+#if __WORDSIZE == 64
+#define LX "%lx"
+#define LLX LX
+#define LU "%lu"
+#else
+#define LX "%x"
+#define LLX "%llx"
+#define LU "%u"
+#endif
 
 #define STRINGIFY(x) STRINGIFY2(x)
 #define STRINGIFY2(x) #x
@@ -32,3 +44,5 @@ extern enum verbosity_level
 long _tmp = (x);\
 DBG("%s = %lu", #x, _tmp);\
 _tmp;})
+
+#endif

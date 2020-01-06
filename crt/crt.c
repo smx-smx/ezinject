@@ -8,6 +8,7 @@
 #include <sys/shm.h>
 #include <sys/mman.h>
 #include "ezinject_injcode.h"
+#include "util.h"
 
 extern void lib_preinit(struct injcode_user *user);
 extern int lib_main(int argc, char *argv[]);
@@ -47,9 +48,7 @@ __attribute__((constructor)) void entry(void)
 		dynStr += strlen(dynStr) + 1;
 	}
 
-	// remove original shmat mapping, created by ezinject
-	shmdt(br->mapped_mem);
-
+	hexdump(localMem, memSize);
 	shmdt(mem);
 
 	// signal ezinject to close IPC
