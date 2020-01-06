@@ -68,6 +68,11 @@
 /* 64 KByte. */
 #define CHUNK_SIZE	0x10000
 
+struct chunk_header {
+	void *executable;
+	int fd;
+};
+
 /*
    alloc_chunk / free_chunk :
      * allocate executable system memory chunks
@@ -79,118 +84,135 @@
        as it only uses local variables
 */
 
-#ifdef _WIN32
+#include <fcntl.h>
 
-static SLJIT_INLINE void* alloc_chunk(sljit_uw size)
-{
-	return VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-}
-
-static SLJIT_INLINE void free_chunk(void *chunk, sljit_uw size)
-{
-	SLJIT_UNUSED_ARG(size);
-	VirtualFree(chunk, 0, MEM_RELEASE);
-}
-
-#else
-
-#ifdef __APPLE__
-/* Configures TARGET_OS_OSX when appropriate */
-#include <TargetConditionals.h>
-
-#if TARGET_OS_OSX && defined(MAP_JIT)
-#include <sys/utsname.h>
-#endif /* TARGET_OS_OSX && MAP_JIT */
-
-#ifdef MAP_JIT
-
-static SLJIT_INLINE int get_map_jit_flag()
-{
-/* On macOS systems, returns MAP_JIT if it is defined _and_ we're running on a version
-   of macOS where it's OK to have more than one JIT block.
-   On non-macOS systems, returns MAP_JIT if it is defined. */
-#if TARGET_OS_OSX
-	static int map_jit_flag = -1;
-
-	/* The following code is thread safe because multiple initialization
-	   sets map_jit_flag to the same value and the code has no side-effects.
-	   Changing the kernel version witout system restart is (very) unlikely. */
-	if (map_jit_flag == -1) {
-		struct utsname name;
-
-		map_jit_flag = 0;
-		uname(&name);
-
-		/* Kernel version for 10.14.0 (Mojave) */
-		if (atoi(name.release) >= 18) {
-			/* Only use MAP_JIT if a hardened runtime is used, because MAP_JIT is incompatible with fork(). */
-
-			/* mirroring page size detection from sljit_allocate_stack */
-			long page_size = sysconf(_SC_PAGESIZE);
-			/* Should never happen */
-			if (page_size < 0)
-				page_size = 4096;
-
-			void *ptr = mmap(NULL, page_size, PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
-
-			if (ptr == MAP_FAILED) {
-				map_jit_flag = MAP_JIT;
-			} else {
-				munmap(ptr, page_size);
-			}
-		}
-	}
-
-	return map_jit_flag;
-#else /* !TARGET_OS_OSX */
-	return MAP_JIT;
-#endif /* TARGET_OS_OSX */
-}
-
-#endif /* MAP_JIT */
-
-#endif /* __APPLE__ */
-
-static SLJIT_INLINE void* alloc_chunk(sljit_uw size)
-{
-	void *retval;
-	const int prot = PROT_READ | PROT_WRITE | PROT_EXEC;
-
-#ifdef MAP_ANON
-
-	int flags = MAP_PRIVATE | MAP_ANON;
-
-#ifdef MAP_JIT
-	flags |= get_map_jit_flag();
+#ifndef O_NOATIME
+#define O_NOATIME 0
 #endif
 
-	retval = mmap(NULL, size, prot, flags, -1, 0);
-#else /* !MAP_ANON */
-	if (dev_zero < 0) {
-		if (open_dev_zero())
-			return NULL;
-	}
-	retval = mmap(NULL, size, prot, MAP_PRIVATE, dev_zero, 0);
-#endif /* MAP_ANON */
+#ifdef __O_TMPFILE
+#ifndef O_TMPFILE
+#define O_TMPFILE	(__O_TMPFILE | O_DIRECTORY)
+#endif
+#endif
 
-	if (retval == MAP_FAILED)
-		retval = NULL;
+int mkostemp(char *template, int flags);
+#if !defined(__NetBSD__)
+char *secure_getenv(const char *name);
+#endif
+
+static SLJIT_INLINE int create_tempfile(void)
+{
+	int fd;
+
+	char tmp_name[256];
+	size_t tmp_name_len;
+	char *dir;
+	size_t len;
+
+#ifdef P_tmpdir
+	len = (P_tmpdir != NULL) ? strlen(P_tmpdir) : 0;
+
+	if (len > 0 && len < sizeof(tmp_name)) {
+		strcpy(tmp_name, P_tmpdir);
+		tmp_name_len = len;
+	}
 	else {
-		if (mprotect(retval, size, prot) < 0) {
-			munmap(retval, size);
-			retval = NULL;
+		strcpy(tmp_name, "/tmp");
+		tmp_name_len = 4;
+	}
+#else
+	strcpy(tmp_name, "/tmp");
+	tmp_name_len = 4;
+#endif
+
+#if defined(__NetBSD__)
+	dir = getenv("TMPDIR");
+#else
+	dir = secure_getenv("TMPDIR");
+#endif
+	if (dir) {
+		len = strlen(dir);
+		if (len > 0 && len < sizeof(tmp_name)) {
+			strcpy(tmp_name, dir);
+			tmp_name_len = len;
 		}
 	}
 
+	SLJIT_ASSERT(tmp_name_len > 0 && tmp_name_len < sizeof(tmp_name));
+
+	while (tmp_name_len > 0 && tmp_name[tmp_name_len - 1] == '/') {
+		tmp_name_len--;
+		tmp_name[tmp_name_len] = '\0';
+	}
+
+#ifdef O_TMPFILE
+	fd = open(tmp_name, O_TMPFILE | O_EXCL | O_RDWR | O_NOATIME | O_CLOEXEC, S_IRUSR | S_IWUSR);
+	if (fd != -1)
+		return fd;
+#endif
+
+	if (tmp_name_len + 7 >= sizeof(tmp_name))
+	{
+		return -1;
+	}
+
+	strcpy(tmp_name + tmp_name_len, "/XXXXXX");
+	fd = mkostemp(tmp_name, O_CLOEXEC | O_NOATIME);
+
+	if (fd == -1)
+		return fd;
+
+	if (unlink(tmp_name)) {
+		close(fd);
+		return -1;
+	}
+
+	return fd;
+}
+
+static SLJIT_INLINE struct chunk_header* alloc_chunk(sljit_uw size)
+{
+	struct chunk_header *retval;
+	int fd;
+
+	fd = create_tempfile();
+	if (fd == -1)
+		return NULL;
+
+	if (ftruncate(fd, size)) {
+		close(fd);
+		return NULL;
+	}
+
+	retval = (struct chunk_header *)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+	if (retval == MAP_FAILED) {
+		close(fd);
+		return NULL;
+	}
+
+	retval->executable = mmap(NULL, size, PROT_READ | PROT_EXEC, MAP_SHARED, fd, 0);
+
+	if (retval->executable == MAP_FAILED) {
+		munmap(retval, size);
+		close(fd);
+		return NULL;
+	}
+
+	retval->fd = fd;
 	return retval;
 }
 
 static SLJIT_INLINE void free_chunk(void *chunk, sljit_uw size)
 {
-	munmap(chunk, size);
-}
+	struct chunk_header *header = ((struct chunk_header *)chunk) - 1;
 
-#endif
+	int fd = header->fd;
+	munmap(header->executable, size);
+	munmap(header, size);
+	close(fd);
+}
 
 /* --------------------------------------------------------------------- */
 /*  Common functions                                                     */
@@ -201,6 +223,7 @@ static SLJIT_INLINE void free_chunk(void *chunk, sljit_uw size)
 struct block_header {
 	sljit_uw size;
 	sljit_uw prev_size;
+	sljit_sw executable_offset;
 };
 
 struct free_block {
@@ -214,7 +237,7 @@ struct free_block {
 	((struct block_header*)(((sljit_u8*)base) + offset))
 #define AS_FREE_BLOCK(base, offset) \
 	((struct free_block*)(((sljit_u8*)base) + offset))
-#define MEM_START(base)		((void*)(((sljit_u8*)base) + sizeof(struct block_header)))
+#define MEM_START(base)		((void*)((base) + 1))
 #define ALIGN_SIZE(size)	(((size) + sizeof(struct block_header) + 7) & ~7)
 
 static struct free_block* free_blocks;
@@ -248,10 +271,12 @@ static SLJIT_INLINE void sljit_remove_free_block(struct free_block *free_block)
 
 SLJIT_API_FUNC_ATTRIBUTE void* sljit_malloc_exec(sljit_uw size)
 {
+	struct chunk_header *chunk_header;
 	struct block_header *header;
 	struct block_header *next_header;
 	struct free_block *free_block;
 	sljit_uw chunk_size;
+	sljit_sw executable_offset;
 
 	allocator_grab_lock();
 	if (size < (64 - sizeof(struct block_header)))
@@ -268,6 +293,7 @@ SLJIT_API_FUNC_ATTRIBUTE void* sljit_malloc_exec(sljit_uw size)
 				free_block->size = chunk_size;
 				header = AS_BLOCK_HEADER(free_block, chunk_size);
 				header->prev_size = chunk_size;
+				header->executable_offset = free_block->header.executable_offset;
 				AS_BLOCK_HEADER(header, size)->prev_size = size;
 			}
 			else {
@@ -283,17 +309,24 @@ SLJIT_API_FUNC_ATTRIBUTE void* sljit_malloc_exec(sljit_uw size)
 		free_block = free_block->next;
 	}
 
-	chunk_size = (size + sizeof(struct block_header) + CHUNK_SIZE - 1) & CHUNK_MASK;
-	header = (struct block_header*)alloc_chunk(chunk_size);
-	if (!header) {
+	chunk_size = sizeof(struct chunk_header) + sizeof(struct block_header);
+	chunk_size = (chunk_size + size + CHUNK_SIZE - 1) & CHUNK_MASK;
+
+	chunk_header = alloc_chunk(chunk_size);
+	if (!chunk_header) {
 		allocator_release_lock();
 		return NULL;
 	}
 
-	chunk_size -= sizeof(struct block_header);
+	executable_offset = (sljit_sw)((sljit_u8*)chunk_header->executable - (sljit_u8*)chunk_header);
+
+	chunk_size -= sizeof(struct chunk_header) + sizeof(struct block_header);
 	total_size += chunk_size;
 
+	header = (struct block_header *)(chunk_header + 1);
+
 	header->prev_size = 0;
+	header->executable_offset = executable_offset;
 	if (chunk_size > size + 64) {
 		/* Cut the allocated space into a free and a used block. */
 		allocated_size += size;
@@ -302,6 +335,7 @@ SLJIT_API_FUNC_ATTRIBUTE void* sljit_malloc_exec(sljit_uw size)
 
 		free_block = AS_FREE_BLOCK(header, size);
 		free_block->header.prev_size = size;
+		free_block->header.executable_offset = executable_offset;
 		sljit_insert_free_block(free_block, chunk_size);
 		next_header = AS_BLOCK_HEADER(free_block, chunk_size);
 	}
@@ -313,6 +347,7 @@ SLJIT_API_FUNC_ATTRIBUTE void* sljit_malloc_exec(sljit_uw size)
 	}
 	next_header->size = 1;
 	next_header->prev_size = chunk_size;
+	next_header->executable_offset = executable_offset;
 	allocator_release_lock();
 	return MEM_START(header);
 }
@@ -324,6 +359,7 @@ SLJIT_API_FUNC_ATTRIBUTE void sljit_free_exec(void* ptr)
 
 	allocator_grab_lock();
 	header = AS_BLOCK_HEADER(ptr, -(sljit_sw)sizeof(struct block_header));
+	header = AS_BLOCK_HEADER(header, -header->executable_offset);
 	allocated_size -= header->size;
 
 	/* Connecting free blocks together if possible. */
@@ -383,4 +419,9 @@ SLJIT_API_FUNC_ATTRIBUTE void sljit_free_unused_memory_exec(void)
 
 	SLJIT_ASSERT((total_size && free_blocks) || (!total_size && !free_blocks));
 	allocator_release_lock();
+}
+
+SLJIT_API_FUNC_ATTRIBUTE sljit_sw sljit_exec_offset(void* ptr)
+{
+	return ((struct block_header *)(ptr))[-1].executable_offset;
 }
