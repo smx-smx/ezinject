@@ -30,7 +30,7 @@ __attribute__((naked, noreturn)) void injected_code()
 #error "Unsupported architecture"
 #endif
 
-	br->libc_dlopen_mode(br->argv[0], RTLD_LAZY);
+	br->libc_dlopen_mode(br->argv[0], RTLD_NOW | __RTLD_DLOPEN);
 	br->libc_syscall(__NR_exit, 0);
 }
 
