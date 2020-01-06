@@ -68,7 +68,7 @@ void installHooks(){
 	sljit_emit_return(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 1337);
 	#endif
 
-	sljit_code = sljit_generate_code(compiler);
+	sljit_code = sljit_generate_code(compiler) + compiler->executable_offset;
 	if(!sljit_code){
 		ERR("Unable to build JIT Code");
 	}
@@ -77,7 +77,7 @@ void installHooks(){
 		sljit_free_compiler(compiler);
 
 	INFO("JIT code");
-	hexdump(sljit_code, compiler->size);
+	hexdump(sljit_code, compiler->executable_size);
 	/* Set the code we just generated as the replacement */
 	hook_settings.fn_hooks[1].hook_fn = (uintptr_t)sljit_code;
 	INFO("Injecting to %p", original_test_function);
