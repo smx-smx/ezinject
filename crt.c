@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
 #include <signal.h>
 #include <unistd.h>
 #include <sys/sem.h>
@@ -31,10 +33,22 @@ __attribute__((constructor)) void entry(void)
 	}
 
 	// copy the struct locally
-	struct injcode_bearing br = *(struct injcode_bearing *)mem;
-	
+	struct injcode_bearing *br = (struct injcode_bearing *)mem;
+
+	unsigned int memSize = sizeof(*br) + br->dyn_size;
+	uint8_t *localMem = malloc(memSize);
+	memcpy(localMem, br, memSize);
+
+	// prepare argv
+	char **dynPtr = (char **)((char *)localMem + sizeof(*br));
+	char *dynStr = (char *)dynPtr + (sizeof(char *) * br->argc);
+	for(int i=0; i<br->argc; i++){
+		*(dynPtr++) = dynStr;
+		dynStr += strlen(dynStr) + 1;
+	}
+
 	// remove original shmat mapping, created by ezinject
-	shmdt(br.mapped_mem);
+	shmdt(br->mapped_mem);
 
 	shmdt(mem);
 
@@ -49,7 +63,11 @@ __attribute__((constructor)) void entry(void)
 		return;
 	}
 
-	lib_preinit(&br.user);
-	lib_main(br.argc, br.argv);
+	// switch to localMem
+	br = (struct injcode_bearing *)localMem;
+
+	lib_preinit(&br->user);
+	lib_main(br->argc, br->argv);
 	
+	free(localMem);
 }

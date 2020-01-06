@@ -165,6 +165,11 @@ int libc_init(struct ezinj_ctx *ctx){
 	return 0;
 }
 
+void strPush(char **strData, struct ezinj_str str){
+	memcpy(*strData, str.str, str.len);
+	*strData += str.len;
+}
+
 struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *argv[]){
 	/**
 	 * Rebase local symbols to remote
@@ -203,10 +208,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	br->argc = argc;
 	br->dyn_size = dyn_total_size;
 
-	uintptr_t stringData = (uintptr_t)br + sizeof(*br) + dyn_ptr_size;
+	char *stringData = (char *)br + sizeof(*br) + dyn_ptr_size;
 	for(int i=0; i<argc; i++){
-		memcpy((void *)stringData, args[i].str, args[i].len);
-		stringData += args[i].len;
+		strPush(&stringData, args[i]);
 	}
 	return br;
 }
@@ -216,15 +220,10 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 	size_t injected_size = (size_t)PTRDIFF(injected_code_end, injected_code);
 	DBG("injsize=%zu", injected_size);
 
-	int dyn_ptr_size = sizeof(char *) * br->argc;
-
 	uint8_t *br_start = (uint8_t *)mapped_mem;
 	uint8_t *code_start = ALIGN(br_start + sizeof(*br) + br->dyn_size);
 	uint8_t *syscall_insn = ALIGN(code_start + injected_size);
 	uint8_t *ret_insn = syscall_insn + sizeof(SYSCALL_INSN);
-
-	uint8_t *argv_start = br_start + offsetof(struct injcode_bearing, argv);
-	char *str_start = (char *)(argv_start + dyn_ptr_size);
 
 	memcpy(br_start, br, sizeof(*br) + br->dyn_size);
 	memcpy(code_start, injected_code, injected_size);
@@ -232,10 +231,6 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 	memcpy(ret_insn, (void*)RET_INSN, sizeof(RET_INSN));
 
 	struct injcode_bearing *shared_br = (struct injcode_bearing *)br_start;
-	for(int i=0; i<br->argc; i++){
-		shared_br->argv[i] = str_start;
-		str_start += STRSZ(str_start);
-	}
 
 	struct ezinj_pl pl = {
 		.code_start = code_start,
@@ -340,11 +335,6 @@ int ezinject_main(
 		target_sp[0] = (uintptr_t)PL_REMOTE(pl.code_start);
 		target_sp[1] = (uintptr_t)PL_REMOTE(br);
 
-		// rebase argv pointers
-		for(int i=0; i<br->argc; i++){
-			br->argv[i] = (char *)PL_REMOTE(br->argv[i]);
-		}
-		
 		DBGPTR(target_sp[0]);
 		DBGPTR(target_sp[1]);
 
