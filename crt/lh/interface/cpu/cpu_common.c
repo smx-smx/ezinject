@@ -18,7 +18,7 @@ uint8_t *inj_build_jump(uintptr_t dstAddr, uintptr_t srcAddr, size_t *jumpSz){
 
 	compiler = sljit_create_compiler(NULL);
 	if(!compiler){
-		LH_ERROR("Unable to create sljit compiler instance");
+		ERR("Unable to create sljit compiler instance");
 		return NULL;
 	}
 
@@ -27,7 +27,7 @@ uint8_t *inj_build_jump(uintptr_t dstAddr, uintptr_t srcAddr, size_t *jumpSz){
 
 	sljit_code = sljit_generate_code(compiler);
 	if(!sljit_code){
-		LH_ERROR("Unable to build jump!");
+		ERR("Unable to build jump!");
 	} else {
 		if(jumpSz){
 			*jumpSz = compiler->size;
@@ -153,7 +153,7 @@ int inj_getbackup_size(uint8_t *codePtr, unsigned int payloadSz){
 #if !defined(__i386__) && !defined(__x86_64__)
 int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC, uintptr_t destPC){
 	/* Not yet implemented for other arches */
-	return LH_SUCCESS;
+	return 0;
 }
 #endif
 

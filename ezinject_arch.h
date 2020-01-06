@@ -1,7 +1,7 @@
 #include "config.h"
 
 #if defined(EZ_ARCH_ARM)
-#include "ezinject_arm.h"
+#include "arch/ezinject_arm.h"
 #elif defined(EZ_ARCH_I386)
 #include "arch/ezinject_i386.h"
 #elif defined(EZ_ARCH_AMD64)

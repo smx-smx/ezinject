@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 cd "$(dirname "$0")"
 if [ "$1" == "clean" ]; then
 	echo "Removing build directory..."

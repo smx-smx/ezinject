@@ -1,4 +1,6 @@
+#include <stdint.h>
 #include "interface/if_cpu.h"
+#include "log.h"
 
 inline int inj_opcode_bytes(){
 	return 4;
@@ -14,11 +16,11 @@ inline int inj_reljmp_opcode_bytes() {
 
 int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address) {
 	if (jump_destination % 4 != 0) {
-		LH_ERROR("Destination address is not multiple of 4");
+		ERR("Destination address is not multiple of 4");
 		return -1;
 	}
 	if (jump_opcode_address % 4 != 0) {
-		LH_ERROR("Opcode address is not multiple of 4");
+		ERR("Opcode address is not multiple of 4");
 		return -1;
 	}
 
@@ -30,7 +32,7 @@ int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t ju
 /*
 // todo: validate this somehow
   if((operand & 0xFF000000) > 0) {
-     LH_ERROR("Jump is too big");
+     ERR("Jump is too big");
      return -1;
   }
 */
@@ -38,7 +40,7 @@ int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t ju
 	*x = operand;
 	buffer[3] = 0xEA;
 
-	return LH_SUCCESS;
+	return 0;
 }
 
 //ldr pc, [pc, #-4] => 04 f0 1f e5
