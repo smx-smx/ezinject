@@ -80,7 +80,6 @@ int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC,
 /*
  * Per-CPU Functions
  */
-int inj_trap_bytes();
 int inj_opcode_bytes();
 int inj_absjmp_opcode_bytes();
 int inj_reljmp_opcode_bytes();
@@ -89,27 +88,7 @@ int inj_reljmp_opcode_bytes();
 int inj_getinsn_count(uint8_t *buf, size_t sz, unsigned int *validbytes);
 #endif
 
-int inj_build_trap(uint8_t *buffer);
 int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address);
 int inj_build_abs_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address);
 int inj_reljmp_opcode_bytes();
-int lh_redzone();
-
-int inj_trap(pid_t pid, struct user *iregs);
-int inj_pass_args2func(pid_t pid, struct user *iregs, uintptr_t fn, uintptr_t arg1, uintptr_t arg2);
-
-void lh_rset_ip(struct user *r, uintptr_t value);
-uintptr_t lh_rget_ip(struct user *r);
-
-void lh_rset_sp(struct user *r, uintptr_t value);
-uintptr_t lh_rget_sp(struct user *r);
-
-void lh_rset_fp(struct user *r, uintptr_t value);
-uintptr_t lh_rget_fp(struct user *r);
-
-void lh_rset_ax(struct user *r, uintptr_t value);
-uintptr_t lh_rget_ax(struct user *r);
-
-void lh_dump_regs(struct user *regs);
-
 #endif
