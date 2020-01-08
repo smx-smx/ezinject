@@ -80,17 +80,6 @@ uintptr_t remote_call(pid_t target, uintptr_t insn_addr, int nr, uintptr_t arg1,
 	return new_ctx.regs.REG_RET;
 }
 
-void *locate_gadget(uint8_t *base, size_t limit, uint8_t *search, size_t searchSz){
-	for(size_t i = 0; i < limit; ++i)
-	{
-		if(!memcmp(&base[i], search, searchSz))
-		{
-			return (void *)&base[i];
-		}
-	}
-	return NULL;
-}
-
 struct ezinj_ctx {
 	pid_t target;
 	ez_addr libc;
@@ -145,12 +134,14 @@ int libc_init(struct ezinj_ctx *ctx){
 		.remote = EZ_REMOTE(libc, &syscall)
 	};
 
+	void *syscall_insn = memmem(
+		(uint8_t *)libc_syscall.local, 0x1000,
+		(uint8_t *)SYSCALL_INSN,
+		sizeof(SYSCALL_INSN)
+	);
+
 	ez_addr libc_syscall_insn = {
-		.local = (uintptr_t)locate_gadget(
-			(uint8_t *)libc_syscall.local, 0x1000,
-			(uint8_t *)SYSCALL_INSN,
-			sizeof(SYSCALL_INSN)
-		),
+		.local = (uintptr_t)syscall_insn
 	};
 
 	DBGPTR(libc_syscall_insn.local);
