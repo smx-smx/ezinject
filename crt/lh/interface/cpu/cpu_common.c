@@ -121,7 +121,7 @@ int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC,
 /*
  * Same as needle variant, but we don't need to copy data back and forth
  */
-void *inj_build_payload_user(lh_fn_hook_t *fnh, uint8_t *original_code, size_t *saved_bytes){
+void *inj_backup_function(lh_fn_hook_t *fnh, uint8_t *original_code, size_t *saved_bytes){
 	if(original_code == NULL){
 		ERR("ERROR: Code Address not specified");
 		return NULL;

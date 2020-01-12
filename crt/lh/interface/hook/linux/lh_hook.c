@@ -57,7 +57,7 @@ void lh_free(lh_session_t ** session) {
 	*session = NULL;
 }
 
-int inj_inject_payload(lh_fn_hook_t *fnh, uintptr_t symboladdr){
+int inj_replace_function(lh_fn_hook_t *fnh, uintptr_t symboladdr){
 	size_t jumpSz;
 	// Calculate the JUMP from Original to Replacement, so we can get the minimum size to save
 	// We need this to avoid opcode overlapping (especially on Intel, where we can have variable opcode size)
@@ -185,14 +185,14 @@ int lh_process_hooks(void *lib_handle){
 				// Alloc memory (mmap) and prepare orig code + jump back
 				// This is the new address of the original function
 				void *orig_function;
-				if((orig_function = inj_build_payload_user(fnh, (uint8_t *)symboladdr, &saved_bytes)) == NULL){
+				if((orig_function = inj_backup_function(fnh, (uint8_t *)symboladdr, &saved_bytes)) == NULL){
 					ERR("Failed to build payload!");
 					continue;
 				}
 				orig_code_addr = (uintptr_t)orig_function;
 
 				// Enable the hook by copying the replacement jump to our new function
-				if(inj_inject_payload(fnh, symboladdr) < 0){
+				if(inj_replace_function(fnh, symboladdr) < 0){
 					ERR("Failed to copy replacement jump!");
 					continue;
 				}
