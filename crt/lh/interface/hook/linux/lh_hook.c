@@ -9,7 +9,9 @@
 
 #include "lh_hook.h"
 #include "log.h"
+
 #include "interface/if_cpu.h"
+#include "interface/if_hook.h"
 
 /*
  * Creates and returns a new empty session (lh_session_t)
@@ -55,6 +57,19 @@ void lh_free(lh_session_t ** session) {
 	free(s);
 
 	*session = NULL;
+}
+
+int unprotect(void *addr) {
+	// Move the pointer to the page boundary
+	int page_size = getpagesize();
+	addr -= (unsigned long)addr % page_size;
+
+	if(mprotect(addr, page_size, PROT_READ | PROT_WRITE | PROT_EXEC) == -1) {
+		PERROR("mprotect");
+	    return -1;
+	}
+
+	return 0;
 }
 
 int inj_replace_function(lh_fn_hook_t *fnh, uintptr_t symboladdr){
@@ -217,17 +232,4 @@ int lh_process_hooks(void *lib_handle){
 
 	lh_free(&lh);
 	return rc;
-}
-
-int unprotect(void *addr) {
-	// Move the pointer to the page boundary
-	int page_size = getpagesize();
-	addr -= (unsigned long)addr % page_size;
-
-	if(mprotect(addr, page_size, PROT_READ | PROT_WRITE | PROT_EXEC) == -1) {
-		PERROR("mprotect");
-	    return -1;
-	}
-
-	return 0;
 }

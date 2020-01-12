@@ -29,7 +29,7 @@ int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC,
 	size_t i, j;
 
 	count = cs_disasm(handle, codePtr, codeSz, sourcePC, 0, &insns);
-	if(count < 0)
+	if((ssize_t)count < 0)
 		goto err_disasm;
 
 	off_t curPos = 0;
@@ -57,7 +57,7 @@ int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC,
 							//if(!strcmp(insn->mnemonic, "cmp")){
 								uint displacement = (sourcePC + insn->size) - destPC;
 								if(verbosity >= 3){
-									LOG(3, ">> New Displacement: "LX"", displacement);
+									LOG(3, ">> New Displacement: %u", displacement);
 									DBG("instruction before");
 									hexdump(insn->bytes, insn->size);
 								}

@@ -1,6 +1,7 @@
 #ifndef __LOG_H
 #define __LOG_H
 
+#include <stdio.h>
 #include <errno.h>
 #include "config.h"
 

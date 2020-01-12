@@ -84,7 +84,7 @@ int inj_getinsn_count(uint8_t *buf, size_t sz, unsigned int *validbytes){
 #endif
 
 int inj_getbackup_size(uint8_t *codePtr, unsigned int payloadSz){
-	int i = 0, opSz;
+	uint i = 0, opSz;
 	if((opSz = inj_opcode_bytes()) > 0){ //fixed opcode size
 		while(i < payloadSz)
 			i += opSz;
@@ -148,7 +148,7 @@ void *inj_backup_function(lh_fn_hook_t *fnh, uint8_t *original_code, size_t *sav
 	uint8_t *jump_back;			//custom -> original
 	// JUMP from Replacement back to Original code (skip the original bytes that have been replaced to avoid loop)
 	if(!(jump_back = inj_build_jump((uintptr_t)(original_code + num_opcode_bytes), 0, &jumpSz))){
-		ERR("Cannot build jump to 0x"LX"", original_code + num_opcode_bytes);
+		ERR("Cannot build jump to 0x%p", original_code + num_opcode_bytes);
 		return NULL;
 	}
 

@@ -10,7 +10,6 @@
 #include "ezinject_injcode.h"
 
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
-#define MAPPINGSIZE 4096
 
 __attribute__((naked, noreturn)) void injected_code()
 {
