@@ -56,8 +56,6 @@ add_library(util
 	elfparse.c
 )
 
-add_executable(target target.c)
-
 add_executable(ezpatch
 	elfparse.c
 	ezpatch.c
@@ -73,15 +71,20 @@ add_executable(ezinject
 set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS -fno-toplevel-reorder)
 target_link_libraries(ezinject dl)
 
-add_library(dummy SHARED
-	libdummy.c
-	crt/crt.c
-	util.c
-)
+function(add_ezinject_library target sources)
+	list(APPEND sources ${CMAKE_SOURCE_DIR}/crt/crt.c)
+	if(DEBUG)
+		list(APPEND sources ${CMAKE_SOURCE_DIR}/util.c)
+	endif()
+
+	add_library(${target} SHARED ${sources})
+
+	target_link_libraries(${target}
+		lh_ifcpu
+		lh_sljitmod
+		lh_hook_linux
+	)
+endfunction()
 
 add_subdirectory(crt)
-target_link_libraries(dummy
-	lh_ifcpu
-	lh_sljitmod
-	lh_hook_linux
-)
+add_subdirectory(samples)

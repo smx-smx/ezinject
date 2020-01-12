@@ -41,7 +41,7 @@ void installHooks(){
 	void *self = dlopen(NULL, RTLD_NOW);
 	original_test_function = dlsym(self, "return1");
 
-	void *origCode = inj_build_payload_user(
+	void *origCode = inj_backup_function(
 		&(hook_settings.fn_hooks[1]),
 		(void *)original_test_function,
 		NULL
@@ -82,7 +82,7 @@ void installHooks(){
 	hook_settings.fn_hooks[1].hook_fn = (uintptr_t)sljit_code;
 	INFO("Injecting to %p", original_test_function);
 
-	inj_inject_payload(&(hook_settings.fn_hooks[1]), (uintptr_t)original_test_function);
+	inj_replace_function(&(hook_settings.fn_hooks[1]), (uintptr_t)original_test_function);
 }
 
 void lib_preinit(struct injcode_user *user){
