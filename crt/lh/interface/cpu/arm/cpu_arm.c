@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include "interface/if_cpu.h"
+#include "interface/cpu/cpu_common.h"
 #include "log.h"
 
 inline int inj_opcode_bytes(){
@@ -36,24 +37,14 @@ int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t ju
      return -1;
   }
 */
-	uint32_t *x = (uint32_t *) buffer;
-	*x = operand;
-	buffer[3] = 0xEA;
-
+	uint32_t jmp = 0xEA | (operand >> 8);
+	WRITE32(buffer, jmp);
 	return 0;
 }
 
 //ldr pc, [pc, #-4] => 04 f0 1f e5
 int inj_build_abs_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address) {
-	int i = 0;
-	buffer[i++] = 0x04;
-	buffer[i++] = 0xf0;
-	buffer[i++] = 0x1f;
-	buffer[i++] = 0xe5;
-
-	uint32_t dest = (uint32_t) jump_destination;
-	uint32_t *x = (uint32_t *) & (buffer[i]);
-	*x = dest;
-
+	WRITE32(buffer, 0xE51FF004);
+	WRITE32(buffer, (uint32_t)jump_destination);
 	return 0;
 }

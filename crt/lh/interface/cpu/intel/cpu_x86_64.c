@@ -1,6 +1,7 @@
 #include "interface/if_hook.h"
 #include "interface/if_cpu.h"
 #include "interface/cpu/intel/cpu_intel.h"
+#include "interface/cpu/cpu_common.h"
 #include "log.h"
 
 #ifdef __FreeBSD__
@@ -35,11 +36,9 @@ int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t ju
 		return -1;
 	}
 
-	buffer[0] = 0xE9;
-	uint32_t *x = (uint32_t *) & (buffer[1]);
-	*x = lo;
 // 0:   e9 44 33 22 11          jmpq   0x11223349
-
+	WRITE8(buffer, 0xE9);
+	WRITE32(buffer, lo);
 	return 0;
 }
 
@@ -47,24 +46,15 @@ int inj_build_abs_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t ju
 	uint32_t lo = jump_destination & 0xFFFFFFFF;
 	uint32_t hi = ((jump_destination >> 32) & 0xFFFFFFFF);
 
-	int i = 0;
-	buffer[i++] = 0x68;
-	uint32_t *x = (uint32_t *) & (buffer[i]);
-// 0: 68 44 33 22 11    push $11223344
+	// 0: 68 44 33 22 11    push $11223344	
+	WRITE8(buffer, 0x68);
+	WRITE32(buffer, lo);
+	
+	// 5: c7 44 24 04 88 77 66 55    mov 4(%rsp), 55667788  # upper 4 bytes	
+	WRITE32(buffer, 0x042444C7);
+	WRITE32(buffer, hi);
 
-	*x = lo;
-	i += sizeof(uint32_t);
-	buffer[i++] = 0xC7;
-	buffer[i++] = 0x44;
-	buffer[i++] = 0x24;
-	buffer[i++] = 0x04;
-	x = (uint32_t *) & (buffer[i]);
-	*x = hi;
-	i += sizeof(uint32_t);
-// 5: c7 44 24 04 88 77 66 55    mov 4(%rsp), 55667788  # upper 4 bytes
-
-	buffer[i++] = 0xC3;
-//d: c3                retq
-
+	//d: c3                retq
+	WRITE8(buffer, 0xC3);
 	return 0;
 }
