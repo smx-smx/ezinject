@@ -22,67 +22,17 @@
 #include "util.h"
 #include "ezinject_injcode.h"
 
-#include "interface/exe/elf/linux_elf.h"
-
 enum verbosity_level verbosity = V_DBG;
 
+static struct ezinj_ctx ctx; // only to be used for sigint handler
+
+
+#include "ezinject.h"
 #include "ezinject_arch.h"
 
-#define UNUSED(x) (void)(x)
-#define UPTR(x) ((uintptr_t)(x))
-
-
-#define STRSZ(x) (strlen(x) + 1)
-#define ALIGNMSK(y) ((y)-1)
-#define ALIGN(x, y) ((void *)((UPTR(x) + y) & ~ALIGNMSK(y)))
-
-#define MEMALIGN(x) ALIGN(x, sizeof(void *))
-
-#ifdef EZ_ARCH_AMD64
-//align to 16 bytes
-#define STACKALIGN(x) ALIGN(x, 16)
-#else
-#define STACKALIGN(x) MEMALIGN(x)
+#ifdef HAVE_LIBC_DLOPEN_MODE
+extern void *__libc_dlopen_mode  (const char *__name, int __mode);
 #endif
-
-#define PAGEALIGN(x)  ALIGN(x, getpagesize())
-
-#define PTRDIFF(a, b) ( UPTR(a) - UPTR(b) )
-
-#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
-
-#define USE_CAVE
-
-#ifndef HAVE_SHM_EXEC
-#define	SHM_EXEC	0100000	/* execution access */
-#endif
-
-typedef struct {
-	uintptr_t remote;
-	uintptr_t local;
-} ez_addr;
-
-typedef struct {
-	void *start;
-	void *end;
-} ez_region;
-
-#define REGION_LENGTH(r) PTRDIFF(r.end, r.start)
-
-// base.local + (addr - remote.base)
-#define EZ_LOCAL(ref, remote_addr) (ref.local + (PTRDIFF(remote_addr, ref.remote)))
-// base.remote - (addr - local.base)
-#define EZ_REMOTE(ref, local_addr) (ref.remote + (PTRDIFF(local_addr, ref.local)))
-
-static ez_region region_pl_code = {
-	.start = (void *)&injected_code_start,
-	.end = (void *)&injected_code_end
-};
-
-static ez_region region_sc_insn = {
-	.start = (void *)&injected_sc_start,
-	.end = (void *)&injected_sc_end
-};
 
 uintptr_t remote_call_stack(
 	pid_t target,
@@ -171,22 +121,6 @@ uintptr_t remote_call(
 	return REG(new_ctx, REG_RET);
 }
 
-struct ezinj_ctx {
-	pid_t target;
-	ez_addr libc;
-	ez_addr libc_syscall;
-	ez_addr libc_syscall_insn;
-	ez_addr libc_clone;
-	int shm_id;
-	int sem_id;
-	void *mapped_mem;
-};
-
-struct ezinj_str {
-	int len;
-	char *str;
-};
-
 struct ezinj_str ezstr_new(char *str){
 	struct ezinj_str bstr = {
 		.len = STRSZ(str),
@@ -222,13 +156,6 @@ int libc_init(struct ezinj_ctx *ctx){
 	}
 	ctx->libc = libc;
 
-	ez_addr libc_syscall = {
-		.local  = (uintptr_t)&syscall,
-		.remote = EZ_REMOTE(libc, &syscall)
-	};
-
-	ctx->libc_syscall = libc_syscall;
-
 	ez_addr libc_clone = {
 		.local = (uintptr_t)&clone,
 		.remote = EZ_REMOTE(libc, &clone)
@@ -236,15 +163,6 @@ int libc_init(struct ezinj_ctx *ctx){
 	ctx->libc_clone = libc_clone;
 
 	return 0;
-}
-
-size_t find_seq(FILE *src, uint8_t *pSeq, size_t sz){
-	size_t i;
-	int fch;
-	do {
-		for(i=0; i < sz && (fch = fgetc(src)) == pSeq[i]; i++);
-	} while(i < sz && fch != EOF);
-	return i;
 }
 
 size_t find_adj_bytes(FILE *src, size_t sz, unsigned char ch, size_t nmemb){
@@ -256,23 +174,6 @@ size_t find_adj_bytes(FILE *src, size_t sz, unsigned char ch, size_t nmemb){
 
 	DBG("cnt[%02X] => %zu", ch, i);
 	return i;
-}
-
-int proc_write(struct ezinj_ctx *ctx, uintptr_t addr, uint8_t *pData, size_t dataLength){
-	if(dataLength == 0)
-		return 0;
-
-	if((dataLength % sizeof(uintptr_t)) != 0){
-		return -1;
-	}
-
-	size_t numWords = dataLength / sizeof(uintptr_t);
-	uintptr_t *pWords = (uintptr_t *)pData;
-	
-	for(size_t i=0; i<numWords; i++){
-		ptrace(PTRACE_POKETEXT, ctx->target, (void *)addr, *(pWords++));
-	}
-	return 0;
 }
 
 FILE *mem_open(struct ezinj_ctx *ctx){
@@ -365,11 +266,6 @@ void strPush(char **strData, struct ezinj_str str){
 }
 
 
-
-#ifdef HAVE_LIBC_DLOPEN_MODE
-extern void *__libc_dlopen_mode  (const char *__name, int __mode);
-#endif
-
 struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *argv[]){
 	/**
 	 * Rebase local symbols to remote
@@ -410,7 +306,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	int dyn_total_size = dyn_ptr_size + dyn_str_size;
 
 	struct injcode_bearing *br = malloc(sizeof(*br) + dyn_total_size);
-	br->libc_syscall = (void *)ctx.libc_syscall.remote;
 	br->libc_clone = (void *)ctx.libc_clone.remote;
 	br->libc_dlopen_mode = (void *)libc_dlopen_mode.remote;
 	br->argc = argc;
@@ -448,15 +343,13 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 }
 
 #define __RCALL(ctx, x, ...) remote_call(ctx->target, UPTR(x), __VA_ARGS__)
-#define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx->libc_syscall_insn.remote, n, __VA_ARGS__)
+#define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx->syscall_insn.remote, n, __VA_ARGS__)
 
 // Remote System Call
 #define RSCALL0(ctx,n)               __RCALL_SC(ctx,n,0,0,0)
 #define RSCALL1(ctx,n,a1)            __RCALL_SC(ctx,n,UPTR(a1),0,0)
 #define RSCALL2(ctx,n,a1,a2)         __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),0)
 #define RSCALL3(ctx,n,a1,a2,a3)      __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3))
-
-static struct ezinj_ctx ctx; // only to be used for sigint handler
 
 void cleanup_ipc(struct ezinj_ctx *ctx){
 	if(ctx->sem_id > -1){
@@ -517,7 +410,7 @@ int ezinject_main(
 		}
 		fflush(hmem);
 
-		ctx->libc_syscall_insn.remote = cave_addr;
+		ctx->syscall_insn.remote = cave_addr;
 	}
 
 	/* Verify that remote_call works correctly */
