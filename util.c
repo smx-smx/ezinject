@@ -143,7 +143,7 @@ uintptr_t find_cave(pid_t pid, FILE *hmem, size_t dataLength){
 			);
 
 			if(cave_size >= dataLength){
-				INFO("Cave found (size:%zu)", cave_size);
+				INFO("Cave found (%p, size:%zu)", (void *)(ftell(hmem) - cave_size), cave_size);
 				if(fseek(hmem, -cave_size, SEEK_CUR) != 0){
 					PERROR("fseek");
 					break;
