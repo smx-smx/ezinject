@@ -20,13 +20,10 @@
 #define CLONE_FLAGS (CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD)
 #endif
 
-#define STR2(X) #X
-#define STR(X) STR2(X)
-
 #define EMIT_LABEL(name) \
 	asm volatile( \
-		".globl "STR(name)"\n" \
-		STR(name)":\n" \
+		".globl "name"\n" \
+		name":\n" \
 	)
 
 __attribute__((naked)) void injected_code_start(void)
