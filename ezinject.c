@@ -39,10 +39,6 @@ static ez_region region_sc_insn = {
 };
 
 
-#ifdef HAVE_LIBC_DLOPEN_MODE
-extern void *__libc_dlopen_mode  (const char *__name, int __mode);
-#endif
-
 void setregs_callstack(
 	struct user *orig_ctx,
 	struct user *new_ctx,
@@ -86,7 +82,7 @@ void setregs_syscall(
 #endif
 #endif
 
-	DBG("remote_call(%d)", sc.nr);
+	DBG("remote_call(%u)", (unsigned int)sc.nr);
 }
 
 uintptr_t remote_call_common(pid_t target, pfnRegSet setRegs, void *pUserData){
@@ -160,6 +156,15 @@ struct ezinj_str ezstr_new(char *str){
 	return bstr;
 }
 
+ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
+	uintptr_t sym_addr = (uintptr_t)dlsym(handle, sym_name);
+	ez_addr sym = {
+		.local = sym_addr,
+		.remote = EZ_REMOTE(lib, sym_addr)
+	};
+	return sym;
+}
+
 int libc_init(struct ezinj_ctx *ctx){	
 	/**
 	 * locate glibc in /proc/<pid>/maps
@@ -173,18 +178,60 @@ int libc_init(struct ezinj_ctx *ctx){
 	DBGPTR(libc.remote);
 	DBGPTR(libc.local);
 
-	if(!libc.local || !libc.remote)
-	{
+	if(!libc.local || !libc.remote) {
 		ERR("Failed to get libc base");
 		return 1;
 	}
 	ctx->libc = libc;
 
-	ez_addr libc_clone = {
-		.local = (uintptr_t)&clone,
-		.remote = EZ_REMOTE(libc, &clone)
+	void *h_libc = dlopen(C_LIBRARY_NAME, RTLD_LAZY);
+	if(!h_libc){
+		ERR("dlopen("C_LIBRARY_NAME") failed: %s", dlerror());
+		return 1;
+	}
+
+#if defined(HAVE_LIBC_DLOPEN_MODE)
+	ez_addr libc_dlopen = sym_addr(h_libc, "__libc_dlopen_mode", libc);
+#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
+	ez_addr ldso = {
+		.local = (uintptr_t)get_base(getpid(), "ld-uClibc"),
+		.remote = (uintptr_t)get_base(ctx->target, "ld-uClibc")
 	};
+	if(!ldso.local || !ldso.remote){
+		ERR("Failed to get ldso base");
+		return 1;
+	}
+
+	void *h_ldso = dlopen(DYN_LINKER_NAME, RTLD_LAZY);
+	if(!h_ldso){
+		ERR("dlopen("DYN_LINKER_NAME") failed: %s", dlerror());
+		return 1;
+	}
+
+	ez_addr libc_dlopen = sym_addr(h_ldso, "_dl_load_shared_library", ldso);
+	ez_addr uclibc_sym_tables = sym_addr(h_ldso, "_dl_symbol_tables", ldso);
+
+	DBGPTR(uclibc_sym_tables.local);
+	DBGPTR(uclibc_sym_tables.remote);
+	ctx->uclibc_sym_tables = uclibc_sym_tables;
+
+	dlclose(h_ldso);
+#endif
+	DBGPTR(libc_dlopen.local);
+	DBGPTR(libc_dlopen.remote);
+	ctx->libc_dlopen = libc_dlopen;
+
+	ez_addr libc_clone = sym_addr(h_libc, "clone", libc);
+	DBGPTR(libc_clone.local);
+	DBGPTR(libc_clone.remote);
 	ctx->libc_clone = libc_clone;
+
+	ez_addr libc_syscall = sym_addr(h_libc, "syscall", libc);
+	DBGPTR(libc_syscall.local);
+	DBGPTR(libc_syscall.remote);
+	ctx->libc_syscall = libc_syscall;
+
+	dlclose(h_libc);
 	return 0;
 }
 
@@ -196,23 +243,6 @@ void strPush(char **strData, struct ezinj_str str){
 
 
 struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *argv[]){
-	/**
-	 * Rebase local symbols to remote
-	 */
-	#define SYM_ADDR(sym) { \
-		.local = (uintptr_t) (sym), \
-		.remote = (uintptr_t) EZ_REMOTE(ctx.libc, (uintptr_t)(sym)) \
-	}
-
-#ifdef HAVE_LIBC_DLOPEN_MODE
-	ez_addr libc_dlopen_mode = SYM_ADDR(&__libc_dlopen_mode);
-#else
-	/*** TODO! ***/
-	ez_addr libc_dlopen_mode = SYM_ADDR(&dlopen);
-#endif
-	DBGPTR(libc_dlopen_mode.local);
-	DBGPTR(libc_dlopen_mode.remote);
-
 	char libName[PATH_MAX];
 	if(!realpath(argv[0], libName))
 	{
@@ -237,7 +267,11 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 
 	struct injcode_bearing *br = malloc(sizeof(*br) + dyn_total_size);
 	br->libc_clone = (void *)ctx.libc_clone.remote;
-	br->libc_dlopen_mode = (void *)libc_dlopen_mode.remote;
+	br->libc_dlopen = (void *)ctx.libc_dlopen.remote;
+#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
+	br->uclibc_sym_tables = (void *)ctx.uclibc_sym_tables.remote;
+#endif
+	br->libc_syscall = (void *)ctx.libc_syscall.remote;
 	br->argc = argc;
 	br->dyn_size = dyn_total_size;
 
@@ -409,11 +443,12 @@ int ezinject_main(
 		uintptr_t remote_clone_entry = PL_REMOTE_CODE(&injected_clone);
 
 		// stack base
-		uintptr_t *target_sp;
+		uintptr_t *target_sp = (uintptr_t *)-1;
 
 		{ // align stack, and make sure stack doesn't overflow once aligned
 			uintptr_t *target_sp_raw = mapped_mem + MAPPINGSIZE - STACKSIZE;
 			for(int offset=0; target_sp > target_sp_raw; offset += sizeof(uintptr_t)){
+				DBG("target_sp: %p, offset=%d", target_sp, offset);
 				target_sp = (uintptr_t *)((uintptr_t)STACKALIGN(mapped_mem + MAPPINGSIZE - STACKSIZE - offset));
 			}
 		}
@@ -468,7 +503,7 @@ int ezinject_main(
 }
 
 /**
- * Make sure there is no padding between functions
+ * Make sure that function start == first instruction
  **/
 int compiler_check(){
 	int padding;

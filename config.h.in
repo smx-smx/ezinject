@@ -4,5 +4,8 @@
 #cmakedefine EZ_ARCH_AMD64
 #cmakedefine EZ_ARCH_MIPS
 #cmakedefine HAVE_SHM_EXEC
-#cmakedefine HAVE_LIBC_DLOPEN_MODE
 #cmakedefine HAVE_CLONE_IO
+#cmakedefine HAVE_LIBC_DLOPEN_MODE
+#cmakedefine HAVE_DL_LOAD_SHARED_LIBRARY
+#cmakedefine C_LIBRARY_NAME "@C_LIBRARY_NAME@"
+#cmakedefine DYN_LINKER_NAME "@DYN_LINKER_NAME@"

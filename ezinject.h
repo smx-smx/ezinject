@@ -60,6 +60,11 @@ struct ezinj_ctx {
 	pid_t target;
 	ez_addr libc;
 	ez_addr syscall_insn;
+	ez_addr libc_syscall;
+	ez_addr libc_dlopen;
+#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
+	ez_addr uclibc_sym_tables;
+#endif
 	ez_addr libc_clone;
 	int shm_id;
 	int sem_id;

@@ -13,7 +13,6 @@
 #include "ezinject_injcode.h"
 
 #define ALIGN(x) ((void *)(((uintptr_t)x + MEMALIGN) & ALIGNMSK))
-#define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 
 #ifdef HAVE_CLONE_IO
 #define CLONE_FLAGS (CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD|CLONE_IO)
@@ -44,18 +43,12 @@ __attribute__((naked, noreturn)) void injected_clone(){
 	EMIT_LABEL("injected_clone_entry");
 
 	struct injcode_bearing *br;
-	EMIT_POP(br);
-
 	int (*pfnChild)(void *arg);
-	EMIT_POP(pfnChild);
-
 	void *clone_stack;
+	
+	EMIT_POP(br);
+	EMIT_POP(pfnChild);
 	EMIT_POP(clone_stack);
-
-	// we have pop'd all arguments, rewind
-	clone_stack = (void *)(
-		(uintptr_t)clone_stack - STACKSIZE
-	);
 
 	br->libc_clone(pfnChild, clone_stack, CLONE_FLAGS, br);
 }
@@ -63,8 +56,22 @@ __attribute__((naked, noreturn)) void injected_clone(){
 int clone_fn(void *arg){
 	struct injcode_bearing *br = (struct injcode_bearing *)arg;
 	// get argv[0], which is the library to load
-	char *dynStr = (char *)br + sizeof(*br) + (sizeof(char *) * br->argc);
-	br->lib_handle = br->libc_dlopen_mode(dynStr, RTLD_NOW | __RTLD_DLOPEN);
+	char *lib_name = (char *)br + sizeof(*br) + (sizeof(char *) * br->argc);
+
+#if defined(HAVE_LIBC_DLOPEN_MODE)
+#define __RTLD_DLOPEN 0x80000000 /* glibc internal */
+	br->libc_dlopen(lib_name, RTLD_NOW | __RTLD_DLOPEN);
+#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
+	struct dyn_elf *rpnt = NULL;
+	for (rpnt = *(br->uclibc_sym_tables); rpnt && rpnt->next; rpnt = rpnt->next){
+		continue;
+	}
+	br->libc_dlopen(RTLD_NOW, &rpnt, NULL, lib_name, 0);
+#endif
+
+	br->libc_syscall(__NR_exit, 0);
+	
+	// should never be reached, or we hit unexpected behaviour (we have an invalid return address)
 	return 0;
 }
 

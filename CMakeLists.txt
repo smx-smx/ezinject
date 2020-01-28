@@ -31,10 +31,37 @@ else()
 	set(DEBUG OFF)
 endif()
 
-find_library(C_LIBRARY "libc.so")
-
 include(CheckLibraryExists)
+
+find_library(C_LIBRARY "libc.so.0")
+if(NOT C_LIBRARY)
+	find_library(C_LIBRARY "libc.so.6")
+endif()
+
+if(NOT C_LIBRARY)
+	message(FATAL_ERROR "libc.so not found")
+endif()
+
+
+find_library(DYN_LINKER "ld-uClibc.so.0")
+
 check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
+get_filename_component(C_LIBRARY_NAME "${C_LIBRARY}" NAME)
+
+if(NOT HAVE_LIBC_DLOPEN_MODE)
+	if(NOT DYN_LINKER)
+		message(FATAL_ERROR "ld-uClibc.so.0 not found")
+	endif()
+	check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
+	get_filename_component(DYN_LINKER_NAME "${DYN_LINKER}" NAME)
+endif()
+
+if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT HAVE_DL_LOAD_SHARED_LIBRARY)
+	message(FATAL_ERROR "Unsupported C library")
+endif()
+
+#find_library(C_LIBRARY "libc.so")
+#check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
 
 include(CheckSymbolExists)
 check_symbol_exists("SHM_EXEC" "sys/shm.h" HAVE_SHM_EXEC)
