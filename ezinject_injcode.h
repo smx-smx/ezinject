@@ -2,6 +2,7 @@
 #include <linux/limits.h>
 
 #define MAPPINGSIZE 8192
+#define STACKSIZE 1024
 #define INJ_PATH_MAX 128
 
 struct injcode_user {

@@ -54,6 +54,11 @@ __attribute__((naked, noreturn)) void injected_clone(){
 	void *clone_stack;
 	EMIT_POP(clone_stack);
 
+	// we have pop'd all arguments, rewind
+	clone_stack = (void *)(
+		(uintptr_t)clone_stack - STACKSIZE
+	);
+
 	br->libc_clone(pfnChild, clone_stack, CLONE_FLAGS, br);
 }
 

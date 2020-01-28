@@ -473,31 +473,44 @@ int ezinject_main(
 			UPTR(remote_shm_ptr + PTRDIFF(pl_addr, mapped_mem))
 
 		#define PL_REMOTE_CODE(addr) \
-			(uintptr_t)PL_REMOTE(pl.code_start) + PTRDIFF(addr, &injected_code_start)
+			PL_REMOTE(pl.code_start) + PTRDIFF(addr, &injected_code_start)
 
 		// clone entry
 		uintptr_t remote_clone_entry = PL_REMOTE_CODE(&injected_clone);
 
-		uintptr_t *target_sp = (uintptr_t *)((uintptr_t)STACKALIGN(mapped_mem + MAPPINGSIZE - sizeof(uintptr_t) * 8));
-		DBGPTR(mapped_mem + MAPPINGSIZE);
+		// stack base
+		uintptr_t *target_sp;
+
+		{ // align stack, and make sure stack doesn't overflow once aligned
+			uintptr_t *target_sp_raw = mapped_mem + MAPPINGSIZE - STACKSIZE;
+			for(int offset=0; target_sp > target_sp_raw; offset += sizeof(uintptr_t)){
+				target_sp = (uintptr_t *)((uintptr_t)STACKALIGN(mapped_mem + MAPPINGSIZE - STACKSIZE - offset));
+			}
+		}
+
+		// end of stack: used for arguments
+		uintptr_t *stack_argv = (uintptr_t *)(
+			(uintptr_t)target_sp + STACKSIZE - sizeof(uintptr_t) * 3
+		);
+
 		DBGPTR(target_sp);
 
 		// br argument
-		target_sp[0] = PL_REMOTE(pl.br_start);
+		stack_argv[0] = PL_REMOTE(pl.br_start);
 		// clone_fn
-		target_sp[1] = PL_REMOTE_CODE(&clone_fn);
+		stack_argv[1] = PL_REMOTE_CODE(&clone_fn);
 		// pointer to this stack itself
-		target_sp[2] = PL_REMOTE(target_sp);
+		stack_argv[2] = PL_REMOTE(target_sp);
 
-		DBGPTR(target_sp[0]);
-		DBGPTR(target_sp[1]);
-		DBGPTR(target_sp[2]);
+		DBGPTR(stack_argv[0]);
+		DBGPTR(stack_argv[1]);
+		DBGPTR(stack_argv[2]);
 
 		DBGPTR(remote_clone_entry);
 		pid_t tid = remote_call_stack(
 			ctx->target,
 			remote_clone_entry,
-			(uintptr_t)PL_REMOTE(target_sp)
+			(uintptr_t)PL_REMOTE(stack_argv)
 		);
 
 		CHECK(tid);
