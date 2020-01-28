@@ -443,15 +443,7 @@ int ezinject_main(
 		uintptr_t remote_clone_entry = PL_REMOTE_CODE(&injected_clone);
 
 		// stack base
-		uintptr_t *target_sp = (uintptr_t *)-1;
-
-		{ // align stack, and make sure stack doesn't overflow once aligned
-			uintptr_t *target_sp_raw = mapped_mem + MAPPINGSIZE - STACKSIZE;
-			for(int offset=0; target_sp > target_sp_raw; offset += sizeof(uintptr_t)){
-				DBG("target_sp: %p, offset=%d", target_sp, offset);
-				target_sp = (uintptr_t *)((uintptr_t)STACKALIGN(mapped_mem + MAPPINGSIZE - STACKSIZE - offset));
-			}
-		}
+		uintptr_t *target_sp = (uintptr_t *)((uintptr_t)STACKALIGN(mapped_mem + MAPPINGSIZE - STACKSIZE));
 
 		// end of stack: used for arguments
 		uintptr_t *stack_argv = (uintptr_t *)(

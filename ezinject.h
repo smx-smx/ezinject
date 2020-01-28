@@ -12,7 +12,7 @@
 
 #define STRSZ(x) (strlen(x) + 1)
 #define ALIGNMSK(y) ((y)-1)
-#define ALIGN(x, y) ((void *)((UPTR(x) + y) & ~ALIGNMSK(y)))
+#define ALIGN(x, y) ((void *)((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y)))
 
 #define MEMALIGN(x) ALIGN(x, sizeof(void *))
 
