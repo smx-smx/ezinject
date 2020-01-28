@@ -4,6 +4,8 @@
 #include "config.h"
 #include "ezinject_injcode.h"
 
+#include <sys/user.h>
+
 #define UNUSED(x) (void)(x)
 #define UPTR(x) ((uintptr_t)(x))
 
@@ -47,16 +49,6 @@ typedef struct {
 #define EZ_LOCAL(ref, remote_addr) (ref.local + (PTRDIFF(remote_addr, ref.remote)))
 // base.remote - (addr - local.base)
 #define EZ_REMOTE(ref, local_addr) (ref.remote + (PTRDIFF(local_addr, ref.local)))
-
-static ez_region region_pl_code = {
-	.start = (void *)&injected_code_start,
-	.end = (void *)&injected_code_end
-};
-
-static ez_region region_sc_insn = {
-	.start = (void *)&injected_sc_start,
-	.end = (void *)&injected_sc_end
-};
 
 struct ezinj_pl {
 	struct injcode_bearing *br_start;

@@ -20,15 +20,24 @@
 #include <sys/user.h>
 
 #include "util.h"
+#include "ezinject.h"
+#include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
 enum verbosity_level verbosity = V_DBG;
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
+static ez_region region_pl_code = {
+	.start = (void *)&injected_code_start,
+	.end = (void *)&injected_code_end
+};
 
-#include "ezinject.h"
-#include "ezinject_arch.h"
+static ez_region region_sc_insn = {
+	.start = (void *)&injected_sc_start,
+	.end = (void *)&injected_sc_end
+};
+
 
 #ifdef HAVE_LIBC_DLOPEN_MODE
 extern void *__libc_dlopen_mode  (const char *__name, int __mode);
@@ -71,6 +80,7 @@ void setregs_syscall(
 	//ebp must point to valid stack
 	REG(*new_ctx, REG_ARG6) = REG(*orig_ctx, REG_SP);
 #else
+	UNUSED(orig_ctx);
 #ifndef EZ_ARCH_MIPS
 	REG(*new_ctx, REG_ARG6) = 0;
 #endif

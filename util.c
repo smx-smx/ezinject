@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/uio.h>
 #include <ctype.h>
+#include "ezinject.h"
 
 void hexdump(void *pAddressIn, long lSize) {
 	char szBuf[100];
