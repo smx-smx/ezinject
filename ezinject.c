@@ -377,15 +377,6 @@ int ezinject_main(
 ){
 	int shm_id, sem_id;
 
-	// make sure there is no padding between functions
-	{
-		int padding;
-		if((padding = PTRDIFF(&injected_clone_entry, &injected_clone)) != 0){
-			ERR("Expected padding:0, actual:%d, check your compiler flags", padding);
-			return 1;
-		}
-	}
-
 	FILE *hmem = mem_open(ctx);
 	if(hmem == NULL){
 		PERROR("fopen");
@@ -533,7 +524,23 @@ int ezinject_main(
 	return 0;
 }
 
+/**
+ * Make sure there is no padding between functions
+ **/
+int compiler_check(){
+	int padding;
+	if((padding = PTRDIFF(&injected_clone_entry, &injected_clone)) != 0){
+		ERR("Expected padding:0, actual:%d, check your compiler flags", padding);
+		return 1;
+	}
+	return 0;
+}
+
 int main(int argc, char *argv[]){
+	if(compiler_check() != 0){
+		return 1;
+	}
+
 	if(argc < 3) {
 		ERR("Usage: %s pid library-to-inject", argv[0]);
 		return 1;
