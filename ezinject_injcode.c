@@ -21,8 +21,6 @@
 #define CLONE_FLAGS (CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD)
 #endif
 
-//#define syscall_offset offsetof(struct injcode_bearing, libc_syscall)
-
 #define STR2(X) #X
 #define STR(X) STR2(X)
 
@@ -64,6 +62,7 @@ __attribute__((naked, noreturn)) void injected_clone(){
 
 int clone_fn(void *arg){
 	struct injcode_bearing *br = (struct injcode_bearing *)arg;
+	// get argv[0], which is the library to load
 	char *dynStr = (char *)br + sizeof(*br) + (sizeof(char *) * br->argc);
 	br->lib_handle = br->libc_dlopen_mode(dynStr, RTLD_NOW | __RTLD_DLOPEN);
 	return 0;

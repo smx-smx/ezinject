@@ -1,3 +1,6 @@
+#ifndef __EZINJECT_INJCODE_H
+#define __EZINJECT_INJCODE_H
+
 #include <sys/types.h>
 #include <linux/limits.h>
 
@@ -35,3 +38,5 @@ extern void injected_clone();
 
 extern void injected_code_start();
 extern void injected_code_end();
+
+#endif

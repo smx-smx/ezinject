@@ -2,6 +2,7 @@
 #define __EZINJECT_H
 
 #include "config.h"
+#include "ezinject_injcode.h"
 
 #define UNUSED(x) (void)(x)
 #define UPTR(x) ((uintptr_t)(x))
@@ -57,6 +58,11 @@ static ez_region region_sc_insn = {
 	.end = (void *)&injected_sc_end
 };
 
+struct ezinj_pl {
+	struct injcode_bearing *br_start;
+	uint8_t *code_start;
+	uint8_t *sc_ret;
+};
 
 struct ezinj_ctx {
 	pid_t target;

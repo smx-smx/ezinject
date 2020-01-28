@@ -150,14 +150,7 @@ struct ezinj_str ezstr_new(char *str){
 	return bstr;
 }
 
-struct ezinj_pl {
-	struct injcode_bearing *br_start;
-	uint8_t *code_start;
-	uint8_t *sc_ret;
-};
-
 int libc_init(struct ezinj_ctx *ctx){	
-
 	/**
 	 * locate glibc in /proc/<pid>/maps
 	 * both for local and remote procs
@@ -182,7 +175,6 @@ int libc_init(struct ezinj_ctx *ctx){
 		.remote = EZ_REMOTE(libc, &clone)
 	};
 	ctx->libc_clone = libc_clone;
-
 	return 0;
 }
 
@@ -205,6 +197,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 #ifdef HAVE_LIBC_DLOPEN_MODE
 	ez_addr libc_dlopen_mode = SYM_ADDR(&__libc_dlopen_mode);
 #else
+	/*** TODO! ***/
 	ez_addr libc_dlopen_mode = SYM_ADDR(&dlopen);
 #endif
 	DBGPTR(libc_dlopen_mode.local);
