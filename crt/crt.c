@@ -7,8 +7,12 @@
 #include <sys/sem.h>
 #include <sys/shm.h>
 #include <sys/mman.h>
+
 #include "ezinject_injcode.h"
+
+#ifdef DEBUG
 #include "util.h"
+#endif
 
 extern void lib_preinit(struct injcode_user *user);
 extern int lib_main(int argc, char *argv[]);
@@ -48,7 +52,9 @@ __attribute__((constructor)) void entry(void)
 		dynStr += strlen(dynStr) + 1;
 	}
 
+#ifdef DEBUG
 	hexdump(localMem, memSize);
+#endif
 	shmdt(mem);
 
 	// signal ezinject to close IPC

@@ -9,3 +9,4 @@ add_library(libcpu_intel
 	${sources}
 )
 target_link_libraries(libcpu_intel ${CAPSTONE_LIBRARIES} util)
+set_target_properties(libcpu_intel PROPERTIES POSITION_INDEPENDENT_CODE ON)

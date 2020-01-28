@@ -3,3 +3,6 @@
 #cmakedefine EZ_ARCH_I386
 #cmakedefine EZ_ARCH_AMD64
 #cmakedefine EZ_ARCH_MIPS
+#cmakedefine HAVE_SHM_EXEC
+#cmakedefine HAVE_LIBC_DLOPEN_MODE
+#cmakedefine HAVE_CLONE_IO

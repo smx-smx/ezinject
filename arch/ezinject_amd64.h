@@ -2,6 +2,7 @@
 #define __EZINJECT_AMD64_H
 
 #define REG_PC rip
+#define REG_SP rsp
 #define REG_NR rax
 #define REG_RET rax
 #define REG_ARG1 rdi
@@ -10,7 +11,10 @@
 #define REG_ARG4 r10
 #define REG_ARG5 r8
 #define REG_ARG6 r9
-static const char SYSCALL_INSN[] = {0x0f, 0x05}; /* syscall */
-static const char RET_INSN[] = {0xc3}; /* ret */
+
+#define REG(u, r) u.regs.r
+
+#define EMIT_SC() asm volatile("syscall\n")
+#define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))
 
 #endif

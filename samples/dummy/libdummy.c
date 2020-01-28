@@ -7,6 +7,8 @@
 #include "interface/cpu/if_sljit.h"
 #include "ezinject_injcode.h"
 
+#define UNUSED(x) (void)(x)
+
 enum verbosity_level verbosity = V_DBG;
 
 void (*original_test_function) (int a, char *b);
@@ -86,6 +88,7 @@ void installHooks(){
 }
 
 void lib_preinit(struct injcode_user *user){
+	UNUSED(user);
 	// access user data
 }
 

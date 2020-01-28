@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(ezpatch C ASM)
 
-add_definitions(-fPIC)
+#add_definitions(-fPIC)
 
 include_directories(
 	${CMAKE_SOURCE_DIR}
@@ -31,8 +31,14 @@ else()
 	set(DEBUG OFF)
 endif()
 
-include(CheckSymbolExists)
+find_library(C_LIBRARY "libc.so")
 
+include(CheckLibraryExists)
+check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
+
+include(CheckSymbolExists)
+check_symbol_exists("SHM_EXEC" "sys/shm.h" HAVE_SHM_EXEC)
+check_symbol_exists("CLONE_IO" "sched.h" HAVE_CLONE_IO)
 check_symbol_exists("__arm__" "" EZ_ARCH_ARM)
 check_symbol_exists("__i386__" "" EZ_ARCH_I386)
 check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
@@ -62,15 +68,6 @@ add_executable(ezpatch
 )
 target_link_libraries(ezpatch util)
 
-add_executable(ezinject
-	ezinject.c
-	ezinject_injcode.c
-	util.c
-)
-
-set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS -fno-toplevel-reorder)
-target_link_libraries(ezinject dl)
-
 function(add_ezinject_library target sources)
 	list(APPEND sources ${CMAKE_SOURCE_DIR}/crt/crt.c)
 	if(DEBUG)
@@ -88,3 +85,16 @@ endfunction()
 
 add_subdirectory(crt)
 add_subdirectory(samples)
+
+
+add_executable(ezinject
+	ezinject.c
+	ezinject_injcode.c
+	util.c
+)
+
+# -fno-toplevel-reorder: keep order of code as it was written
+# -fno-stack-protector: remove stack cookie checks
+# -fno-pic: remove calls to __x86_get_pc_thunk_ax (PIC)
+set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-fno-toplevel-reorder -fno-stack-protector -fno-pic")
+target_link_libraries(ezinject dl lh_elf)

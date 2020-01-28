@@ -55,6 +55,7 @@ void *get_base(pid_t pid, char *libname)
 	char line[256];
 	char path[128];
 	void *base;
+	char perms[8];
 	bool found = false;
 	snprintf(line, 256, "/proc/%u/maps", pid);
 	FILE *fp = fopen(line, "r");
@@ -64,9 +65,11 @@ void *get_base(pid_t pid, char *libname)
 		if(!fgets(line, 256, fp))
 			break;
 		strcpy(path, "[anonymous]");
-		val = sscanf(line, "%p-%*p %*s %*p %*x:%*x %*u %s", &base, path);
-		if(!libname || strstr(path, libname))
+		val = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
+		
+		if(strstr(path, libname) && strchr(perms, 'x') != NULL){
 			found = true;
+		}
 	} while(val > 0 && !found);
 	fclose(fp);
 	return base;

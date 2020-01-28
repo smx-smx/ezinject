@@ -12,6 +12,9 @@ struct injcode_bearing
 {
 	void *(*libc_dlopen_mode)(const char *name, int mode);
 	long (*libc_syscall)(long number, ...);
+	int (*libc_clone)(
+		int (*fn)(void *),
+		void *stack, int flags, void *arg, ...);
 	struct injcode_user user;
 	void *lib_handle;
 	int argc;
@@ -19,5 +22,15 @@ struct injcode_bearing
 	char *argv[];
 };
 
-extern __attribute__((naked, noreturn)) void injected_code();
-extern __attribute__((naked)) void injected_code_end(void);
+extern int clone_fn(void *arg);
+
+extern void injected_sc_start();
+extern void injected_sc_end();
+
+extern void injected_clone_entry();
+extern void clone_entry();
+
+extern void injected_clone();
+
+extern void injected_code_start();
+extern void injected_code_end();
