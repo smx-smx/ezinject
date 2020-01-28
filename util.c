@@ -1,5 +1,7 @@
 #define _GNU_SOURCE
 #include "util.h"
+#include <stdbool.h>
+#include <string.h>
 #include <sys/uio.h>
 #include <ctype.h>
 
@@ -73,6 +75,101 @@ void *get_base(pid_t pid, char *libname)
 	} while(val > 0 && !found);
 	fclose(fp);
 	return base;
+}
+
+size_t find_adj_bytes(FILE *src, size_t sz, unsigned char ch, size_t nmemb){
+	size_t i;
+	int fch;
+	do {
+		for(i=0; i < sz && (fch=fgetc(src)) == ch; i++);
+	} while(i < sz && fch != EOF && i != nmemb);
+
+	DBG("cnt[%02X] => %zu", ch, i);
+	return i;
+}
+
+FILE *mem_open(pid_t pid){
+	char line[256];
+	snprintf(line, sizeof(line), "/proc/%u/mem", pid);
+	return fopen(line, "rb+");
+}
+
+uintptr_t find_cave(pid_t pid, FILE *hmem, size_t dataLength){
+	char line[256];
+
+	snprintf(line, sizeof(line), "/proc/%u/maps", pid);
+	FILE *fp = fopen(line, "r");
+	if(fp == NULL){
+		PERROR("fopen maps");
+		return 0;
+	}
+
+	uintptr_t start, end;
+	char perms[8];
+	memset(perms, 0x00, sizeof(perms));
+
+	int val;
+	uintptr_t cave_addr = 0;
+	while(cave_addr == 0){
+		if(!fgets(line, sizeof(line), fp)){
+			PERROR("fgets");
+			break;			
+		}
+		val = sscanf(line, "%p-%p %s %*p %*x:%*x %*u %*s", (void **)&start, (void **)&end, (char *)&perms);
+		if(val == 0){
+			break;
+		}
+
+		if(strchr(perms, 'x') != NULL){
+			size_t mem_length = end - start;
+
+			INFO("Scanning cave: %p - %p", (void *)start, (void *)end);
+
+			if(fseek(hmem, start, SEEK_SET) != 0){
+				INFO("unreadable");
+				continue;
+			}
+
+			size_t cave_size = 0;
+			long int mempos;
+			do {
+				cave_size = find_adj_bytes(hmem, mem_length, 0x00, dataLength);
+				mempos = ftell(hmem);
+			} while(
+				cave_size < dataLength &&
+				mempos > -1 &&
+				(uintptr_t)mempos < end
+			);
+
+			if(cave_size >= dataLength){
+				INFO("Cave found (size:%zu)", cave_size);
+				if(fseek(hmem, -cave_size, SEEK_CUR) != 0){
+					PERROR("fseek");
+					break;
+				}
+				cave_addr = ftell(hmem);
+
+#if defined(EZ_ARCH_ARM) || defined(EZ_ARCH_MIPS)
+				uintptr_t cave_addr_aligned = (uintptr_t)MEMALIGN(cave_addr);
+				// check if we're word aligned
+				int rem = cave_addr_aligned - cave_addr;
+				if(rem != 0 && cave_size > 0){
+					if((cave_size - rem) < dataLength){
+						// no room to remove 1 byte, continue searching
+						cave_addr = 0;
+					} else {
+						cave_size -= rem;
+						cave_addr += rem;
+					}
+				}
+#endif
+			}
+		}
+	}
+
+	fclose(fp);
+
+	return cave_addr;
 }
 
 #if 0
