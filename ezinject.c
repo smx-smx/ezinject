@@ -34,19 +34,59 @@ static struct ezinj_ctx ctx; // only to be used for sigint handler
 extern void *__libc_dlopen_mode  (const char *__name, int __mode);
 #endif
 
-uintptr_t remote_call_stack(
-	pid_t target,
-	uintptr_t insn_addr,
-	uintptr_t stack_addr
+void setregs_callstack(
+	struct user *orig_ctx,
+	struct user *new_ctx,
+	void *pUserData
 ){
+	UNUSED(orig_ctx);
+
+	struct call_req *call = (struct call_req *)pUserData;
+	struct callstack_req cs = call->u.call;
+
+	REG(*new_ctx, REG_PC) = call->insn_addr;
+	REG(*new_ctx, REG_SP) = cs.stack_addr;
+}
+
+void setregs_syscall(
+	struct user *orig_ctx,
+	struct user *new_ctx,
+	void *pUserData
+){
+	struct call_req *call = (struct call_req *)pUserData;
+	struct sc_req sc = call->u.syscall;
+
+	REG(*new_ctx, REG_PC) = call->insn_addr;
+	REG(*new_ctx, REG_NR) = sc.nr;
+	REG(*new_ctx, REG_ARG1) = sc.arg1;
+	REG(*new_ctx, REG_ARG2) = sc.arg2;
+	REG(*new_ctx, REG_ARG3) = sc.arg3;
+
+#ifndef EZ_ARCH_MIPS
+	REG(*new_ctx, REG_ARG4) = 0;
+	REG(*new_ctx, REG_ARG5) = 0;
+#endif
+
+#ifdef EZ_ARCH_I386
+	//ebp must point to valid stack
+	REG(*new_ctx, REG_ARG6) = REG(*orig_ctx, REG_SP);
+#else
+#ifndef EZ_ARCH_MIPS
+	REG(*new_ctx, REG_ARG6) = 0;
+#endif
+#endif
+
+	DBG("remote_call(%d)", sc.nr);
+}
+
+uintptr_t remote_call_common(pid_t target, pfnRegSet setRegs, void *pUserData){
 	struct user orig_ctx, new_ctx;
 	memset(&orig_ctx, 0x00, sizeof(orig_ctx));
 
 	ptrace(PTRACE_GETREGS, target, 0, &orig_ctx);
 	memcpy(&new_ctx, &orig_ctx, sizeof(orig_ctx));
 
-	REG(new_ctx, REG_PC) = insn_addr;
-	REG(new_ctx, REG_SP) = stack_addr;
+	setRegs(&orig_ctx, &new_ctx, pUserData);
 
 	ptrace(PTRACE_SETREGS, target, 0, &new_ctx);
 
@@ -61,11 +101,28 @@ uintptr_t remote_call_stack(
 	ptrace(PTRACE_GETREGS, target, 0, &new_ctx); /* Get return value */
 	
 	ptrace(PTRACE_SETREGS, target, 0, &orig_ctx);
-	DBG("remote_call_stack() PC: %p => %p",
-		(void *)insn_addr, (void *)REG(new_ctx, REG_PC)
-	);
+	DBG("[RET] = %zu", (uintptr_t)REG(new_ctx, REG_RET));
+
+	struct call_req *call = (struct call_req *)pUserData;
+	DBG("PC: %p => %p",
+		(void *)call->insn_addr,
+		(void *)REG(new_ctx, REG_PC));
 
 	return REG(new_ctx, REG_RET);
+}
+
+uintptr_t remote_call_stack(
+	pid_t target,
+	uintptr_t insn_addr,
+	uintptr_t stack_addr
+){
+	struct call_req req = {
+		.insn_addr = insn_addr,
+		.u.call = {
+			.stack_addr = stack_addr
+		}
+	};
+	return remote_call_common(target, &setregs_callstack, &req);
 }
 
 uintptr_t remote_call(
@@ -73,52 +130,16 @@ uintptr_t remote_call(
 	uintptr_t insn_addr, int nr,
 	uintptr_t arg1, uintptr_t arg2, uintptr_t arg3
 ){
-	struct user orig_ctx, new_ctx;
-	memset(&orig_ctx, 0x00, sizeof(orig_ctx));
-
-	ptrace(PTRACE_GETREGS, target, 0, &orig_ctx);
-	memcpy(&new_ctx, &orig_ctx, sizeof(orig_ctx));
-
-	REG(new_ctx, REG_PC) = insn_addr;
-	REG(new_ctx, REG_NR) = nr;
-	REG(new_ctx, REG_ARG1) = arg1;
-	REG(new_ctx, REG_ARG2) = arg2;
-	REG(new_ctx, REG_ARG3) = arg3;
-
-#ifndef EZ_ARCH_MIPS
-	REG(new_ctx, REG_ARG4) = 0;
-	REG(new_ctx, REG_ARG5) = 0;
-#endif
-
-#ifdef EZ_ARCH_I386
-	//ebp must point to valid stack
-	REG(new_ctx, REG_ARG6) = REG(orig_ctx, REG_SP);
-#else
-#ifndef EZ_ARCH_MIPS
-	REG(new_ctx, REG_ARG6) = 0;
-#endif
-#endif
-
-	ptrace(PTRACE_SETREGS, target, 0, &new_ctx);
-
-	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall entry */
-	if(waitpid(target, 0, 0) != target){
-		PERROR("waitpid");
-	}
-	ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall return */
-	if(waitpid(target, 0, 0) != target){
-		PERROR("waitpid");
-	}
-	ptrace(PTRACE_GETREGS, target, 0, &new_ctx); /* Get return value */
-	
-	ptrace(PTRACE_SETREGS, target, 0, &orig_ctx);
-	DBG("remote_call(%d) = %zu, PC: %p => %p",
-		nr,
-		(uintptr_t)REG(new_ctx, REG_RET),
-		(void *)insn_addr,
-		(void *)REG(new_ctx, REG_PC));
-
-	return REG(new_ctx, REG_RET);
+	struct call_req req = {
+		.insn_addr = insn_addr,
+		.u.syscall = {
+			.nr = nr,
+			.arg1 = arg1,
+			.arg2 = arg2,
+			.arg3 = arg3
+		}
+	};
+	return remote_call_common(target, &setregs_syscall, &req);
 }
 
 struct ezinj_str ezstr_new(char *str){
@@ -164,7 +185,6 @@ int libc_init(struct ezinj_ctx *ctx){
 
 	return 0;
 }
-
 
 
 void strPush(char **strData, struct ezinj_str str){

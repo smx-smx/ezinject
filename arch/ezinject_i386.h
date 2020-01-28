@@ -12,7 +12,7 @@
 #define REG_ARG5 edi
 #define REG_ARG6 ebp
 
-#define REG(u, r) u.regs.r
+#define REG(u, r) (u).regs.r
 
 #define EMIT_SC() asm volatile("sysenter\n")
 #define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))

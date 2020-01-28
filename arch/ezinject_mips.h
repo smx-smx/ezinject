@@ -10,7 +10,7 @@
 #define REG_ARG3 regs[6] //$a2
 #define REG_ARG4 regs[7] //$a3
 
-#define REG(u, r) u.r
+#define REG(u, r) (u).r
 
 /** NOTE: UNTESTED **/
 #define EMIT_SC() asm volatile("syscall\n")

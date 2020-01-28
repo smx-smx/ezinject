@@ -73,4 +73,29 @@ struct ezinj_str {
 	char *str;
 };
 
+typedef void (*pfnRegSet)(
+	struct user *oregs,
+	struct user *regs,
+	void *pUserData
+);
+
+struct sc_req {
+	uintptr_t nr;
+	uintptr_t arg1;
+	uintptr_t arg2;
+	uintptr_t arg3;
+};
+
+struct callstack_req {
+	uintptr_t stack_addr;
+};
+
+struct call_req {
+	uintptr_t insn_addr;
+	union {
+		struct sc_req syscall;
+		struct callstack_req call;
+	} u;
+};
+
 #endif

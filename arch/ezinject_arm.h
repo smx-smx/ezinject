@@ -12,7 +12,7 @@
 #define REG_ARG5 uregs[4]
 #define REG_ARG6 uregs[5]
 
-#define REG(u, r) u.regs.r
+#define REG(u, r) (u).regs.r
 
 #define EMIT_SC() asm volatile("swi 0\n")
 #define EMIT_POP(var) asm volatile("pop {%0}" : "=r"(var))
