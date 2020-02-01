@@ -38,7 +38,6 @@ static ez_region region_sc_insn = {
 	.end = (void *)&injected_sc_end
 };
 
-
 void setregs_callstack(
 	struct user *orig_ctx,
 	struct user *new_ctx,
@@ -208,12 +207,58 @@ int libc_init(struct ezinj_ctx *ctx){
 		return 1;
 	}
 
+	{
+		void *h_libdl = dlopen(DL_LIBRARY_NAME, RTLD_LAZY);
+		if(!h_libdl){
+			ERR("dlopen("DL_LIBRARY_NAME") failed: %s", dlerror());
+			return 1;
+		}
+
+		ez_addr libdl = {
+			.local = (uintptr_t)get_base(getpid(), "libdl"),
+			.remote = (uintptr_t)get_base(ctx->target, "libdl")
+		};
+
+		DBGPTR(libdl.local);
+		DBGPTR(libdl.remote);
+
+		if(libdl.remote != 0){
+			// target has libdl loaded. this makes things easier for us
+			ctx->actual_dlopen = sym_addr(h_libdl, "dlopen", libdl);
+		} else {
+			// target has no libdl loaded. we will need to load it ourselves
+			void *dlopen_local = dlsym(h_libdl, "dlopen");
+			off_t dlopen_offset = (off_t)PTRDIFF(dlopen_local, libdl.local);
+			DBG("dlopen offset: 0x%lx", dlopen_offset);
+			ctx->dlopen_offset = dlopen_offset;
+		}
+
+		dlclose(h_libdl);
+	}
+
+
 	ez_addr libc_dlopen = sym_addr(h_ldso, "_dl_load_shared_library", ldso);
+
 	ez_addr uclibc_sym_tables = sym_addr(h_ldso, "_dl_symbol_tables", ldso);
+	ez_addr uclibc_loaded_modules = sym_addr(h_ldso, "_dl_loaded_modules", ldso);
+	ez_addr uclibc_mips_got_reloc = sym_addr(h_ldso, "_dl_perform_mips_global_got_relocations", ldso);
+	ez_addr uclibc_dl_fixup = sym_addr(h_ldso, "_dl_fixup", ldso);
 
 	DBGPTR(uclibc_sym_tables.local);
 	DBGPTR(uclibc_sym_tables.remote);
 	ctx->uclibc_sym_tables = uclibc_sym_tables;
+
+	DBGPTR(uclibc_loaded_modules.local);
+	DBGPTR(uclibc_loaded_modules.remote);
+	ctx->uclibc_loaded_modules = uclibc_loaded_modules;
+
+	DBGPTR(uclibc_mips_got_reloc.local);
+	DBGPTR(uclibc_mips_got_reloc.remote);
+	ctx->uclibc_mips_got_reloc = uclibc_mips_got_reloc;
+
+	DBGPTR(uclibc_dl_fixup.local);
+	DBGPTR(uclibc_dl_fixup.remote);
+	ctx->uclibc_dl_fixup = uclibc_dl_fixup;
 
 	dlclose(h_ldso);
 #endif
@@ -243,23 +288,45 @@ void strPush(char **strData, struct ezinj_str str){
 
 
 struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *argv[]){
-	char libName[PATH_MAX];
-	if(!realpath(argv[0], libName))
-	{
-		ERR("realpath: %s", libName);
-		PERROR("realpath");
-		return NULL;
-	}
-
 	int dyn_ptr_size = argc * sizeof(char *);
 	int dyn_str_size = 0;
 
-	struct ezinj_str args[argc];
-	args[0] = ezstr_new(libName);
-	dyn_str_size += args[0].len;
+	int num_strings;
 
-	for(int i=1; i<argc; i++){
-		args[i] = ezstr_new(argv[i]);
+#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
+	num_strings = argc + 1; // add libdl.so name
+#else
+	num_strings = argc;
+#endif
+
+	struct ezinj_str args[num_strings];
+	int argi = 0;
+
+#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
+	{ //libdl.so name (without path)
+		args[argi] = ezstr_new(DL_LIBRARY_NAME);
+		dyn_str_size += args[argi].len;
+		argi++;
+	}
+#endif
+
+	{ //library to load
+		char libName[PATH_MAX];
+		if(!realpath(argv[0], libName))
+		{
+			ERR("realpath: %s", libName);
+			PERROR("realpath");
+			return NULL;
+		}
+
+		args[argi] = ezstr_new(libName);
+		dyn_str_size += args[argi].len;
+		argi++;
+	}
+
+	// user arguments
+	for(int i=1; i < argc; i++, argi++){
+		args[argi] = ezstr_new(argv[i]);
 		dyn_str_size += args[i].len;
 	}
 
@@ -268,15 +335,19 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	struct injcode_bearing *br = malloc(sizeof(*br) + dyn_total_size);
 	br->libc_clone = (void *)ctx.libc_clone.remote;
 	br->libc_dlopen = (void *)ctx.libc_dlopen.remote;
+	br->actual_dlopen = (void *)ctx.actual_dlopen.remote;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	br->uclibc_sym_tables = (void *)ctx.uclibc_sym_tables.remote;
+	br->uclibc_dl_fixup = (void *)ctx.uclibc_dl_fixup.remote;
+	br->uclibc_loaded_modules = (void *)ctx.uclibc_loaded_modules.remote;
+	br->dlopen_offset = ctx.dlopen_offset;
 #endif
 	br->libc_syscall = (void *)ctx.libc_syscall.remote;
 	br->argc = argc;
 	br->dyn_size = dyn_total_size;
 
 	char *stringData = (char *)br + sizeof(*br) + dyn_ptr_size;
-	for(int i=0; i<argc; i++){
+	for(int i=0; i<num_strings; i++){
 		strPush(&stringData, args[i]);
 	}
 	return br;
@@ -347,6 +418,7 @@ int ezinject_main(
 		return 1;
 	}
 
+#if 0
 	uintptr_t cave_addr = 0;
 	{ // write syscall instruction
 		size_t dataLength = REGION_LENGTH(region_sc_insn);
@@ -367,6 +439,32 @@ int ezinject_main(
 
 		ctx->syscall_insn.remote = cave_addr;
 	}
+#endif
+
+#if 1
+	uintptr_t codeBase = get_code_base(ctx->target);
+	if(codeBase == 0){
+		ERR("Could not obtain code base");
+		return 1;
+	}
+
+	size_t dataLength = REGION_LENGTH(region_sc_insn);
+	uint8_t dataBak[dataLength];
+	{
+		if(fseek(hmem, codeBase, SEEK_SET) != 0){
+			PERROR("fseek (pre-read)");
+		} else if(fread(dataBak, 1, dataLength, hmem) != dataLength){
+			PERROR("fread");
+		} else if(fseek(hmem, codeBase, SEEK_SET) != 0){
+			PERROR("fseek (pre-write)");
+		} else if(fwrite((uint8_t *)region_sc_insn.start, 1, dataLength, hmem) != dataLength){
+			PERROR("fwrite");
+		}
+		fflush(hmem);
+
+		ctx->syscall_insn.remote = codeBase;
+	}
+#endif
 
 	/* Verify that remote_call works correctly */
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
@@ -463,6 +561,26 @@ int ezinject_main(
 		DBGPTR(stack_argv[1]);
 		DBGPTR(stack_argv[2]);
 
+#if 1
+		{
+			if(fseek(hmem, codeBase, SEEK_SET) != 0){
+				PERROR("fseek (restore pre-write)");
+			} else if(fwrite(dataBak, 1, dataLength, hmem) != dataLength){
+				PERROR("fwrite (restore)");
+			}
+		}
+#endif
+
+#if 0
+		{ // restore zeros in code cave
+			fseek(hmem, cave_addr, SEEK_SET);
+			uint8_t zeroBuf[REGION_LENGTH(region_sc_insn)];
+			memset(zeroBuf, 0x00, sizeof(zeroBuf));
+			fwrite(zeroBuf, 1, sizeof(zeroBuf), hmem);
+			fflush(hmem);
+		}
+#endif
+
 		DBGPTR(remote_clone_entry);
 		pid_t tid = remote_call_stack(
 			ctx->target,
@@ -471,14 +589,6 @@ int ezinject_main(
 		);
 
 		CHECK(tid);
-
-		{ // restore zeros in code cave
-			fseek(hmem, cave_addr, SEEK_SET);
-			uint8_t zeroBuf[REGION_LENGTH(region_sc_insn)];
-			memset(zeroBuf, 0x00, sizeof(zeroBuf));
-			fwrite(zeroBuf, 1, sizeof(zeroBuf), hmem);
-			fflush(hmem);
-		}
 
 		err = 0;
 	} while(0);

@@ -62,8 +62,13 @@ struct ezinj_ctx {
 	ez_addr syscall_insn;
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
+	ez_addr actual_dlopen;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	ez_addr uclibc_sym_tables;
+	ez_addr uclibc_loaded_modules;
+	ez_addr uclibc_mips_got_reloc;
+	ez_addr uclibc_dl_fixup;
+	off_t dlopen_offset;
 #endif
 	ez_addr libc_clone;
 	int shm_id;

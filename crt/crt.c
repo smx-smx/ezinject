@@ -7,6 +7,7 @@
 #include <sys/sem.h>
 #include <sys/shm.h>
 #include <sys/mman.h>
+#include <asm/unistd.h>
 
 #include "ezinject_injcode.h"
 
@@ -19,10 +20,14 @@ extern int lib_main(int argc, char *argv[]);
 
 __attribute__((constructor)) void entry(void)
 {
-	pid_t pid = getpid();
+	/**
+	 * getpid() from uClibc is broken, and returns the thread id instead of the process id
+	 * so we use the syscall directly
+	 */
+	pid_t pid = syscall(__NR_getpid);
 	int shm_id = shmget(pid, MAPPINGSIZE, 0);
 	if(shm_id < 0){
-		perror("shmget");
+		fprintf(stderr, "shmget(%u): %s\n", pid, strerror(errno));
 		return;
 	}
 	void *mem = shmat(shm_id, NULL, SHM_RDONLY);
@@ -47,6 +52,10 @@ __attribute__((constructor)) void entry(void)
 	// prepare argv
 	char **dynPtr = (char **)((char *)localMem + sizeof(*br));
 	char *dynStr = (char *)dynPtr + (sizeof(char *) * br->argc);
+#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
+	dynStr += strlen(dynStr) + 1; // skip libdl.so name
+#endif
+
 	for(int i=0; i<br->argc; i++){
 		*(dynPtr++) = dynStr;
 		dynStr += strlen(dynStr) + 1;

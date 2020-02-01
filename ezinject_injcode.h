@@ -11,6 +11,20 @@
 #define INJ_PATH_MAX 128
 
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
+#include <elf.h>
+
+#define ElfW(type)	_ElfW (Elf, __ELF_NATIVE_CLASS, type)
+#define _ElfW(e,w,t)	_ElfW_1 (e, w, _##t)
+#define _ElfW_1(e,w,t)	e##w##t
+#define DL_LOADADDR_TYPE ElfW(Addr)
+#include <link.h>		/* Defines __ELF_NATIVE_CLASS.  */
+
+struct r_scope_elem {
+	void **r_list; /* Array of maps for the scope.  */
+	unsigned int r_nlist;        /* Number of entries in the scope.  */
+	void *next;
+};
+
 struct init_fini {
     void **init_fini;
     unsigned long nlist; /* Number of entries in init_fini */
@@ -22,6 +36,17 @@ struct dyn_elf {
   struct init_fini init_fini;
   void * next;
   void * prev;
+};
+
+struct elf_resolve_hdr {
+	/* These entries must be in this order to be compatible with the interface used
+		by gdb to obtain the list of symbols. */
+	DL_LOADADDR_TYPE loadaddr;	/* Base address shared object is loaded at.  */
+	char *libname;		/* Absolute file name object was found in.  */
+	ElfW(Dyn) *dynamic_addr;	/* Dynamic section of the shared object.  */
+	struct elf_resolve * next;
+	struct elf_resolve * prev;
+	/* Nothing after this address is used by gdb. */
 };
 #endif
 
@@ -37,7 +62,12 @@ struct injcode_bearing
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
 		void *tpnt, char *full_libname, int trace_loaded_objects);
 	struct dyn_elf **uclibc_sym_tables;
+	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
+	struct elf_resolve_hdr **uclibc_loaded_modules;
+	off_t dlopen_offset;
 #endif
+	// the real dlopen() function from libdl, if available
+	void *(*actual_dlopen)(const char *filename, int flag);
 	long (*libc_syscall)(long number, ...);
 	int (*libc_clone)(
 		int (*fn)(void *),

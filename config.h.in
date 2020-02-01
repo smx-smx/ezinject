@@ -9,3 +9,4 @@
 #cmakedefine HAVE_DL_LOAD_SHARED_LIBRARY
 #cmakedefine C_LIBRARY_NAME "@C_LIBRARY_NAME@"
 #cmakedefine DYN_LINKER_NAME "@DYN_LINKER_NAME@"
+#cmakedefine DL_LIBRARY_NAME "@DL_LIBRARY_NAME@"

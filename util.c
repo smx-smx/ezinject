@@ -75,7 +75,8 @@ void *get_base(pid_t pid, char *libname)
 		}
 	} while(val > 0 && !found);
 	fclose(fp);
-	return base;
+
+	return (found) ? base : NULL;
 }
 
 size_t find_adj_bytes(FILE *src, size_t sz, unsigned char ch, size_t nmemb){
@@ -93,6 +94,42 @@ FILE *mem_open(pid_t pid){
 	char line[256];
 	snprintf(line, sizeof(line), "/proc/%u/mem", pid);
 	return fopen(line, "rb+");
+}
+
+uintptr_t get_code_base(pid_t pid){
+	char line[256];
+
+	snprintf(line, sizeof(line), "/proc/%u/maps", pid);
+	FILE *fp = fopen(line, "r");
+	if(fp == NULL){
+		PERROR("fopen maps");
+		return 0;
+	}
+
+	uintptr_t start, end;
+	char perms[8];
+	memset(perms, 0x00, sizeof(perms));
+
+	int val;
+	uintptr_t region_addr = 0;
+
+	while(region_addr == 0){
+		if(!fgets(line, sizeof(line), fp)){
+			PERROR("fgets");
+			break;			
+		}
+		val = sscanf(line, "%p-%p %s %*p %*x:%*x %*u %*s", (void **)&start, (void **)&end, (char *)&perms);
+		if(val == 0){
+			break;
+		}
+
+		if(strchr(perms, 'x') != NULL){
+			region_addr = start;
+		}
+	}
+
+	fclose(fp);
+	return region_addr;
 }
 
 uintptr_t find_cave(pid_t pid, FILE *hmem, size_t dataLength){
@@ -114,7 +151,7 @@ uintptr_t find_cave(pid_t pid, FILE *hmem, size_t dataLength){
 	while(cave_addr == 0){
 		if(!fgets(line, sizeof(line), fp)){
 			PERROR("fgets");
-			break;			
+			break;
 		}
 		val = sscanf(line, "%p-%p %s %*p %*x:%*x %*u %*s", (void **)&start, (void **)&end, (char *)&perms);
 		if(val == 0){

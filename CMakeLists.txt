@@ -42,6 +42,22 @@ if(NOT C_LIBRARY)
 	message(FATAL_ERROR "libc.so not found")
 endif()
 
+find_library(DL_LIBRARY "libdl.so.0")
+if(NOT DL_LIBRARY)
+	find_library(DL_LIBRARY "libdl.so.2")
+endif()
+
+if(NOT DL_LIBRARY)
+	message(FATAL_ERROR "libdl.so not found")
+endif()
+
+check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
+check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)
+if(NOT HAVE_DLOPEN OR NOT HAVE_DLSYM)
+	message(FATAL_ERROR "Invalid libdl.so library")
+endif()
+
+get_filename_component(DL_LIBRARY_NAME "${DL_LIBRARY}" NAME)
 
 find_library(DYN_LINKER "ld-uClibc.so.0")
 
