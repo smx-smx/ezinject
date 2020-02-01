@@ -144,6 +144,7 @@ add_executable(ezinject
 
 # -fno-toplevel-reorder: keep order of code as it was written
 # -fno-stack-protector: remove stack cookie checks
-# -fno-pic: remove calls to __x86_get_pc_thunk_ax (PIC)
-set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-fno-toplevel-reorder -fno-stack-protector -fno-pic")
+# -fno-pic: remove calls to __x86_get_pc_thunk_ax (PIC
+# -ffreestanding: this code doesn't use any library
+set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-fno-toplevel-reorder -fno-stack-protector -fno-pic -ffreestanding")
 target_link_libraries(ezinject dl lh_elf)
