@@ -14,5 +14,8 @@
 
 /** NOTE: UNTESTED **/
 #define EMIT_SC() asm volatile("syscall\n")
-#define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))
+#define EMIT_POP(var) asm volatile( \
+	"lw %0, 0($sp)\n" \
+	"addiu $sp, $sp, 4\n" \
+	: "=r"(var))
 #endif

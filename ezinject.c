@@ -19,6 +19,12 @@
 #include <sys/shm.h>
 #include <sys/user.h>
 
+#include "config.h"
+
+#ifdef EZ_ARCH_MIPS
+#include <asm-generic/ipc.h>
+#endif
+
 #include "util.h"
 #include "ezinject.h"
 #include "ezinject_arch.h"
@@ -66,7 +72,9 @@ void setregs_syscall(
 	REG(*new_ctx, REG_ARG2) = sc.arg2;
 	REG(*new_ctx, REG_ARG3) = sc.arg3;
 
-#ifndef EZ_ARCH_MIPS
+#ifdef EZ_ARCH_MIPS
+	REG(*new_ctx, REG_ARG4) = sc.arg4;
+#else
 	REG(*new_ctx, REG_ARG4) = 0;
 	REG(*new_ctx, REG_ARG5) = 0;
 #endif
@@ -133,7 +141,8 @@ uintptr_t remote_call_stack(
 uintptr_t remote_call(
 	pid_t target,
 	uintptr_t insn_addr, int nr,
-	uintptr_t arg1, uintptr_t arg2, uintptr_t arg3
+	uintptr_t arg1, uintptr_t arg2, uintptr_t arg3,
+	uintptr_t arg4
 ){
 	struct call_req req = {
 		.insn_addr = insn_addr,
@@ -141,7 +150,8 @@ uintptr_t remote_call(
 			.nr = nr,
 			.arg1 = arg1,
 			.arg2 = arg2,
-			.arg3 = arg3
+			.arg3 = arg3,
+			.arg4 = arg4
 		}
 	};
 	return remote_call_common(target, &setregs_syscall, &req);
@@ -241,7 +251,14 @@ int libc_init(struct ezinj_ctx *ctx){
 
 	ez_addr uclibc_sym_tables = sym_addr(h_ldso, "_dl_symbol_tables", ldso);
 	ez_addr uclibc_loaded_modules = sym_addr(h_ldso, "_dl_loaded_modules", ldso);
+
+#ifdef EZ_ARCH_MIPS
 	ez_addr uclibc_mips_got_reloc = sym_addr(h_ldso, "_dl_perform_mips_global_got_relocations", ldso);
+	DBGPTR(uclibc_mips_got_reloc.local);
+	DBGPTR(uclibc_mips_got_reloc.remote);
+	ctx->uclibc_mips_got_reloc = uclibc_mips_got_reloc;
+#endif
+
 	ez_addr uclibc_dl_fixup = sym_addr(h_ldso, "_dl_fixup", ldso);
 
 	DBGPTR(uclibc_sym_tables.local);
@@ -251,10 +268,6 @@ int libc_init(struct ezinj_ctx *ctx){
 	DBGPTR(uclibc_loaded_modules.local);
 	DBGPTR(uclibc_loaded_modules.remote);
 	ctx->uclibc_loaded_modules = uclibc_loaded_modules;
-
-	DBGPTR(uclibc_mips_got_reloc.local);
-	DBGPTR(uclibc_mips_got_reloc.remote);
-	ctx->uclibc_mips_got_reloc = uclibc_mips_got_reloc;
 
 	DBGPTR(uclibc_dl_fixup.local);
 	DBGPTR(uclibc_dl_fixup.remote);
@@ -340,6 +353,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	br->uclibc_sym_tables = (void *)ctx.uclibc_sym_tables.remote;
 	br->uclibc_dl_fixup = (void *)ctx.uclibc_dl_fixup.remote;
 	br->uclibc_loaded_modules = (void *)ctx.uclibc_loaded_modules.remote;
+	br->uclibc_mips_got_reloc = (void *)ctx.uclibc_mips_got_reloc.remote;
 	br->dlopen_offset = ctx.dlopen_offset;
 #endif
 	br->libc_syscall = (void *)ctx.libc_syscall.remote;
@@ -381,10 +395,11 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 #define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx->syscall_insn.remote, n, __VA_ARGS__)
 
 // Remote System Call
-#define RSCALL0(ctx,n)               __RCALL_SC(ctx,n,0,0,0)
-#define RSCALL1(ctx,n,a1)            __RCALL_SC(ctx,n,UPTR(a1),0,0)
-#define RSCALL2(ctx,n,a1,a2)         __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),0)
-#define RSCALL3(ctx,n,a1,a2,a3)      __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3))
+#define RSCALL0(ctx,n)               __RCALL_SC(ctx,n,0,0,0,0)
+#define RSCALL1(ctx,n,a1)            __RCALL_SC(ctx,n,UPTR(a1),0,0,0)
+#define RSCALL2(ctx,n,a1,a2)         __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),0,0)
+#define RSCALL3(ctx,n,a1,a2,a3)      __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3),0)
+#define RSCALL4(ctx,n,a1,a2,a3,a4)   __RCALL_SC(ctx,n,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
 
 void cleanup_ipc(struct ezinj_ctx *ctx){
 	if(ctx->sem_id > -1){
@@ -518,14 +533,22 @@ int ezinject_main(
 		// swap local br pointer with shared
 		free(br);
 
+#ifdef HAVE_SHM_SYSCALLS
 		int remote_shm_id = (int)CHECK(RSCALL3(ctx, __NR_shmget, ctx->target, MAPPINGSIZE, S_IRWXO));
+#else
+		int remote_shm_id = (int)CHECK(RSCALL4(ctx, __NR_ipc, SHMGET, ctx->target, MAPPINGSIZE, S_IRWXO));
+#endif
 		if(remote_shm_id < 0){
 			ERR("Remote shmget failed: %d", remote_shm_id);
 			break;
 		}
 		INFO("Shm id: %d", remote_shm_id);
 
+#ifdef HAVE_SHM_SYSCALLS
 		uintptr_t remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, remote_shm_id, NULL, SHM_EXEC));
+#else
+		uintptr_t remote_shm_ptr = CHECK(RSCALL4(ctx, __NR_ipc, SHMAT, remote_shm_id, NULL, SHM_EXEC));
+#endif
 		if(remote_shm_ptr == (uintptr_t)MAP_FAILED){
 			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
 			break;

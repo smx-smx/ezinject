@@ -80,12 +80,18 @@ endif()
 #check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
 
 include(CheckSymbolExists)
+check_symbol_exists("__NR_shmget" "asm/unistd.h" HAVE_SHM_SYSCALLS)
+check_symbol_exists("__NR_ipc" "asm/unistd.h" HAVE_SC_IPC)
 check_symbol_exists("SHM_EXEC" "sys/shm.h" HAVE_SHM_EXEC)
 check_symbol_exists("CLONE_IO" "sched.h" HAVE_CLONE_IO)
 check_symbol_exists("__arm__" "" EZ_ARCH_ARM)
 check_symbol_exists("__i386__" "" EZ_ARCH_I386)
 check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
 check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
+
+if(NOT HAVE_SHM_SYSCALLS AND NOT HAVE_SC_IPC)
+	message(FATAL_ERROR "Unsupported system")
+endif()
 
 if(EZ_ARCH_I386 OR EZ_ARCH_AMD64)
 	set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")

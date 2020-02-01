@@ -87,6 +87,10 @@ int uclibc_dlopen(struct injcode_bearing *br){
 		return 1;
 	}
 
+#ifdef EZ_ARCH_MIPS
+	br->uclibc_mips_got_reloc(tpnt, 0);
+#endif
+
 // FIXME: how do we get this dynamically? its offset is NOT fixed
 #define SYMBOL_SCOPE_OFFSET (15 * sizeof(void *))
 

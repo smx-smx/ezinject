@@ -43,7 +43,7 @@ uint8_t *inj_build_jump(uintptr_t dstAddr, uintptr_t srcAddr, size_t *jumpSzPtr)
 		return NULL;
 }
 
-#ifndef __arm__
+#if defined(__i386__) || defined(__x86_64__)
 int inj_getinsn_count(uint8_t *buf, size_t sz, unsigned int *validbytes){
 	csh handle;
 	cs_insn *insn;

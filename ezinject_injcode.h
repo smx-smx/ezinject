@@ -63,6 +63,7 @@ struct injcode_bearing
 		void *tpnt, char *full_libname, int trace_loaded_objects);
 	struct dyn_elf **uclibc_sym_tables;
 	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
+	void (*uclibc_mips_got_reloc)(struct elf_resolve *tpnt, int lazy);
 	struct elf_resolve_hdr **uclibc_loaded_modules;
 	off_t dlopen_offset;
 #endif
