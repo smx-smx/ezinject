@@ -433,30 +433,6 @@ int ezinject_main(
 		return 1;
 	}
 
-#if 0
-	uintptr_t cave_addr = 0;
-	{ // write syscall instruction
-		size_t dataLength = REGION_LENGTH(region_sc_insn);
-
-		cave_addr = find_cave(ctx->target, hmem, dataLength);
-		if(cave_addr == 0){
-			ERR("Could not find code cave");
-			return 1;			
-		}
-		DBGPTR(cave_addr);
-
-		if(fseek(hmem, cave_addr, SEEK_SET) != 0){
-			PERROR("fseek");
-		} else if(fwrite((uint8_t *)region_sc_insn.start, 1, dataLength, hmem) != dataLength){
-			PERROR("fwrite");
-		}
-		fflush(hmem);
-
-		ctx->syscall_insn.remote = cave_addr;
-	}
-#endif
-
-#if 1
 	uintptr_t codeBase = get_code_base(ctx->target);
 	if(codeBase == 0){
 		ERR("Could not obtain code base");
@@ -479,7 +455,6 @@ int ezinject_main(
 
 		ctx->syscall_insn.remote = codeBase;
 	}
-#endif
 
 	/* Verify that remote_call works correctly */
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
@@ -584,7 +559,6 @@ int ezinject_main(
 		DBGPTR(stack_argv[1]);
 		DBGPTR(stack_argv[2]);
 
-#if 1
 		{
 			if(fseek(hmem, codeBase, SEEK_SET) != 0){
 				PERROR("fseek (restore pre-write)");
@@ -592,17 +566,6 @@ int ezinject_main(
 				PERROR("fwrite (restore)");
 			}
 		}
-#endif
-
-#if 0
-		{ // restore zeros in code cave
-			fseek(hmem, cave_addr, SEEK_SET);
-			uint8_t zeroBuf[REGION_LENGTH(region_sc_insn)];
-			memset(zeroBuf, 0x00, sizeof(zeroBuf));
-			fwrite(zeroBuf, 1, sizeof(zeroBuf), hmem);
-			fflush(hmem);
-		}
-#endif
 
 		DBGPTR(remote_clone_entry);
 		pid_t tid = remote_call_stack(
