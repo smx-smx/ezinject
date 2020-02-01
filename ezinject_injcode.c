@@ -56,6 +56,7 @@ __attribute__((naked, noreturn)) void injected_clone(){
 	br->libc_clone(pfnChild, clone_stack, CLONE_FLAGS, br);
 }
 
+#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 inline unsigned int strlen(const char *str){
 	unsigned int len = 0;
 	while(*(str++)) len++;
@@ -70,7 +71,6 @@ inline void *memset(void *s, int c, unsigned int n){
     return s;
 }
 
-#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 int uclibc_dlopen(struct injcode_bearing *br){
 	char *libdl_name = BR_STRTBL(br);
 	char *userlib_name = BR_STRTBL(br) + strlen(libdl_name) + 1;
