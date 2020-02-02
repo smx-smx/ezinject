@@ -10,6 +10,8 @@
 #include "interface/hook/linux/lh_hook.h"
 #include "interface/if_cpu.h"
 
+#define UNUSED(x) (void)x
+
 size_t inj_getjmp_size(){
 	#ifdef LH_JUMP_ABS
 		return inj_absjmp_opcode_bytes();
@@ -102,7 +104,8 @@ int inj_getbackup_size(uint8_t *codePtr, unsigned int payloadSz){
 		}
 		return totalBytes;
 #else
-		return -1;
+	UNUSED(codePtr);
+	return -1;
 #endif
 	}
 	//return -1;
@@ -114,6 +117,10 @@ int inj_getbackup_size(uint8_t *codePtr, unsigned int payloadSz){
 #if !defined(__i386__) && !defined(__x86_64__)
 int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC, uintptr_t destPC){
 	/* Not yet implemented for other arches */
+	UNUSED(codePtr);
+	UNUSED(codeSz);
+	UNUSED(sourcePC);
+	UNUSED(destPC);
 	return 0;
 }
 #endif

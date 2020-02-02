@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <signal.h>
 
+#define UNUSED(x) (void)x
+
 int return1(void)
 {
 	return 1;
@@ -14,11 +16,13 @@ void func2(void)
 }
 
 void onSignal(int sigNum){
+	UNUSED(sigNum);
 	raise(SIGSTOP);
 }
 
 int main(int argc, char *argv[])
 {
+	UNUSED(argv);	
 	signal(SIGSEGV, onSignal);
 	//signal(SIGTRAP, onSignal);
 

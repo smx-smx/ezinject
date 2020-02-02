@@ -44,8 +44,8 @@ struct elf_resolve_hdr {
 	DL_LOADADDR_TYPE loadaddr;	/* Base address shared object is loaded at.  */
 	char *libname;		/* Absolute file name object was found in.  */
 	ElfW(Dyn) *dynamic_addr;	/* Dynamic section of the shared object.  */
-	struct elf_resolve * next;
-	struct elf_resolve * prev;
+	struct elf_resolve_hdr *next;
+	struct elf_resolve_hdr *prev;
 	/* Nothing after this address is used by gdb. */
 };
 #endif
@@ -64,7 +64,7 @@ struct injcode_bearing
 	struct dyn_elf **uclibc_sym_tables;
 	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
 #ifdef EZ_ARCH_MIPS
-	void (*uclibc_mips_got_reloc)(struct elf_resolve *tpnt, int lazy);
+	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
 #endif
 	struct elf_resolve_hdr **uclibc_loaded_modules;
 	off_t dlopen_offset;

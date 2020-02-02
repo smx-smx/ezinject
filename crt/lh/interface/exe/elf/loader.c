@@ -59,6 +59,8 @@ enum {
 	PROCMAPS_FILETYPE_SYSCALL //7
 };
 
+#define UNUSED(x) (void)x
+
 void ld_procmaps_dump(struct ld_procmaps *pm) {
 	if (!pm)
 		return;
@@ -72,6 +74,7 @@ void ld_procmaps_dump(struct ld_procmaps *pm) {
 }
 
 int ld_procmaps_parse(char *buf, size_t bufsz, struct ld_procmaps *pm, const char *appname) {
+	UNUSED(bufsz);
 	if (!buf || !pm) {
 		ERR("Invalid arguments.");
 		return -1;
@@ -300,7 +303,7 @@ int ld_find_library(struct ld_procmaps *maps, const size_t mapnum, const char *l
 		bool nonlib_match = false;
 		bool exact_match = false;
 		if (inode_match) {
-			struct stat statbuf = { 0 };
+			struct stat statbuf;
 			if (stat(libpath, &statbuf) < 0) {
 				int err = errno;
 				LOG(1, "Unable to get inode for %s. Error: %s", libpath, strerror(err));
