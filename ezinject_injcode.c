@@ -32,28 +32,28 @@
 		name":\n" \
 	)
 
-__attribute__((naked)) void injected_code_start(void)
-{
-}
+void injected_code_start(void){}
 
-__attribute__((naked, noreturn)) void injected_sc(){
+void injected_sc(){
 	EMIT_LABEL("injected_sc_start");
 	EMIT_SC();
 	EMIT_LABEL("injected_sc_end");
 }
 
-__attribute__((naked, noreturn)) void injected_clone(){
+void injected_clone(){
 	EMIT_LABEL("injected_clone_entry");
 
-	struct injcode_bearing *br;
-	int (*pfnChild)(void *arg);
-	void *clone_stack;
+	register struct injcode_bearing *br;
+	register int (*pfnChild)(void *arg);
+	register void *clone_stack;
 	
 	EMIT_POP(br);
 	EMIT_POP(pfnChild);
 	EMIT_POP(clone_stack);
 
 	br->libc_clone(pfnChild, clone_stack, CLONE_FLAGS, br);
+
+	while(1);
 }
 
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
@@ -142,13 +142,10 @@ int clone_fn(void *arg){
 
 	br->libc_syscall(__NR_exit, ret);
 
-	loop:
-	goto loop;
+	while(1);
 
 	// must never be reached, or we hit undefined behaviour (invalid return address)
 	return 0;
 }
 
-__attribute__((naked)) void injected_code_end(void)
-{
-}
+void injected_code_end(void){}

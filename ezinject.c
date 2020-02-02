@@ -353,7 +353,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	br->uclibc_sym_tables = (void *)ctx.uclibc_sym_tables.remote;
 	br->uclibc_dl_fixup = (void *)ctx.uclibc_dl_fixup.remote;
 	br->uclibc_loaded_modules = (void *)ctx.uclibc_loaded_modules.remote;
+#ifdef EZ_ARCH_MIPS
 	br->uclibc_mips_got_reloc = (void *)ctx.uclibc_mips_got_reloc.remote;
+#endif
 	br->dlopen_offset = ctx.dlopen_offset;
 #endif
 	br->libc_syscall = (void *)ctx.libc_syscall.remote;
@@ -536,7 +538,7 @@ int ezinject_main(
 			PL_REMOTE(pl.code_start) + PTRDIFF(addr, &injected_code_start)
 
 		// clone entry
-		uintptr_t remote_clone_entry = PL_REMOTE_CODE(&injected_clone);
+		uintptr_t remote_clone_entry = PL_REMOTE_CODE(&injected_clone_entry);
 
 		// stack base
 		uintptr_t *target_sp = (uintptr_t *)((uintptr_t)STACKALIGN(mapped_mem + MAPPINGSIZE - STACKSIZE));
@@ -590,23 +592,7 @@ int ezinject_main(
 	return 0;
 }
 
-/**
- * Make sure that function start == first instruction
- **/
-int compiler_check(){
-	int padding;
-	if((padding = PTRDIFF(&injected_clone_entry, &injected_clone)) != 0){
-		ERR("Expected padding:0, actual:%d, check your compiler flags", padding);
-		return 1;
-	}
-	return 0;
-}
-
 int main(int argc, char *argv[]){
-	if(compiler_check() != 0){
-		return 1;
-	}
-
 	if(argc < 3) {
 		ERR("Usage: %s pid library-to-inject", argv[0]);
 		return 1;
