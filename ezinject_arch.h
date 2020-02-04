@@ -7,7 +7,6 @@
 #elif defined(EZ_ARCH_AMD64)
 #include "arch/ezinject_amd64.h"
 #elif defined(EZ_ARCH_MIPS)
-#warning "**** MIPS SUPPORT IS UNTESTED ****"
 #include "arch/ezinject_mips.h"
 #else
 #error "Unsupported architecture"

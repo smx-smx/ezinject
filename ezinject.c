@@ -464,7 +464,7 @@ int ezinject_main(
 		}
 		ctx->syscall_insn.remote = codeBase;
 #ifdef EZ_ARCH_MIPS
-		// skip syscall instruction and apply stack offset
+		// skip syscall instruction and apply stack offset (see note about sys_ipc)
 		ctx->syscall_stack.remote = codeBase + 4 - 16;
 #endif
 	}
@@ -537,6 +537,19 @@ int ezinject_main(
 #else
 
 		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_WRITE | PROT_EXEC));
+		/**
+		 * Calling convention for shmat in sys_ipc()
+		 * arg0 - IPCCALL(0, SHMAT)    specifies version 0 of the call format (1 is apparently "iBCS2 emulator")
+		 * arg1 - shmat: id
+		 * arg2 - shmat: flags
+		 * arg3 - pointer to memory that will hold the resulting shmaddr
+		 * arg4 [VIA STACK] - shmat: shmaddr (we want this to be 0 to let the kernel pick a free region)
+		 * 
+		 * Return: 0 on success, nonzero on error
+		 * Stack layout: arguments start from offset 16 on Mips O32
+		 * 
+		 * We pass shmaddr as arg3 aswell, so that 0 is used as shmaddr and is replaced with the new addr
+		 **/
 		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), remote_shm_id, SHM_EXEC, codeBase + 4));
 		uintptr_t remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, ctx->target, codeBase + 4);
 		DBGPTR(remote_shm_ptr);
