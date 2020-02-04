@@ -4,6 +4,8 @@
 #include "config.h"
 #include "ezinject_injcode.h"
 
+#include <stdint.h>
+#include <asm/ptrace.h>
 #include <sys/user.h>
 
 #define UNUSED(x) (void)(x)
@@ -14,9 +16,11 @@
 #define ALIGNMSK(y) ((y)-1)
 #define ALIGN(x, y) ((void *)((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y)))
 
+#define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
+
 #define MEMALIGN(x) ALIGN(x, sizeof(void *))
 
-#ifdef EZ_ARCH_AMD64
+#if defined(EZ_ARCH_AMD64) || defined(EZ_ARCH_MIPS)
 //align to 16 bytes
 #define STACKALIGN(x) ALIGN(x, 16)
 #else
@@ -31,6 +35,25 @@
 
 #ifndef HAVE_SHM_EXEC
 #define	SHM_EXEC	0100000	/* execution access */
+#endif
+
+#ifdef EZ_ARCH_MIPS
+// the bundled pt_regs definition is wrong (https://www.linux-mips.org/archives/linux-mips/2014-07/msg00443.html)
+// so we must provide our own
+
+struct pt_regs2 {
+	uint64_t regs[32];
+	uint64_t lo;
+	uint64_t hi;
+	uint64_t cp0_epc;
+	uint64_t cp0_badvaddr;
+	uint64_t cp0_status;
+	uint64_t cp0_cause;
+} __attribute__ ((aligned (8)));
+
+typedef struct pt_regs2 regs_t;
+#else
+typedef struct user regs_t;
 #endif
 
 typedef struct {
@@ -60,6 +83,9 @@ struct ezinj_ctx {
 	pid_t target;
 	ez_addr libc;
 	ez_addr syscall_insn;
+#ifdef EZ_ARCH_MIPS
+	ez_addr syscall_stack;
+#endif
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
 	ez_addr actual_dlopen;
@@ -82,12 +108,15 @@ struct ezinj_str {
 };
 
 typedef void (*pfnRegSet)(
-	struct user *oregs,
-	struct user *regs,
+	regs_t *oregs,
+	regs_t *regs,
 	void *pUserData
 );
 
 struct sc_req {
+#ifdef EZ_ARCH_MIPS
+	uintptr_t stack_addr;
+#endif
 	uintptr_t nr;
 	uintptr_t arg1;
 	uintptr_t arg2;

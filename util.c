@@ -53,7 +53,7 @@ void hexdump(void *pAddressIn, long lSize) {
 	}
 }
 
-void *get_base(pid_t pid, char *libname)
+void *get_base(pid_t pid, char *substr, char **ignores)
 {
 	char line[256];
 	char path[128];
@@ -70,8 +70,19 @@ void *get_base(pid_t pid, char *libname)
 		strcpy(path, "[anonymous]");
 		val = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
 		
-		if(strstr(path, libname) && strchr(perms, 'x') != NULL){
-			found = true;
+		if(strstr(path, substr) && strchr(perms, 'x') != NULL){
+			bool skip = false;
+			if(ignores != NULL){
+				while(*ignores != NULL){
+					if(strstr(path, *(ignores++))){
+						skip = true;
+						break;
+					}
+				}
+			}
+			if(!skip){
+				found = true;
+			}
 		}
 	} while(val > 0 && !found);
 	fclose(fp);

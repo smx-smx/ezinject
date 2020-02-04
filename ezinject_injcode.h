@@ -19,11 +19,13 @@
 #define DL_LOADADDR_TYPE ElfW(Addr)
 #include <link.h>		/* Defines __ELF_NATIVE_CLASS.  */
 
+#ifndef UCLIBC_OLD
 struct r_scope_elem {
 	void **r_list; /* Array of maps for the scope.  */
 	unsigned int r_nlist;        /* Number of entries in the scope.  */
 	void *next;
 };
+#endif
 
 struct init_fini {
     void **init_fini;
@@ -62,7 +64,11 @@ struct injcode_bearing
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
 		void *tpnt, char *full_libname, int trace_loaded_objects);
 	struct dyn_elf **uclibc_sym_tables;
+#ifdef UCLIBC_OLD
+	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, int now_flag);
+#else
 	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
+#endif
 #ifdef EZ_ARCH_MIPS
 	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
 #endif

@@ -17,11 +17,10 @@
 #include <sys/wait.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
-#include <sys/user.h>
 
 #include "config.h"
 
-#ifdef EZ_ARCH_MIPS
+#ifndef HAVE_SHM_SYSCALLS
 #include <asm-generic/ipc.h>
 #endif
 
@@ -45,8 +44,8 @@ static ez_region region_sc_insn = {
 };
 
 void setregs_callstack(
-	struct user *orig_ctx,
-	struct user *new_ctx,
+	regs_t *orig_ctx,
+	regs_t *new_ctx,
 	void *pUserData
 ){
 	UNUSED(orig_ctx);
@@ -59,8 +58,8 @@ void setregs_callstack(
 }
 
 void setregs_syscall(
-	struct user *orig_ctx,
-	struct user *new_ctx,
+	regs_t *orig_ctx,
+	regs_t *new_ctx,
 	void *pUserData
 ){
 	struct call_req *call = (struct call_req *)pUserData;
@@ -74,6 +73,7 @@ void setregs_syscall(
 
 #ifdef EZ_ARCH_MIPS
 	REG(*new_ctx, REG_ARG4) = sc.arg4;
+	REG(*new_ctx, REG_SP) = sc.stack_addr;
 #else
 	REG(*new_ctx, REG_ARG4) = 0;
 	REG(*new_ctx, REG_ARG5) = 0;
@@ -93,7 +93,7 @@ void setregs_syscall(
 }
 
 uintptr_t remote_call_common(pid_t target, pfnRegSet setRegs, void *pUserData){
-	struct user orig_ctx, new_ctx;
+	regs_t orig_ctx, new_ctx;
 	memset(&orig_ctx, 0x00, sizeof(orig_ctx));
 
 	ptrace(PTRACE_GETREGS, target, 0, &orig_ctx);
@@ -119,7 +119,7 @@ uintptr_t remote_call_common(pid_t target, pfnRegSet setRegs, void *pUserData){
 	struct call_req *call = (struct call_req *)pUserData;
 	DBG("PC: %p => %p",
 		(void *)call->insn_addr,
-		(void *)REG(new_ctx, REG_PC));
+		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
 
 	return REG(new_ctx, REG_RET);
 }
@@ -140,6 +140,9 @@ uintptr_t remote_call_stack(
 
 uintptr_t remote_call(
 	pid_t target,
+#ifdef EZ_ARCH_MIPS
+	uintptr_t stack_addr,
+#endif
 	uintptr_t insn_addr, int nr,
 	uintptr_t arg1, uintptr_t arg2, uintptr_t arg3,
 	uintptr_t arg4
@@ -148,6 +151,9 @@ uintptr_t remote_call(
 		.insn_addr = insn_addr,
 		.u.syscall = {
 			.nr = nr,
+#ifdef EZ_ARCH_MIPS
+			.stack_addr = stack_addr,
+#endif
 			.arg1 = arg1,
 			.arg2 = arg2,
 			.arg3 = arg3,
@@ -175,13 +181,10 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
 }
 
 int libc_init(struct ezinj_ctx *ctx){	
-	/**
-	 * locate glibc in /proc/<pid>/maps
-	 * both for local and remote procs
-	 */
+	char *ignores[] = {"ld-", NULL};
 	ez_addr libc = {
-		.local  = (uintptr_t) get_base(getpid(), "libc-"),
-		.remote = (uintptr_t) get_base(ctx->target, "libc-")
+		.local  = (uintptr_t) get_base(getpid(), "libc", ignores),
+		.remote = (uintptr_t) get_base(ctx->target, "libc", ignores)
 	};
 	
 	DBGPTR(libc.remote);
@@ -203,8 +206,8 @@ int libc_init(struct ezinj_ctx *ctx){
 	ez_addr libc_dlopen = sym_addr(h_libc, "__libc_dlopen_mode", libc);
 #elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	ez_addr ldso = {
-		.local = (uintptr_t)get_base(getpid(), "ld-uClibc"),
-		.remote = (uintptr_t)get_base(ctx->target, "ld-uClibc")
+		.local = (uintptr_t)get_base(getpid(), "ld-uClibc", NULL),
+		.remote = (uintptr_t)get_base(ctx->target, "ld-uClibc", NULL)
 	};
 	if(!ldso.local || !ldso.remote){
 		ERR("Failed to get ldso base");
@@ -225,8 +228,8 @@ int libc_init(struct ezinj_ctx *ctx){
 		}
 
 		ez_addr libdl = {
-			.local = (uintptr_t)get_base(getpid(), "libdl"),
-			.remote = (uintptr_t)get_base(ctx->target, "libdl")
+			.local = (uintptr_t)get_base(getpid(), "libdl", NULL),
+			.remote = (uintptr_t)get_base(ctx->target, "libdl", NULL)
 		};
 
 		DBGPTR(libdl.local);
@@ -393,7 +396,12 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 	return pl;
 }
 
+#ifdef EZ_ARCH_MIPS
+#define __RCALL(ctx, x, ...) remote_call(ctx->target, ctx->syscall_stack.remote, UPTR(x), __VA_ARGS__)
+#else
 #define __RCALL(ctx, x, ...) remote_call(ctx->target, UPTR(x), __VA_ARGS__)
+#endif
+
 #define __RCALL_SC(ctx, n, ...) __RCALL(ctx, ctx->syscall_insn.remote, n, __VA_ARGS__)
 
 // Remote System Call
@@ -441,21 +449,24 @@ int ezinject_main(
 		return 1;
 	}
 
-	size_t dataLength = REGION_LENGTH(region_sc_insn);
+	size_t dataLength = ROUND_UP(
+		REGION_LENGTH(region_sc_insn),
+		sizeof(uintptr_t)
+	);
+	DBG("dataLength: %zu", dataLength);
 	uint8_t dataBak[dataLength];
-	{
-		if(fseek(hmem, codeBase, SEEK_SET) != 0){
-			PERROR("fseek (pre-read)");
-		} else if(fread(dataBak, 1, dataLength, hmem) != dataLength){
-			PERROR("fread");
-		} else if(fseek(hmem, codeBase, SEEK_SET) != 0){
-			PERROR("fseek (pre-write)");
-		} else if(fwrite((uint8_t *)region_sc_insn.start, 1, dataLength, hmem) != dataLength){
-			PERROR("fwrite");
+	{ //backup and replace ELF header
+		uintptr_t *pWordsIn = (uintptr_t *)&dataBak;
+		uintptr_t *pWordsOut = (uintptr_t *)region_sc_insn.start;
+		for(unsigned int i=0; i<dataLength; i+=sizeof(uintptr_t), pWordsIn++, pWordsOut++){
+			*pWordsIn = (uintptr_t)ptrace(PTRACE_PEEKTEXT, ctx->target, codeBase + i);
+			ptrace(PTRACE_POKETEXT, ctx->target, codeBase + i, *pWordsOut);
 		}
-		fflush(hmem);
-
 		ctx->syscall_insn.remote = codeBase;
+#ifdef EZ_ARCH_MIPS
+		// skip syscall instruction and apply stack offset
+		ctx->syscall_stack.remote = codeBase + 4 - 16;
+#endif
 	}
 
 	/* Verify that remote_call works correctly */
@@ -513,7 +524,7 @@ int ezinject_main(
 #ifdef HAVE_SHM_SYSCALLS
 		int remote_shm_id = (int)CHECK(RSCALL3(ctx, __NR_shmget, ctx->target, MAPPINGSIZE, S_IRWXO));
 #else
-		int remote_shm_id = (int)CHECK(RSCALL4(ctx, __NR_ipc, SHMGET, ctx->target, MAPPINGSIZE, S_IRWXO));
+		int remote_shm_id = (int)CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMGET), ctx->target, MAPPINGSIZE, S_IRWXO));
 #endif
 		if(remote_shm_id < 0){
 			ERR("Remote shmget failed: %d", remote_shm_id);
@@ -524,9 +535,14 @@ int ezinject_main(
 #ifdef HAVE_SHM_SYSCALLS
 		uintptr_t remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, remote_shm_id, NULL, SHM_EXEC));
 #else
-		uintptr_t remote_shm_ptr = CHECK(RSCALL4(ctx, __NR_ipc, SHMAT, remote_shm_id, NULL, SHM_EXEC));
+
+		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_WRITE | PROT_EXEC));
+		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), remote_shm_id, SHM_EXEC, codeBase + 4));
+		uintptr_t remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, ctx->target, codeBase + 4);
+		DBGPTR(remote_shm_ptr);
+		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_EXEC));
 #endif
-		if(remote_shm_ptr == (uintptr_t)MAP_FAILED){
+		if(remote_shm_ptr == (uintptr_t)MAP_FAILED || remote_shm_ptr == 0){
 			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
 			break;
 		}
@@ -545,7 +561,7 @@ int ezinject_main(
 
 		// end of stack: used for arguments
 		uintptr_t *stack_argv = (uintptr_t *)(
-			(uintptr_t)target_sp + STACKSIZE - sizeof(uintptr_t) * 3
+			(uintptr_t)target_sp + STACKSIZE - sizeof(uintptr_t) * 6
 		);
 
 		DBGPTR(target_sp);
@@ -561,11 +577,10 @@ int ezinject_main(
 		DBGPTR(stack_argv[1]);
 		DBGPTR(stack_argv[2]);
 
-		{
-			if(fseek(hmem, codeBase, SEEK_SET) != 0){
-				PERROR("fseek (restore pre-write)");
-			} else if(fwrite(dataBak, 1, dataLength, hmem) != dataLength){
-				PERROR("fwrite (restore)");
+		{ //restore ELF header
+			uintptr_t *pWordsOut = (uintptr_t *)&dataBak;
+			for(unsigned int i=0; i<dataLength; i+=sizeof(uintptr_t), pWordsOut++, pWordsOut++){
+				ptrace(PTRACE_POKETEXT, ctx->target, codeBase + i, *pWordsOut);
 			}
 		}
 

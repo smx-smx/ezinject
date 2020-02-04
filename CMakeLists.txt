@@ -101,6 +101,11 @@ if(EZ_ARCH_I386 OR EZ_ARCH_AMD64)
 include_directories(${CAPSTONE_INCLUDE_DIRS})
 endif()
 
+if(EZ_ARCH_MIPS)
+	# TODO: check headers?
+	set(UCLIBC_OLD TRUE)
+endif()
+
 configure_file(
 	config.h.in
 	${CMAKE_BINARY_DIR}/config.h

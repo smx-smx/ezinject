@@ -55,8 +55,8 @@ int main(int argc, char *argv[])
 
 	CHECK(ptrace(PTRACE_ATTACH, target, 0, 0));
 
-	char *target_base = get_base(target, 0);
-	char *target_libc_base = get_base(target, "libc-");
+	char *target_base = get_base(target, 0, NULL);
+	char *target_libc_base = get_base(target, "libc-", NULL);
 	DBG("Target base: %p", target_base);
 	DBG("Target libc base: %p", target_libc_base);
 

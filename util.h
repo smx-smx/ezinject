@@ -5,7 +5,7 @@
 #include "log.h"
 
 void hexdump(void *pAddressIn, long lSize);
-void *get_base(pid_t pid, char *libname);
+void *get_base(pid_t pid, char *substr, char **ignores);
 size_t find_adj_bytes(FILE *src, size_t sz, unsigned char ch, size_t nmemb);
 FILE *mem_open(pid_t pid);
 uintptr_t find_cave(pid_t pid, FILE *hmem, size_t dataLength);
