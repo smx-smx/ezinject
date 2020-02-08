@@ -11,25 +11,6 @@
 
 enum verbosity_level verbosity = V_DBG;
 
-void (*original_test_function) (int a, char *b);
-
-lh_hook_t hook_settings = {
-	.version = 1,
-	.fn_hooks =
-	{
-		{
-			.hook_kind = LHM_FN_HOOK_BY_NAME,
-			.libname = "",
-			.symname = "return1",
-			.hook_fn = (uintptr_t) 0,
-			.orig_function_ptr = (uintptr_t) & original_test_function, //save the original function address to "original_test_function"
-		},
-		{
-			.hook_kind = LHM_FN_HOOK_TRAILING
-		}
-	}
-};
-
 void installHooks(){
 	void *sljit_code = NULL;
 	struct sljit_compiler *compiler = NULL;
@@ -40,11 +21,20 @@ void installHooks(){
 	f(1, "test");
 	*/
 
+	void (*original_test_function) (int a, char *b);
+	lh_fn_hook_t lh_hook = {
+		.hook_kind = LHM_FN_HOOK_BY_NAME,
+		.libname = "",
+		.symname = "return1",
+		.hook_fn = (uintptr_t) 0,
+		.orig_function_ptr = (uintptr_t) & original_test_function, //save the original function address to "original_test_function"
+	};
+
 	void *self = dlopen(NULL, RTLD_NOW);
 	original_test_function = dlsym(self, "return1");
 
 	void *origCode = inj_backup_function(
-		&(hook_settings.fn_hooks[1]),
+		&lh_hook,
 		(void *)original_test_function,
 		NULL
 	);
@@ -81,10 +71,10 @@ void installHooks(){
 	INFO("JIT code");
 	hexdump(sljit_code, compiler->executable_size);
 	/* Set the code we just generated as the replacement */
-	hook_settings.fn_hooks[1].hook_fn = (uintptr_t)sljit_code;
+	lh_hook.hook_fn = (uintptr_t)sljit_code;
 	INFO("Injecting to %p", original_test_function);
 
-	inj_replace_function(&(hook_settings.fn_hooks[1]), (uintptr_t)original_test_function);
+	inj_replace_function(&lh_hook, (uintptr_t)original_test_function);
 }
 
 void lib_preinit(struct injcode_user *user){
