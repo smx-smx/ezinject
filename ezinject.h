@@ -83,9 +83,7 @@ struct ezinj_ctx {
 	pid_t target;
 	ez_addr libc;
 	ez_addr syscall_insn;
-#ifdef EZ_ARCH_MIPS
 	ez_addr syscall_stack;
-#endif
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
 	ez_addr actual_dlopen;
@@ -107,33 +105,19 @@ struct ezinj_str {
 	char *str;
 };
 
-typedef void (*pfnRegSet)(
-	regs_t *oregs,
-	regs_t *regs,
-	void *pUserData
-);
+#define SC_HAS_ARG(sc, i) (sc.argmask & (1 << i))
+#define SC_GET_ARG(sc, i) (SC_HAS_ARG(sc, i) ? sc.argv[i] : 0)
+// nr, a0, a1, a2, a3
+#define SC_MAX_ARGS 5
 
 struct sc_req {
-#ifdef EZ_ARCH_MIPS
-	uintptr_t stack_addr;
-#endif
-	uintptr_t nr;
-	uintptr_t arg1;
-	uintptr_t arg2;
-	uintptr_t arg3;
-	uintptr_t arg4;
-};
-
-struct callstack_req {
-	uintptr_t stack_addr;
+	unsigned int argmask;
+	uintptr_t argv[SC_MAX_ARGS];
 };
 
 struct call_req {
 	uintptr_t insn_addr;
-	union {
-		struct sc_req syscall;
-		struct callstack_req call;
-	} u;
+	uintptr_t stack_addr;
+	struct sc_req syscall;		
 };
-
 #endif

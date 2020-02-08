@@ -12,8 +12,6 @@
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
-#define ALIGN(x) ((void *)(((uintptr_t)x + MEMALIGN) & ALIGNMSK))
-
 #ifdef HAVE_CLONE_IO
 #define CLONE_FLAGS (CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_PARENT|CLONE_THREAD|CLONE_IO)
 #else
@@ -66,15 +64,6 @@ INLINE unsigned int strlen(const char *str){
 	return len;
 }
 
-INLINE void *memcpy (void *dest, const void *src, size_t len){
-	char *d = dest;
-	const char *s = src;
-	while (len--){
-		*d++ = *s++;
-	}
-	return dest;
-}
-
 INLINE void *memset(void *s, int c, unsigned int n){
     unsigned char* p=s;
     while(n--){
@@ -125,8 +114,8 @@ INLINE int uclibc_dlopen(struct injcode_bearing *br){
 
 	/**
 	  * FIXME: we are not handling init/fini arrays
- 	  * This means the call will likely 'fail' and warn about unresolved symbols.
- 	  * symbol 'dl_cleanup': can't resolve symbol
+ 	  * This means the call will likely warn about 'dl_cleanup' being unresolved, but it will work anyways.
+ 	  * -- symbol 'dl_cleanup': can't resolve symbol
  	  */
 #ifdef UCLIBC_OLD
 	br->uclibc_dl_fixup(&dyn, RTLD_NOW);

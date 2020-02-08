@@ -90,12 +90,6 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 	return (found) ? base : NULL;
 }
 
-FILE *mem_open(pid_t pid){
-	char line[256];
-	snprintf(line, sizeof(line), "/proc/%u/mem", pid);
-	return fopen(line, "rb+");
-}
-
 uintptr_t get_code_base(pid_t pid){
 	char line[256];
 
