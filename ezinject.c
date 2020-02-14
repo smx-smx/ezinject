@@ -424,7 +424,7 @@ int ezinject_main(
 		uintptr_t *pWordsIn = (uintptr_t *)&dataBak;
 		uintptr_t *pWordsOut = (uintptr_t *)region_sc_insn.start;
 		for(unsigned int i=0; i<dataLength; i+=sizeof(uintptr_t), pWordsIn++, pWordsOut++){
-			*pWordsIn = (uintptr_t)ptrace(PTRACE_PEEKTEXT, ctx->target, codeBase + i);
+			*pWordsIn = (uintptr_t)ptrace(PTRACE_PEEKTEXT, ctx->target, codeBase + i, 0);
 			ptrace(PTRACE_POKETEXT, ctx->target, codeBase + i, *pWordsOut);
 		}
 		ctx->syscall_insn.remote = codeBase;
@@ -557,7 +557,7 @@ int ezinject_main(
 
 		{ //restore ELF header
 			uintptr_t *pWordsOut = (uintptr_t *)&dataBak;
-			for(unsigned int i=0; i<dataLength; i+=sizeof(uintptr_t), pWordsOut++, pWordsOut++){
+			for(unsigned int i=0; i<dataLength; i+=sizeof(uintptr_t), pWordsOut++){
 				ptrace(PTRACE_POKETEXT, ctx->target, codeBase + i, *pWordsOut);
 			}
 		}
