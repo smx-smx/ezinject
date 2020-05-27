@@ -537,9 +537,10 @@ int ezinject_main(
 		// stack base
 		uintptr_t *target_sp = (uintptr_t *)((uintptr_t)STACKALIGN(mapped_mem + MAPPINGSIZE - STACKSIZE));
 
-		// end of stack: used for arguments (add an extra for clone())
+		#define MAX_ARGUMENTS 6
+		// end of stack: used for arguments
 		uintptr_t *stack_argv = (uintptr_t *)(
-			(uintptr_t)target_sp + STACKSIZE - sizeof(uintptr_t) * 6
+			(uintptr_t)target_sp + STACKSIZE - (sizeof(uintptr_t) * MAX_ARGUMENTS)
 		);
 
 		DBGPTR(target_sp);

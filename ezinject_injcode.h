@@ -7,6 +7,7 @@
 #include "config.h"
 
 #define MAPPINGSIZE 8192
+// temporary stack size
 #define STACKSIZE 1024
 #define INJ_PATH_MAX 128
 

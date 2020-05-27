@@ -53,6 +53,35 @@ void hexdump(void *pAddressIn, long lSize) {
 	}
 }
 
+int get_stack(pid_t pid, uintptr_t *stack_start, size_t *stack_size){
+    char line[256];
+    snprintf(line, 256, "/proc/%u/maps", pid);
+    FILE *fp = fopen(line, "r");
+
+    void *start = NULL;
+    void *end = NULL;
+    char path[128];
+    while(fgets(line, 256, fp)){
+        if(sscanf(line, "%p-%p %*s %*p %*x:%*x %*u %s", &start, &end, path) <= 0){
+            continue;
+        }
+        if(strstr(path, "[stack]")){
+            break;
+        } else {
+			start = NULL;
+			end = NULL;
+		}
+    }
+
+    if(start == NULL || end == NULL){
+        return -1;
+    }
+
+    *stack_start = (uintptr_t)start;
+    *stack_size = (uintptr_t)end - (uintptr_t)start;
+    return 0;
+}
+
 void *get_base(pid_t pid, char *substr, char **ignores)
 {
 	char line[256];
