@@ -3,12 +3,65 @@
 
 #include <sys/types.h>
 #include <linux/limits.h>
+#include <pthread.h>
+#include <sys/sem.h>
+
 
 #include "config.h"
 
-#define MAPPINGSIZE 8192
-#define STACKSIZE 1024
+#ifdef HAVE_FUTEX
+#ifndef FUTEX_WAIT
+#define FUTEX_WAIT 0
+#endif
+#endif
+
+#define EZ_USE_THREAD
+
+#define EZ_SEM_SHMCTL 0
+#define EZ_SEM_LIBCTL 1
+
+#define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
+
+#define PL_ARGV_MAX 1024
+
+#define PL_INITIAL_STACK_SIZE 1024
+#define PL_STACK_SIZE 64 * 1024
+
+#define MAPPINGSIZE ((sizeof(struct injcode_bearing) + PL_ARGV_MAX + PL_STACK_SIZE))
+// temporary stack size
 #define INJ_PATH_MAX 128
+
+#define EMIT_LABEL(name) \
+	asm volatile( \
+		".globl "name"\n" \
+		name":\n" \
+	)
+
+
+#define UNUSED(x) (void)(x)
+#define UPTR(x) ((uintptr_t)(x))
+
+#define STRSZ(x) (strlen(x) + 1)
+#define ALIGNMSK(y) ((y)-1)
+#define ALIGN(x, y) ((void *)((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y)))
+
+#define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
+
+#define MEMALIGN(x) ALIGN(x, sizeof(void *))
+
+#if defined(EZ_ARCH_AMD64) || defined(EZ_ARCH_MIPS)
+//align to 16 bytes
+#define STACKALIGN(x) ALIGN(x, 16)
+#else
+#define STACKALIGN(x) MEMALIGN(x)
+#endif
+
+#define PAGEALIGN(x)  ALIGN(x, getpagesize())
+#define PTRDIFF(a, b) ( UPTR(a) - UPTR(b) )
+
+
+
+#define INLINE static inline __attribute__((always_inline))
 
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 #include <elf.h>
@@ -58,6 +111,10 @@ struct injcode_user {
 
 struct injcode_bearing
 {
+	pthread_t user_tid;
+	void *userlib;
+	char sym_pthread_join[14];
+
 #if defined(HAVE_LIBC_DLOPEN_MODE)
 	void *(*libc_dlopen)(const char *name, int mode);
 #elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
@@ -73,19 +130,29 @@ struct injcode_bearing
 	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
 #endif
 	struct elf_resolve_hdr **uclibc_loaded_modules;
-	off_t dlopen_offset;
 #endif
+	off_t dlopen_offset;
+	off_t dlclose_offset;
+	off_t dlsym_offset;
 	// the real dlopen() function from libdl, if available
 	void *(*actual_dlopen)(const char *filename, int flag);
 	long (*libc_syscall)(long number, ...);
-	int (*libc_clone)(
-		int (*fn)(void *),
-		void *stack, int flags, void *arg, ...);
+	int (*libc_semop)(int semid, struct sembuf *sops, size_t nsops);
+#ifdef DEBUG
+	int (*libc_puts)(const char *s);
+	int (*libc_putchar)(int c);
+#endif
+	int (*libc_snprintf)( char * s, size_t n, const char * format, ... );
+	int (*libc_putenv)(char *string);
 	struct injcode_user user;
 	int argc;
 	int dyn_size;
 	char *argv[];
 };
+
+#define PL_STACK(br) (uintptr_t *)((uintptr_t)((br) + MAPPINGSIZE))
+
+extern void injected_clone_proper(struct injcode_bearing *br);
 
 extern int clone_fn(void *arg);
 

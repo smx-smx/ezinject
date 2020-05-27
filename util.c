@@ -2,9 +2,18 @@
 #include "util.h"
 #include <stdbool.h>
 #include <string.h>
-#include <sys/uio.h>
 #include <ctype.h>
 #include "ezinject.h"
+
+#include <sys/sem.h>
+int sema_op(int sema, int idx, int op){
+	struct sembuf sem_op = {
+		.sem_num = idx,
+		.sem_op = op,
+		.sem_flg = 0
+	};
+	return semop(sema, &sem_op, 1);
+}
 
 void hexdump(void *pAddressIn, long lSize) {
 	char szBuf[100];
@@ -70,7 +79,7 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 		strcpy(path, "[anonymous]");
 		val = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
 		
-		if(strstr(path, substr) && strchr(perms, 'x') != NULL){
+		if(strstr(path, substr)){
 			bool skip = false;
 			if(ignores != NULL){
 				while(*ignores != NULL){

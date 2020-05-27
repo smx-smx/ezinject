@@ -8,29 +8,6 @@
 #include <asm/ptrace.h>
 #include <sys/user.h>
 
-#define UNUSED(x) (void)(x)
-#define UPTR(x) ((uintptr_t)(x))
-
-
-#define STRSZ(x) (strlen(x) + 1)
-#define ALIGNMSK(y) ((y)-1)
-#define ALIGN(x, y) ((void *)((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y)))
-
-#define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
-
-#define MEMALIGN(x) ALIGN(x, sizeof(void *))
-
-#if defined(EZ_ARCH_AMD64) || defined(EZ_ARCH_MIPS)
-//align to 16 bytes
-#define STACKALIGN(x) ALIGN(x, 16)
-#else
-#define STACKALIGN(x) MEMALIGN(x)
-#endif
-
-#define PAGEALIGN(x)  ALIGN(x, getpagesize())
-
-#define PTRDIFF(a, b) ( UPTR(a) - UPTR(b) )
-
 #define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
 
 #ifndef HAVE_SHM_EXEC
@@ -66,7 +43,7 @@ typedef struct {
 	void *end;
 } ez_region;
 
-#define REGION_LENGTH(r) PTRDIFF(r.end, r.start)
+#define REGION_LENGTH(r) PTRDIFF((r).end, (r).start)
 
 // base.local + (addr - remote.base)
 #define EZ_LOCAL(ref, remote_addr) (ref.local + (PTRDIFF(remote_addr, ref.remote)))
@@ -80,11 +57,13 @@ struct ezinj_pl {
 };
 
 struct ezinj_ctx {
+	int num_wait_calls;
 	pid_t target;
 	ez_addr libc;
 	ez_addr syscall_insn;
 	ez_addr syscall_stack;
 	ez_addr libc_syscall;
+	ez_addr libc_semop;
 	ez_addr libc_dlopen;
 	ez_addr actual_dlopen;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
@@ -92,12 +71,18 @@ struct ezinj_ctx {
 	ez_addr uclibc_loaded_modules;
 	ez_addr uclibc_mips_got_reloc;
 	ez_addr uclibc_dl_fixup;
-	off_t dlopen_offset;
 #endif
+#ifdef DEBUG
+	ez_addr libc_puts;
+	ez_addr libc_putchar;
+#endif
+	off_t dlopen_offset;
+	off_t dlclose_offset;
+	off_t dlsym_offset;
 	ez_addr libc_clone;
 	int shm_id;
 	int sem_id;
-	void *mapped_mem;
+	ez_addr mapped_mem;
 };
 
 struct ezinj_str {
@@ -118,6 +103,7 @@ struct sc_req {
 struct call_req {
 	uintptr_t insn_addr;
 	uintptr_t stack_addr;
-	struct sc_req syscall;		
+	struct sc_req syscall;
+	int num_wait_calls;		
 };
 #endif
