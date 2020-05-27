@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 project(ezpatch C ASM)
 
-#add_definitions(-fPIC)
+# some gcc versions need this everywhere for it to work
+add_definitions(-fPIC)
 
 include_directories(
 	${CMAKE_SOURCE_DIR}
