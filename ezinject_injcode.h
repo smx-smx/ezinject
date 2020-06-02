@@ -15,7 +15,7 @@
 #endif
 #endif
 
-#define EZ_USE_THREAD
+#define EZ_THREAD_FLAG -1
 
 #define EZ_SEM_SHMCTL 0
 #define EZ_SEM_LIBCTL 1
@@ -24,7 +24,6 @@
 
 #define PL_ARGV_MAX 1024
 
-#define PL_INITIAL_STACK_SIZE 1024
 #define PL_STACK_SIZE 64 * 1024
 
 #define MAPPINGSIZE ((sizeof(struct injcode_bearing) + PL_ARGV_MAX + PL_STACK_SIZE))
@@ -47,7 +46,7 @@
 
 #define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
 
-#define MEMALIGN(x) ALIGN(x, sizeof(void *))
+#define WORDALIGN(x) ALIGN(x, sizeof(void *))
 
 #if defined(EZ_ARCH_AMD64) || defined(EZ_ARCH_MIPS)
 //align to 16 bytes
@@ -57,6 +56,7 @@
 #endif
 
 #define PAGEALIGN(x)  ALIGN(x, getpagesize())
+#define PTRADD(a, b) ( UPTR(a) + UPTR(b) )
 #define PTRDIFF(a, b) ( UPTR(a) - UPTR(b) )
 
 
@@ -112,7 +112,11 @@ struct injcode_user {
 struct injcode_bearing
 {
 	pthread_t user_tid;
+	pid_t user_ft;
+
 	void *userlib;
+
+	// => "pthread_join"
 	char sym_pthread_join[14];
 
 #if defined(HAVE_LIBC_DLOPEN_MODE)

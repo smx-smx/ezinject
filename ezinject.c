@@ -106,6 +106,8 @@ int remote_wait(pid_t target){
 	return status;
 }
 
+#define SC_EVENT_STATUS (SIGTRAP | 0x80)
+
 uintptr_t remote_call_common(pid_t target, struct call_req call){
 	regs_t orig_ctx, new_ctx;
 	remote_call_setup(target, call, &orig_ctx, &new_ctx);
@@ -120,14 +122,14 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 				return -1;
 			}
 			status = remote_wait(target);
-			if((rc=WSTOPSIG(status)) != SIGTRAP){
+			if((rc=WSTOPSIG(status)) != SC_EVENT_STATUS){
 				ERR("remote_wait: %s", strsignal(rc));
 				return -1;
 			}
 
 			ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall return */
 			status = remote_wait(target);
-			if((rc=WSTOPSIG(status)) != SIGTRAP){
+			if((rc=WSTOPSIG(status)) != SC_EVENT_STATUS){
 				ERR("remote_wait: %s", strsignal(rc));
 				return -1;
 			}
@@ -148,27 +150,43 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 	}
 
 	if(call.num_wait_calls == 0){
-		if(ptrace(PTRACE_CONT, target, 0, 0) < 0){
-			PERROR("ptrace");
-			return -1;
-		}		
-		
-		// wait for the children to stop
-		status = remote_wait(target);
+		int stopsig = 0;
+		do {
 
-		int stopsig = WSTOPSIG(status);
-		DBG("got signal: %d (%s)", stopsig, strsignal(stopsig));
+			DBG("continuing...");
+			// pass signal to child
+			if(ptrace(PTRACE_CONT, target, 0, stopsig) < 0){
+				PERROR("ptrace");
+				return -1;
+			}
+
+			// wait for the children to stop
+			status = remote_wait(target);
+
+			stopsig = WSTOPSIG(status);
+			DBG("got signal: %d (%s)", stopsig, strsignal(stopsig));
+		} while(IS_IGNORED_SIG(stopsig));			
+
+		if(stopsig == SIGTRAP){
+			// child raised a debug event
+			// this is a debug condition, so do a hard exit
+			// $TODO: do it nicer
+			ptrace(PTRACE_DETACH, target, 0, 0);
+			exit(0);
+			return -1;
+		}
+
 		if(stopsig != SIGSTOP){
 			ERR("Unexpected signal (expected SIGSTOP)");
 
-		#ifdef DEBUG
-		regs_t tmp;
-		ptrace(PTRACE_GETREGS, target, 0, &tmp);
-		DBG("CRASH @ %p (offset: %i)",
-			(void *)REG(tmp, REG_PC),
-			(signed int)(REG(tmp, REG_PC) - call.insn_addr)
-		);
-		#endif
+			#ifdef DEBUG
+			regs_t tmp;
+			ptrace(PTRACE_GETREGS, target, 0, &tmp);
+			DBG("CRASH @ %p (offset: %i)",
+				(void *)REG(tmp, REG_PC),
+				(signed int)(REG(tmp, REG_PC) - call.insn_addr)
+			);
+			#endif
 		}
 	}
 
@@ -256,9 +274,22 @@ int libc_init(struct ezinj_ctx *ctx){
 			return 1;
 		}
 
+#if 0
+		void *h_libpthread = dlopen(PTHREAD_LIBRARY_NAME, RTLD_LAZY);
+		if(!h_libpthread){
+			ERR("dlopen("PTHREAD_LIBRARY_NAME") failed: %s", dlerror());
+			return 1;
+		}
+#endif
+
 		ez_addr libdl = {
 			.local = (uintptr_t)get_base(getpid(), "libdl", NULL),
 			.remote = (uintptr_t)get_base(ctx->target, "libdl", NULL)
+		};
+
+		ez_addr libpthread = {
+			.local = (uintptr_t)get_base(getpid(), "libpthread", NULL),
+			.remote = 0
 		};
 
 		DBGPTR(libdl.local);
@@ -283,6 +314,15 @@ int libc_init(struct ezinj_ctx *ctx){
 			off_t dlsym_offset = (off_t)PTRDIFF(dlsym_local, libdl.local);
 			DBG("dlsym offset: 0x%lx", dlsym_offset);
 			ctx->dlsym_offset = dlsym_offset;
+
+#if 0
+			void *pthread_join_local = dlsym(h_libpthread, "pthread_join");
+			off_t pthread_join_offset = (off_t)PTRDIFF(pthread_join_local, libpthread.local);
+			DBG("pthread_join offset: 0x%lx", pthread_join_offset);
+			ctx->pthread_join_offset = pthread_join_offset;
+			
+			dlclose(h_libpthread);
+#endif
 		}
 
 		dlclose(h_libdl);
@@ -416,7 +456,11 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	br->dlclose_offset = ctx.dlclose_offset;
 	br->dlsym_offset = ctx.dlsym_offset;
 
-#define USE_LIBC_SYM(name) br->libc_##name = (void *)ctx.libc_##name.remote
+#define USE_LIBC_SYM(name) do { \
+	br->libc_##name = (void *)ctx.libc_##name.remote; \
+	DBGPTR(br->libc_##name); \
+} while(0)
+
 	USE_LIBC_SYM(dlopen);
 
 #ifdef DEBUG
@@ -449,7 +493,7 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 
 	uint8_t *br_start = (uint8_t *)mapped_mem;
 
-	uint8_t *code_start = MEMALIGN(br_start + br_size);
+	uint8_t *code_start = WORDALIGN(br_start + br_size);
 
 	DBG("dyn_size=%u", br->dyn_size);
 
@@ -620,7 +664,7 @@ int ezinject_main(
 		 * 
 		 * We pass shmaddr as arg3 aswell, so that 0 is used as shmaddr and is replaced with the new addr
 		 **/
-		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), remote_shm_id, SHM_EXEC, codeBase + 4));
+		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, SHM_EXEC, codeBase + 4));
 		uintptr_t remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, ctx->target, codeBase + 4);
 		DBGPTR(remote_shm_ptr);
 		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_EXEC));
@@ -649,8 +693,9 @@ int ezinject_main(
 		uintptr_t *target_sp = PL_STACK(mapped_mem);
 
 		// reserve space for 3 arguments at the top of the initial stack
+		// force stack to snap to the lowest 16 bytes, or it will crash on x64
 		uintptr_t *stack_argv = (uintptr_t *)(
-			(uintptr_t)target_sp - (sizeof(uintptr_t) * 2)
+			((uintptr_t)target_sp - (sizeof(uintptr_t) * 2)) & ~ALIGNMSK(16)
 		);
 
 		DBGPTR(target_sp);
@@ -669,7 +714,7 @@ int ezinject_main(
 		}
 		CHECK(RSCALL3(ctx, __NR_madvise, remote_shm_ptr, SIZEOF_BR(*br), MADV_SEQUENTIAL | MADV_WILLNEED));
 		// some broken kernels don't actually do this immediately (cache issue?)
-#ifdef EZ_ARCH_ARM
+#if defined(EZ_ARCH_ARM) || defined(EZ_ARCH_MIPS)
 		usleep(50000);
 #endif
 
@@ -685,6 +730,8 @@ int ezinject_main(
 #ifdef HAVE_SHM_SYSCALLS
 		CHECK(RSCALL1(ctx, __NR_shmdt, remote_shm_ptr));
 #else
+		// skip syscall instruction and apply stack offset (see note about sys_ipc)
+		ctx->syscall_stack.remote = codeBase + 4 - 16;
 		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, codeBase + 4));
 #endif
 
@@ -711,7 +758,7 @@ int main(int argc, char *argv[]){
 	pid_t target = atoi(argPid);
 
 	if(ptrace(PTRACE_ATTACH, target, 0, 0) < 0){
-		PERROR("ptrace");
+		PERROR("ptrace attach");
 		return 1;
 	}
 
@@ -727,9 +774,14 @@ int main(int argc, char *argv[]){
 					break;
 				}
 				INFO("Skipping signal %u", stopsig);
-				CHECK(ptrace(PTRACE_CONT, target, 0, 0));
+				CHECK(ptrace(PTRACE_CONT, target, 0, stopsig));
 			}
 		}
+	}
+
+	if(ptrace(PTRACE_SETOPTIONS, target, 0, PTRACE_O_TRACESYSGOOD) < 0){
+		PERROR("ptrace setoptions");
+		return 1;
 	}
 
 	ctx.target = target;

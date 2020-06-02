@@ -16,12 +16,13 @@
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
-#define UNUSED(x) (void)(x)
-#ifdef EZ_USE_THREAD
-#define CLONE_FLAGS (CLONE_VM|CLONE_SIGHAND|CLONE_THREAD)
-#else
-#define CLONE_FLAGS (CLONE_VM|CLONE_SIGHAND)
+#ifndef HAVE_SHM_SYSCALLS
+#include <asm-generic/ipc.h>
 #endif
+
+
+#define UNUSED(x) (void)(x)
+#define CLONE_FLAGS (CLONE_VM|CLONE_SIGHAND|CLONE_THREAD)
 
 #ifdef HAVE_LIBC_DLOPEN_MODE
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
@@ -54,7 +55,7 @@ INLINE void dbg_bin(struct injcode_bearing *br, unsigned long dw){
 #else
 	int n = sizeof(dw) * 8;
 	for(int i=0; i<n; i++){
-		int bit = (dw >> 31) & 1;
+		int bit = (dw >> (n-1)) & 1;
 		br->libc_putchar((bit) ? '1' : '0');
 		dw <<= 1;
 	}
@@ -84,7 +85,7 @@ INLINE int br_semget(struct injcode_bearing *br, key_t key, int nsems, int semfl
 #ifdef HAVE_SHM_SYSCALLS
 	return br->libc_syscall(__NR_semget, key, nsems, semflg);
 #else
-	return br->libc_syscall(__NR_ipc, IPCCALL(0, SEMGET), key, nsems, semflg));
+	return br->libc_syscall(__NR_ipc, IPCCALL(0, SEMGET), key, nsems, semflg);
 #endif
 }
 
@@ -260,11 +261,16 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		
 		// wait for user thread to die
 		DBG('j');
-		pthread_join(br->user_tid, NULL);
+		{
+			pthread_join(br->user_tid, NULL);
+		}
 
 		// cleanup
 		DBG('c');
 		{
+			/**
+			 * NOTE: uclibc old might trigger segfaults in the user library while doing this (sigh)
+			 **/
 			dlclose(br->userlib);
 
 			if(!had_pthread){
@@ -280,6 +286,7 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 	// success: SIGSTOP
 	// failure: anything else
 	DBG('b');
+	
 	br->libc_syscall(__NR_kill, br->libc_syscall(__NR_getpid), signal);
 	while(1);
 }

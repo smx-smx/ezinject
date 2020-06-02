@@ -14,6 +14,14 @@
 #define	SHM_EXEC	0100000	/* execution access */
 #endif
 
+#ifndef PTRACE_SETOPTIONS
+#define PTRACE_SETOPTIONS 0x4200
+#endif
+
+#ifndef PTRACE_O_TRACESYSGOOD
+#define PTRACE_O_TRACESYSGOOD 1
+#endif
+
 #ifdef EZ_ARCH_MIPS
 // the bundled pt_regs definition is wrong (https://www.linux-mips.org/archives/linux-mips/2014-07/msg00443.html)
 // so we must provide our own
@@ -79,6 +87,7 @@ struct ezinj_ctx {
 	off_t dlopen_offset;
 	off_t dlclose_offset;
 	off_t dlsym_offset;
+	//off_t pthread_join_offset;
 	ez_addr libc_clone;
 	int shm_id;
 	int sem_id;

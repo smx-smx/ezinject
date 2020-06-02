@@ -82,8 +82,9 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 		if(strstr(path, substr)){
 			bool skip = false;
 			if(ignores != NULL){
-				while(*ignores != NULL){
-					if(strstr(path, *(ignores++))){
+				char **sptr = ignores;
+				while(*sptr != NULL){
+					if(strstr(path, *(sptr++))){
 						skip = true;
 						break;
 					}

@@ -59,6 +59,19 @@ INLINE void *acquire_shm(key_t key){
 	return mem;
 }
 
+extern void ret_start(void);
+extern void ret_end(void);
+
+int ret(int dummy){
+	if(dummy){
+		EMIT_LABEL("ret_start");
+		return 0;
+	}
+	// we also copy the remaining part of the dummy branch, but we don't care (since we're returning)
+	EMIT_LABEL("ret_end");
+	return 0;
+}
+
 /**
  * Entry point: runs on SHM stack
  **/
@@ -72,19 +85,68 @@ __attribute__((constructor)) void ctor(void)
 	
 	INFO("pid: %zu", params->pid);
 
+	DBG("semget");
 	if((params->sema = semget(params->pid, 2, S_IRWXO)) < 0){
 		PERROR("semget");
 		return;
 	}
 
+	DBG("shmget");
 	struct injcode_bearing *br = acquire_shm(params->pid);
 	if(!br){
 		PERROR("shmat");
 		return;
 	}
-
 	params->mem = br;
-	pthread_create(&br->user_tid, NULL, real_entry, params);
+
+	// workaround for old uClibc (see http://lists.busybox.net/pipermail/uclibc/2009-October/043122.html)
+	// https://github.com/kraj/uClibc/commit/cfa1d49e87eae4d46e0f0d568627b210383534f3
+	#ifdef UCLIBC_OLD
+	{
+		void *h_libpthread = dlopen(PTHREAD_LIBRARY_NAME, RTLD_LAZY | RTLD_NOLOAD);
+		if(h_libpthread == NULL){
+			PERROR("dlopen");
+			return;
+		}
+
+		DBG("__pthread_initialize_minimal");
+		void (*pfnInitializer)() = dlsym(h_libpthread, "__pthread_initialize_minimal");
+		if(pfnInitializer != NULL){
+			pfnInitializer();
+		}
+
+		// once we have initialized, overwrite the function with a return
+		void *ptrPage = PAGEALIGN(pfnInitializer);
+		size_t pageSize = getpagesize();
+		if(mprotect(ptrPage, pageSize, PROT_READ | PROT_WRITE | PROT_EXEC) < 0){
+			PERROR("mprotect");
+			return;
+		}
+		hexdump(&ret_start, PTRDIFF(&ret_end, &ret_start));
+		memcpy(ptrPage, &ret_start, PTRDIFF(&ret_end, &ret_start));
+		if(mprotect(ptrPage, pageSize, PROT_READ | PROT_EXEC) < 0){
+			PERROR("mprotect");
+			return;
+		}
+	}
+	#endif
+
+
+	DBG("pthread_create");
+
+	if(pthread_create(&br->user_tid, NULL, real_entry, params) < 0){
+		PERROR("pthread_create");
+		return;
+	}
+
+	DBG("pthread_join");
+	pthread_join(br->user_tid, NULL);
+
+	DBG("semop");
+	// trigger dlclose (caller will wait for us)
+	if(sema_op(params->sema, EZ_SEM_LIBCTL, -1) < 0){
+		PERROR("semop");
+	}
 }
 
 
@@ -117,12 +179,7 @@ void *real_entry(void *arg) {
 
 	shmdt(params->mem);
 
-	DBG("semop");
-	// trigger dlclose (caller will wait for us)
-	if(sema_op(params->sema, EZ_SEM_LIBCTL, -1) < 0){
-		perror("semop");
-		return (void *)EXIT_FAILURE;
-	}
+	DBG("ret");
 	return (void *)EXIT_SUCCESS;
 }
 

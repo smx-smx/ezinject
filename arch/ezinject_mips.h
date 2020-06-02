@@ -9,6 +9,7 @@
 #define REG_ARG2 regs[5] //$a1
 #define REG_ARG3 regs[6] //$a2
 #define REG_ARG4 regs[7] //$a3
+#define REG_RA regs[31]
 
 #define REG(u, r) (u).r
 

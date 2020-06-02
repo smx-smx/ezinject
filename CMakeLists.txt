@@ -34,7 +34,7 @@ endif()
 
 include(CheckLibraryExists)
 
-find_library(C_LIBRARY "libc.so.0" PATHS ${CMAKE_BUILD_RPATH})
+find_library(C_LIBRARY "libc.so.0")
 if(NOT C_LIBRARY)
 	find_library(C_LIBRARY "libc.so.6")
 endif()
@@ -43,7 +43,7 @@ if(NOT C_LIBRARY)
 	message(FATAL_ERROR "libc.so not found")
 endif()
 
-find_library(DL_LIBRARY "libdl.so.0" PATHS ${CMAKE_BUILD_RPATH})
+find_library(DL_LIBRARY "libdl.so.0")
 if(NOT DL_LIBRARY)
 	find_library(DL_LIBRARY "libdl.so.2")
 endif()
@@ -52,7 +52,7 @@ if(NOT DL_LIBRARY)
 	message(FATAL_ERROR "libdl.so not found")
 endif()
 
-find_library(PTHREAD_LIBRARY "libpthread.so.0" PATHS ${CMAKE_BUILD_RPATH})
+find_library(PTHREAD_LIBRARY "libpthread.so.0")
 if(NOT PTHREAD_LIBRARY)
 	message(FATAL_ERROR "libpthread.so not found")
 endif()
@@ -65,7 +65,7 @@ endif()
 
 get_filename_component(DL_LIBRARY_NAME "${DL_LIBRARY}" NAME)
 
-find_library(DYN_LINKER "ld-uClibc.so.0" PATHS ${CMAKE_BUILD_RPATH})
+find_library(DYN_LINKER "ld-uClibc.so.0")
 
 check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
 get_filename_component(C_LIBRARY_NAME "${C_LIBRARY}" NAME)
