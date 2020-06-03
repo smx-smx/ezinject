@@ -83,10 +83,10 @@ __attribute__((constructor)) void ctor(void)
 	// get pid (use syscall to avoid libc pid caching)
 	params->pid = syscall(__NR_getpid);
 	
-	INFO("pid: %zu", params->pid);
+	INFO("pid: %u", params->pid);
 
 	DBG("semget");
-	if((params->sema = semget(params->pid, 2, S_IRWXO)) < 0){
+	if((params->sema = semget(params->pid, 1, S_IRWXO)) < 0){
 		PERROR("semget");
 		return;
 	}

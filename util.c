@@ -135,21 +135,3 @@ uintptr_t get_code_base(pid_t pid){
 	fclose(fp);
 	return region_addr;
 }
-
-#if 0
-ssize_t memcpy_to(pid_t pid, void *remote_dest, void* local_src, size_t n)
-{
-	struct iovec local_iov = {.iov_base = local_src, .iov_len = n};
-	struct iovec remote_iov = {.iov_base = remote_dest, .iov_len = n};
-
-	return process_vm_writev(pid, &local_iov, 1, &remote_iov, 1, 0);
-}
-
-ssize_t memcpy_from(pid_t pid, void *local_dest, void* remote_src, size_t n)
-{
-	struct iovec local_iov = {.iov_base = local_dest, .iov_len = n};
-	struct iovec remote_iov = {.iov_base = remote_src, .iov_len = n};
-
-	return process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
-}
-#endif

@@ -200,7 +200,7 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		DBG('s');
 		{
 			pid_t pid = br->libc_syscall(__NR_getpid);
-			sema = br_semget(br, pid, 2, 0);
+			sema = br_semget(br, pid, 1, 0);
 			if(sema < 0){
 				DBG('!');
 				break;
@@ -273,9 +273,11 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 			 **/
 			dlclose(br->userlib);
 
+			#ifndef UCLIBC_OLD
 			if(!had_pthread){
 				dlclose(h_pthread);
 			}
+			#endif
 		}
 
 		signal = SIGSTOP;

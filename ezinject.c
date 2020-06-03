@@ -274,22 +274,9 @@ int libc_init(struct ezinj_ctx *ctx){
 			return 1;
 		}
 
-#if 0
-		void *h_libpthread = dlopen(PTHREAD_LIBRARY_NAME, RTLD_LAZY);
-		if(!h_libpthread){
-			ERR("dlopen("PTHREAD_LIBRARY_NAME") failed: %s", dlerror());
-			return 1;
-		}
-#endif
-
 		ez_addr libdl = {
 			.local = (uintptr_t)get_base(getpid(), "libdl", NULL),
 			.remote = (uintptr_t)get_base(ctx->target, "libdl", NULL)
-		};
-
-		ez_addr libpthread = {
-			.local = (uintptr_t)get_base(getpid(), "libpthread", NULL),
-			.remote = 0
 		};
 
 		DBGPTR(libdl.local);
@@ -314,15 +301,6 @@ int libc_init(struct ezinj_ctx *ctx){
 			off_t dlsym_offset = (off_t)PTRDIFF(dlsym_local, libdl.local);
 			DBG("dlsym offset: 0x%lx", dlsym_offset);
 			ctx->dlsym_offset = dlsym_offset;
-
-#if 0
-			void *pthread_join_local = dlsym(h_libpthread, "pthread_join");
-			off_t pthread_join_offset = (off_t)PTRDIFF(pthread_join_local, libpthread.local);
-			DBG("pthread_join offset: 0x%lx", pthread_join_offset);
-			ctx->pthread_join_offset = pthread_join_offset;
-			
-			dlclose(h_libpthread);
-#endif
 		}
 
 		dlclose(h_libdl);
@@ -357,13 +335,9 @@ int libc_init(struct ezinj_ctx *ctx){
 #endif
 
 	ez_addr uclibc_dl_fixup = sym_addr(h_ldso, "_dl_fixup", ldso);
-
 	ctx->uclibc_sym_tables = uclibc_sym_tables;
-
 	ctx->uclibc_loaded_modules = uclibc_loaded_modules;
-
 	ctx->uclibc_dl_fixup = uclibc_dl_fixup;
-
 	dlclose(h_ldso);
 #endif
 	ctx->libc_dlopen = libc_dlopen;
@@ -578,7 +552,7 @@ int ezinject_main(
 		}
 		ctx->mapped_mem.local = (uintptr_t)mapped_mem;
 
-		if((sem_id = semget(ctx->target, 2, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+		if((sem_id = semget(ctx->target, 1, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
 			perror("semget");
 			return 1;
 		}
@@ -628,17 +602,6 @@ int ezinject_main(
 	{
 		ERR("Remote syscall returned incorrect result!");
 		ERR("Expected: %u, actual: %u", ctx->target, remote_pid);
-		return 1;
-	}
-
-	// set semaphore to 1
-	struct sembuf sem_op = {
-		.sem_num = EZ_SEM_SHMCTL,
-		.sem_op = 1, //increase
-		.sem_flg = 0
-	};
-	if(semop(sem_id, &sem_op, 1) < 0){
-		PERROR("semop");
 		return 1;
 	}
 

@@ -15,10 +15,7 @@
 #endif
 #endif
 
-#define EZ_THREAD_FLAG -1
-
-#define EZ_SEM_SHMCTL 0
-#define EZ_SEM_LIBCTL 1
+#define EZ_SEM_LIBCTL 0
 
 #define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
 
