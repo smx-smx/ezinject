@@ -5,7 +5,7 @@ if [ "$1" == "clean" ]; then
 	rm -r build
 	exit 0
 elif [ ! -z "$1" ] && [ -f "$1.cmake" ]; then
-	TOOLCHAINFILE="-DCMAKE_TOOLCHAIN_FILE=$1.cmake"
+	TOOLCHAINFILE="-DCMAKE_TOOLCHAIN_FILE=$1"
 fi
 [ ! -d build ] && mkdir build
 cd build

@@ -4,6 +4,7 @@
 #cmakedefine EZ_ARCH_AMD64
 #cmakedefine EZ_ARCH_MIPS
 #cmakedefine HAVE_SHM_EXEC
+#cmakedefine HAVE_FUTEX
 #cmakedefine HAVE_LIBC_DLOPEN_MODE
 #cmakedefine HAVE_DL_LOAD_SHARED_LIBRARY
 #cmakedefine HAVE_SHM_SYSCALLS
@@ -11,3 +12,4 @@
 #cmakedefine C_LIBRARY_NAME "@C_LIBRARY_NAME@"
 #cmakedefine DYN_LINKER_NAME "@DYN_LINKER_NAME@"
 #cmakedefine DL_LIBRARY_NAME "@DL_LIBRARY_NAME@"
+#cmakedefine PTHREAD_LIBRARY_NAME "@PTHREAD_LIBRARY_NAME@"

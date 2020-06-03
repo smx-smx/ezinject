@@ -52,6 +52,11 @@ if(NOT DL_LIBRARY)
 	message(FATAL_ERROR "libdl.so not found")
 endif()
 
+find_library(PTHREAD_LIBRARY "libpthread.so.0")
+if(NOT PTHREAD_LIBRARY)
+	message(FATAL_ERROR "libpthread.so not found")
+endif()
+
 check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)
 if(NOT HAVE_DLOPEN OR NOT HAVE_DLSYM)
@@ -64,6 +69,8 @@ find_library(DYN_LINKER "ld-uClibc.so.0")
 
 check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
 get_filename_component(C_LIBRARY_NAME "${C_LIBRARY}" NAME)
+
+get_filename_component(PTHREAD_LIBRARY_NAME "${PTHREAD_LIBRARY}" NAME)
 
 if(NOT HAVE_LIBC_DLOPEN_MODE)
 	if(NOT DYN_LINKER)
@@ -84,6 +91,7 @@ include(CheckSymbolExists)
 check_symbol_exists("__NR_shmget" "asm/unistd.h" HAVE_SHM_SYSCALLS)
 check_symbol_exists("__NR_ipc" "asm/unistd.h" HAVE_SC_IPC)
 check_symbol_exists("SHM_EXEC" "sys/shm.h" HAVE_SHM_EXEC)
+check_symbol_exists("__NR_futex" "sys/syscall.h" HAVE_FUTEX)
 check_symbol_exists("__arm__" "" EZ_ARCH_ARM)
 check_symbol_exists("__i386__" "" EZ_ARCH_I386)
 check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
@@ -152,5 +160,6 @@ add_executable(ezinject
 # -fno-pic: remove calls to __x86_get_pc_thunk_ax (PIC
 # -nostdlib: this code doesn't use any library
 # -frame-pointer: don't save stack frames
-set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer")
+set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -Os -ffreestanding")
 target_link_libraries(ezinject dl lh_elf)
+

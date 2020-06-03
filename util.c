@@ -2,9 +2,18 @@
 #include "util.h"
 #include <stdbool.h>
 #include <string.h>
-#include <sys/uio.h>
 #include <ctype.h>
 #include "ezinject.h"
+
+#include <sys/sem.h>
+int sema_op(int sema, int idx, int op){
+	struct sembuf sem_op = {
+		.sem_num = idx,
+		.sem_op = op,
+		.sem_flg = 0
+	};
+	return semop(sema, &sem_op, 1);
+}
 
 void hexdump(void *pAddressIn, long lSize) {
 	char szBuf[100];
@@ -99,11 +108,12 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 		strcpy(path, "[anonymous]");
 		val = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
 		
-		if(strstr(path, substr) && strchr(perms, 'x') != NULL){
+		if(strstr(path, substr)){
 			bool skip = false;
 			if(ignores != NULL){
-				while(*ignores != NULL){
-					if(strstr(path, *(ignores++))){
+				char **sptr = ignores;
+				while(*sptr != NULL){
+					if(strstr(path, *(sptr++))){
 						skip = true;
 						break;
 					}
@@ -154,21 +164,3 @@ uintptr_t get_code_base(pid_t pid){
 	fclose(fp);
 	return region_addr;
 }
-
-#if 0
-ssize_t memcpy_to(pid_t pid, void *remote_dest, void* local_src, size_t n)
-{
-	struct iovec local_iov = {.iov_base = local_src, .iov_len = n};
-	struct iovec remote_iov = {.iov_base = remote_dest, .iov_len = n};
-
-	return process_vm_writev(pid, &local_iov, 1, &remote_iov, 1, 0);
-}
-
-ssize_t memcpy_from(pid_t pid, void *local_dest, void* remote_src, size_t n)
-{
-	struct iovec local_iov = {.iov_base = local_dest, .iov_len = n};
-	struct iovec remote_iov = {.iov_base = remote_src, .iov_len = n};
-
-	return process_vm_readv(pid, &local_iov, 1, &remote_iov, 1, 0);
-}
-#endif

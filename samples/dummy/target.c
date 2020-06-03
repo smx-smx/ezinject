@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <signal.h>
 
@@ -17,6 +18,7 @@ void func2(void)
 
 void onSignal(int sigNum){
 	UNUSED(sigNum);
+	printf("Error: got signal %d (%s)\n", sigNum, strsignal(sigNum));
 	raise(SIGSTOP);
 }
 
@@ -24,6 +26,7 @@ int main(int argc, char *argv[])
 {
 	UNUSED(argv);	
 	signal(SIGSEGV, onSignal);
+
 	//signal(SIGTRAP, onSignal);
 
 	int interactive = argc > 1;

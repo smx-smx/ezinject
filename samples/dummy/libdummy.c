@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <dlfcn.h>
+
+//#define LOG_USE_FILE
 #include "log.h"
 #include "util.h"
 #include "interface/if_hook.h"
@@ -9,7 +11,7 @@
 
 #define UNUSED(x) (void)(x)
 
-enum verbosity_level verbosity = V_DBG;
+LOG_SETUP(V_DBG);
 
 void installHooks(){
 	void *sljit_code = NULL;
@@ -83,10 +85,13 @@ void lib_preinit(struct injcode_user *user){
 }
 
 int lib_main(int argc, char *argv[]){
-	puts("Hello World from main");
+	LOG_INIT("/tmp/dummy.log");
+
+	lputs("Hello World from main");
 	for(int i=0; i<argc; i++){
-		printf("argv[%d] = %s\n", i, argv[i]);
+		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
-	installHooks();
+	//installHooks();
+	LOG_FINI();
 	return 0;
 }
