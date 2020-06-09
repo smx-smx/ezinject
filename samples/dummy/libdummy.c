@@ -84,6 +84,11 @@ void lib_preinit(struct injcode_user *user){
 	// access user data
 }
 
+void libdl_test(){
+	void *self = dlopen(NULL, RTLD_LAZY | RTLD_NOLOAD);
+	lprintf("self: %p\n", self);
+}
+
 int lib_main(int argc, char *argv[]){
 	LOG_INIT("/tmp/dummy.log");
 
@@ -91,6 +96,7 @@ int lib_main(int argc, char *argv[]){
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
+	libdl_test();
 	//installHooks();
 	LOG_FINI();
 	return 0;

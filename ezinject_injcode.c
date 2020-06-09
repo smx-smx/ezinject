@@ -230,6 +230,7 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		char *libpthread_name = STRTBL_NEXT(libdl_name);
 		char *userlib_name = STRTBL_NEXT(libpthread_name);
 
+		// just to make sure it's really loaded
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
 		if(h_libdl == NULL){
 			dlopen(libdl_name, RTLD_NOW);
