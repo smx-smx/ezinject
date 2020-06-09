@@ -215,7 +215,7 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		if(libdl_handle == NULL){
 			DBG('l');
 			{
-				void *libdl_handle = get_libdl(br);
+				libdl_handle = get_libdl(br);
 				if(libdl_handle == NULL){
 					DBG('!');
 					break;
@@ -229,6 +229,11 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		char *libdl_name = BR_STRTBL(br);
 		char *libpthread_name = STRTBL_NEXT(libdl_name);
 		char *userlib_name = STRTBL_NEXT(libpthread_name);
+
+		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
+		if(h_libdl == NULL){
+			dlopen(libdl_name, RTLD_NOW);
+		}
 
 		// acquire libpthread
 		DBG('p');
