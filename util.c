@@ -98,6 +98,10 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 	void *base;
 	char perms[8];
 	bool found = false;
+
+	int sublen = strlen(substr);
+	char *end = (char *)&line + sizeof(line);
+
 	snprintf(line, 256, "/proc/%u/maps", pid);
 	FILE *fp = fopen(line, "r");
 	int val;
@@ -108,7 +112,8 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 		strcpy(path, "[anonymous]");
 		val = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
 		
-		if(strstr(path, substr)){
+		char *sub;
+		if((sub=strstr(path, substr)) != NULL){
 			bool skip = false;
 			if(ignores != NULL){
 				char **sptr = ignores;
@@ -119,8 +124,25 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 					}
 				}
 			}
-			if(!skip){
-				found = true;
+			
+			if(skip){
+				break;
+			}
+
+			sub += sublen;
+			if(sub >= end){
+				break;
+			}
+
+			switch(*sub){
+				case '.': //libc.
+				case '-': //libc-
+					found = true;
+					break;
+			}
+
+			if(found){
+				break;
 			}
 		}
 	} while(val > 0 && !found);
