@@ -167,15 +167,11 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			DBG("got signal: %d (%s)", stopsig, strsignal(stopsig));
 		} while(IS_IGNORED_SIG(stopsig));			
 
-		if(stopsig == SIGTRAP){
-			// child raised a debug event
-			// this is a debug condition, so do a hard exit
-			// $TODO: do it nicer
-			ptrace(PTRACE_DETACH, target, 0, 0);
-			exit(0);
+		if(ptrace(PTRACE_GETREGS, target, 0, &new_ctx) < 0){
+			PERROR("ptrace");
 			return -1;
 		}
-
+		
 		if(stopsig != SIGSTOP){
 			ERR("Unexpected signal (expected SIGSTOP)");
 
@@ -187,6 +183,15 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 				(signed int)(REG(tmp, REG_PC) - call.insn_addr)
 			);
 			#endif
+		}
+
+		if(stopsig == SIGTRAP || stopsig == SIGSEGV){
+			// child raised a debug event
+			// this is a debug condition, so do a hard exit
+			// $TODO: do it nicer
+			ptrace(PTRACE_DETACH, target, 0, 0);
+			exit(0);
+			return -1;
 		}
 	}
 
@@ -282,25 +287,24 @@ int libc_init(struct ezinj_ctx *ctx){
 		DBGPTR(libdl.local);
 		DBGPTR(libdl.remote);
 
+		void *dlopen_local = dlsym(h_libdl, "dlopen");
+		off_t dlopen_offset = (off_t)PTRDIFF(dlopen_local, libdl.local);
+		DBG("dlopen offset: 0x%lx", dlopen_offset);
+		ctx->dlopen_offset = dlopen_offset;
+
+		void *dlclose_local = dlsym(h_libdl, "dlclose");
+		off_t dlclose_offset = (off_t)PTRDIFF(dlclose_local, libdl.local);
+		DBG("dlclose offset: 0x%lx", dlclose_offset);
+		ctx->dlclose_offset = dlclose_offset;
+
+		void *dlsym_local = dlsym(h_libdl, "dlsym");
+		off_t dlsym_offset = (off_t)PTRDIFF(dlsym_local, libdl.local);
+		DBG("dlsym offset: 0x%lx", dlsym_offset);
+		ctx->dlsym_offset = dlsym_offset;
+
 		if(0 && libdl.remote != 0){
 			// target has libdl loaded. this makes things easier for us
 			ctx->actual_dlopen = sym_addr(h_libdl, "dlopen", libdl);
-		} else {
-			// target has no libdl loaded. we will need to load it ourselves
-			void *dlopen_local = dlsym(h_libdl, "dlopen");
-			off_t dlopen_offset = (off_t)PTRDIFF(dlopen_local, libdl.local);
-			DBG("dlopen offset: 0x%lx", dlopen_offset);
-			ctx->dlopen_offset = dlopen_offset;
-
-			void *dlclose_local = dlsym(h_libdl, "dlclose");
-			off_t dlclose_offset = (off_t)PTRDIFF(dlclose_local, libdl.local);
-			DBG("dlclose offset: 0x%lx", dlclose_offset);
-			ctx->dlclose_offset = dlclose_offset;
-
-			void *dlsym_local = dlsym(h_libdl, "dlsym");
-			off_t dlsym_offset = (off_t)PTRDIFF(dlsym_local, libdl.local);
-			DBG("dlsym offset: 0x%lx", dlsym_offset);
-			ctx->dlsym_offset = dlsym_offset;
 		}
 
 		dlclose(h_libdl);

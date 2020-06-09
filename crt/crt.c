@@ -97,7 +97,16 @@ __attribute__((constructor)) void ctor(void)
 		PERROR("shmat");
 		return;
 	}
-	params->mem = br;
+
+	size_t br_size = SIZEOF_BR(*br);
+	void *localBr = malloc(br_size);
+	if(!localBr){
+		PERROR("malloc");
+		return;
+	}
+	memcpy(localBr, br, br_size);
+
+	params->mem = localBr;
 
 	// workaround for old uClibc (see http://lists.busybox.net/pipermail/uclibc/2009-October/043122.html)
 	// https://github.com/kraj/uClibc/commit/cfa1d49e87eae4d46e0f0d568627b210383534f3
@@ -133,17 +142,14 @@ __attribute__((constructor)) void ctor(void)
 
 
 	DBG("pthread_create");
-
 	if(pthread_create(&br->user_tid, NULL, real_entry, params) < 0){
 		PERROR("pthread_create");
 		return;
 	}
+	shmdt(br);
 
-	DBG("pthread_join");
-	pthread_join(br->user_tid, NULL);
-
+	// notify thread is ready to be awaited
 	DBG("semop");
-	// trigger dlclose (caller will wait for us)
 	if(sema_op(params->sema, EZ_SEM_LIBCTL, -1) < 0){
 		PERROR("semop");
 	}
@@ -177,9 +183,8 @@ void *real_entry(void *arg) {
 	lib_preinit(&br->user);
 	lib_main(br->argc, br->argv);
 
-	shmdt(params->mem);
-
 	DBG("ret");
+	free(br);
 	return (void *)EXIT_SUCCESS;
 }
 
