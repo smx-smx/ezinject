@@ -210,18 +210,22 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 			br_semop(br, sema, EZ_SEM_LIBCTL, 1);
 		}
 
+		void *libdl_handle = br->libdl_handle;
+		dbg_bin(br, libdl_handle);
 		// acquire libdl
-		DBG('l');
-		{
-			void *libdl_handle = get_libdl(br);
-			if(libdl_handle == NULL){
-				DBG('!');
-				break;
+		if(libdl_handle == NULL){
+			DBG('l');
+			{
+				void *libdl_handle = get_libdl(br);
+				if(libdl_handle == NULL){
+					DBG('!');
+					break;
+				}
 			}
-			dlopen = (void *)((uintptr_t)libdl_handle + br->dlopen_offset);
-			dlclose = (void *)((uintptr_t)libdl_handle + br->dlclose_offset);
-			dlsym = (void *)((uintptr_t)libdl_handle + br->dlsym_offset);
 		}
+		dlopen = (void *)((uintptr_t)libdl_handle + br->dlopen_offset);
+		dlclose = (void *)((uintptr_t)libdl_handle + br->dlclose_offset);
+		dlsym = (void *)((uintptr_t)libdl_handle + br->dlsym_offset);
 
 		char *libdl_name = BR_STRTBL(br);
 		char *libpthread_name = STRTBL_NEXT(libdl_name);

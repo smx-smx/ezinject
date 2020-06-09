@@ -135,8 +135,8 @@ struct injcode_bearing
 	off_t dlopen_offset;
 	off_t dlclose_offset;
 	off_t dlsym_offset;
-	// the real dlopen() function from libdl, if available
-	void *(*actual_dlopen)(const char *filename, int flag);
+	// libdl base address, if already loaded
+	void *libdl_handle;
 	long (*libc_syscall)(long number, ...);
 	int (*libc_semop)(int semid, struct sembuf *sops, size_t nsops);
 #ifdef DEBUG

@@ -283,6 +283,7 @@ int libc_init(struct ezinj_ctx *ctx){
 			.local = (uintptr_t)get_base(getpid(), "libdl", NULL),
 			.remote = (uintptr_t)get_base(ctx->target, "libdl", NULL)
 		};
+		ctx->libdl = libdl;
 
 		DBGPTR(libdl.local);
 		DBGPTR(libdl.remote);
@@ -301,11 +302,6 @@ int libc_init(struct ezinj_ctx *ctx){
 		off_t dlsym_offset = (off_t)PTRDIFF(dlsym_local, libdl.local);
 		DBG("dlsym offset: 0x%lx", dlsym_offset);
 		ctx->dlsym_offset = dlsym_offset;
-
-		if(0 && libdl.remote != 0){
-			// target has libdl loaded. this makes things easier for us
-			ctx->actual_dlopen = sym_addr(h_libdl, "dlopen", libdl);
-		}
 
 		dlclose(h_libdl);
 	}
@@ -420,7 +416,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	struct injcode_bearing *br = malloc(sizeof(*br) + dyn_total_size);
 
 	
-	br->actual_dlopen = (void *)ctx.actual_dlopen.remote;
+	br->libdl_handle = (void *)ctx.libdl.remote;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	br->uclibc_sym_tables = (void *)ctx.uclibc_sym_tables.remote;
 	br->uclibc_dl_fixup = (void *)ctx.uclibc_dl_fixup.remote;

@@ -68,12 +68,12 @@ struct ezinj_ctx {
 	int num_wait_calls;
 	pid_t target;
 	ez_addr libc;
+	ez_addr libdl;
 	ez_addr syscall_insn;
 	ez_addr syscall_stack;
 	ez_addr libc_syscall;
 	ez_addr libc_semop;
 	ez_addr libc_dlopen;
-	ez_addr actual_dlopen;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	ez_addr uclibc_sym_tables;
 	ez_addr uclibc_loaded_modules;
