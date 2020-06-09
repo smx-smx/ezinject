@@ -48,7 +48,7 @@
 
 void injected_code_start(void){}
 
-INLINE void dbg_bin(struct injcode_bearing *br, unsigned long dw){
+INLINE void dbg_bin(struct injcode_bearing *br, uintptr_t dw){
 #ifndef DEBUG
 	UNUSED(br);
 	UNUSED(dw);
@@ -74,7 +74,7 @@ void injected_clone(){
 
 	register struct injcode_bearing *br;
 	register void (*callWithFrame)(struct injcode_bearing *);
-	
+
 	EMIT_POP(br);
 	EMIT_POP(callWithFrame);
 	callWithFrame(br);
@@ -211,7 +211,6 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		}
 
 		void *libdl_handle = br->libdl_handle;
-		dbg_bin(br, libdl_handle);
 		// acquire libdl
 		if(libdl_handle == NULL){
 			DBG('l');
@@ -262,12 +261,10 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		// wait for the thread to notify us
 		DBG('w');
 		br_semop(br, sema, EZ_SEM_LIBCTL, 0);
-		
+
 		// wait for user thread to die
 		DBG('j');
-		{
-			pthread_join(br->user_tid, NULL);
-		}
+		pthread_join(br->user_tid, NULL);
 
 		// cleanup
 		DBG('c');
@@ -292,7 +289,7 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 	// success: SIGSTOP
 	// failure: anything else
 	DBG('b');
-	
+
 	br->libc_syscall(__NR_kill, br->libc_syscall(__NR_getpid), signal);
 	while(1);
 }

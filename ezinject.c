@@ -97,7 +97,7 @@ int remote_wait(pid_t target){
 			return rc;
 		}
 	} while(rc != target);
-	
+
 	if(!WIFSTOPPED(status)){
 		ERR("remote did not stop");
 		return -1;
@@ -165,13 +165,13 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 
 			stopsig = WSTOPSIG(status);
 			DBG("got signal: %d (%s)", stopsig, strsignal(stopsig));
-		} while(IS_IGNORED_SIG(stopsig));			
+		} while(IS_IGNORED_SIG(stopsig));
 
 		if(ptrace(PTRACE_GETREGS, target, 0, &new_ctx) < 0){
 			PERROR("ptrace");
 			return -1;
 		}
-		
+
 		if(stopsig != SIGSTOP){
 			ERR("Unexpected signal (expected SIGSTOP)");
 
@@ -250,13 +250,13 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
 	return sym;
 }
 
-int libc_init(struct ezinj_ctx *ctx){	
+int libc_init(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
 	ez_addr libc = {
 		.local  = (uintptr_t) get_base(getpid(), "libc", ignores),
 		.remote = (uintptr_t) get_base(ctx->target, "libc", ignores)
 	};
-	
+
 	DBGPTR(libc.remote);
 	DBGPTR(libc.local);
 
@@ -415,7 +415,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 
 	struct injcode_bearing *br = malloc(sizeof(*br) + dyn_total_size);
 
-	
+
 	br->libdl_handle = (void *)ctx.libdl.remote;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	br->uclibc_sym_tables = (void *)ctx.uclibc_sym_tables.remote;
@@ -444,7 +444,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 
 	USE_LIBC_SYM(syscall);
 	USE_LIBC_SYM(semop);
-	
+
 #undef USE_LIBC_SYM
 
 	br->argc = argc;
@@ -544,7 +544,7 @@ int ezinject_main(
 		}
 		INFO("SHM id: %u", shm_id);
 		ctx->shm_id = shm_id;
-			
+
 		mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
 		if(mapped_mem == MAP_FAILED){
 			PERROR("shmat");
@@ -621,10 +621,10 @@ int ezinject_main(
 		 * arg2 - shmat: flags
 		 * arg3 - pointer to memory that will hold the resulting shmaddr
 		 * arg4 [VIA STACK] - shmat: shmaddr (we want this to be 0 to let the kernel pick a free region)
-		 * 
+		 *
 		 * Return: 0 on success, nonzero on error
 		 * Stack layout: arguments start from offset 16 on Mips O32
-		 * 
+		 *
 		 * We pass shmaddr as arg3 aswell, so that 0 is used as shmaddr and is replaced with the new addr
 		 **/
 		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, SHM_EXEC, codeBase + 4));

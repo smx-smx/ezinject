@@ -113,6 +113,6 @@ struct call_req {
 	uintptr_t insn_addr;
 	uintptr_t stack_addr;
 	struct sc_req syscall;
-	int num_wait_calls;		
+	int num_wait_calls;
 };
 #endif

@@ -24,7 +24,7 @@ void onSignal(int sigNum){
 
 int main(int argc, char *argv[])
 {
-	UNUSED(argv);	
+	UNUSED(argv);
 	signal(SIGSEGV, onSignal);
 
 	//signal(SIGTRAP, onSignal);
