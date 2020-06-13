@@ -36,13 +36,6 @@
 
 #define WORDALIGN(x) ALIGN(x, sizeof(void *))
 
-#if defined(EZ_ARCH_AMD64) || defined(EZ_ARCH_MIPS)
-//align to 16 bytes
-#define STACKALIGN(x) ALIGN(x, 16)
-#else
-#define STACKALIGN(x) WORDALIGN(x)
-#endif
-
 #define PAGEALIGN(x)  ALIGN(x, getpagesize())
 #define PTRADD(a, b) ( UPTR(a) + UPTR(b) )
 #define PTRDIFF(a, b) ( UPTR(a) - UPTR(b) )

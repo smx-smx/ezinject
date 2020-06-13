@@ -468,7 +468,7 @@ int allocate_shm(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj
 	// size of code payload
 	size_t code_size = (size_t)WORDALIGN(REGION_LENGTH(region_pl_code));
 
-	size_t stack_offset = (size_t)STACKALIGN(br_size + code_size);
+	size_t stack_offset = br_size + code_size;
 	size_t mapping_size = stack_offset + PL_STACK_SIZE;
 
 	DBG("br_size=%zu", br_size);
@@ -508,7 +508,18 @@ int allocate_shm(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj
 	layout->code_start = pMem;
 
 	pMem = (uint8_t *)ctx->mapped_mem.local + stack_offset;
-	layout->stack_top = pMem + PL_STACK_SIZE;
+
+	// stack is located at the end of the memory map
+	layout->stack_top = pMem + mapping_size;
+
+	/** align stack **/
+
+	#ifdef EZ_ARCH_AMD64
+	// x64 requires a 16 bytes aligned stack for movaps
+	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(16));
+	#else
+	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(sizeof(void *)));
+	#endif
 	return 0;
 }
 
@@ -689,7 +700,7 @@ int ezinject_main(
 		// reserve space for 3 arguments at the top of the initial stack
 		// force stack to snap to the lowest 16 bytes, or it will crash on x64
 		uintptr_t *stack_argv = (uintptr_t *)(
-			((uintptr_t)target_sp - (sizeof(uintptr_t) * 2)) & ~ALIGNMSK(16)
+			((uintptr_t)target_sp - (sizeof(uintptr_t) * 2))
 		);
 
 		DBGPTR(target_sp);
