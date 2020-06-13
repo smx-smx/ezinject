@@ -510,7 +510,7 @@ int allocate_shm(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj
 	pMem = (uint8_t *)ctx->mapped_mem.local + stack_offset;
 
 	// stack is located at the end of the memory map
-	layout->stack_top = pMem + mapping_size;
+	layout->stack_top = (uint8_t *)ctx->mapped_mem.local + mapping_size;
 
 	/** align stack **/
 
