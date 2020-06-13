@@ -79,9 +79,10 @@ void installHooks(){
 	inj_replace_function(&lh_hook, (uintptr_t)original_test_function);
 }
 
-void lib_preinit(struct injcode_user *user){
+int lib_preinit(struct injcode_user *user){
 	UNUSED(user);
 	// access user data
+	return 0;
 }
 
 void libdl_test(){
@@ -90,14 +91,11 @@ void libdl_test(){
 }
 
 int lib_main(int argc, char *argv[]){
-	LOG_INIT("/tmp/dummy.log");
-
 	lputs("Hello World from main");
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
 	libdl_test();
 	//installHooks();
-	LOG_FINI();
 	return 0;
 }

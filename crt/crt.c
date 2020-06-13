@@ -29,10 +29,13 @@
 #include "util.h"
 #endif
 
+#ifndef MODULE_NAME
+#define MODULE_NAME "userlib"
+#endif
+
 #define UNUSED(x) (void)(x)
 
-extern void lib_preinit(struct injcode_user *user);
-extern int lib_main(int argc, char *argv[]);
+extern int crt_userinit(struct injcode_bearing *br);
 
 struct crt_params {
 	pid_t pid;
@@ -77,6 +80,8 @@ int ret(int dummy){
  **/
 __attribute__((constructor)) void ctor(void)
 {
+	LOG_INIT("/tmp/"MODULE_NAME".log");
+
 	struct crt_params *params = &gParams;
 	memset(params, 0x00, sizeof(*params));
 
@@ -180,10 +185,11 @@ void *real_entry(void *arg) {
 	hexdump(br, SIZEOF_BR(*br));
 #endif
 
-	lib_preinit(&br->user);
-	lib_main(br->argc, br->argv);
+	crt_userinit(br);
 
 	DBG("ret");
+	LOG_FINI();
+
 	free(br);
 	return (void *)EXIT_SUCCESS;
 }

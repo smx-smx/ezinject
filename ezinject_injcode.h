@@ -9,12 +9,6 @@
 
 #include "config.h"
 
-#ifdef HAVE_FUTEX
-#ifndef FUTEX_WAIT
-#define FUTEX_WAIT 0
-#endif
-#endif
-
 #define EZ_SEM_LIBCTL 0
 
 #define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
