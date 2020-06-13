@@ -13,12 +13,9 @@
 
 #define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
 
-#define PL_ARGV_MAX 1024
-
+// temporary stack size
 #define PL_STACK_SIZE 64 * 1024
 
-#define MAPPINGSIZE ((sizeof(struct injcode_bearing) + PL_ARGV_MAX + PL_STACK_SIZE))
-// temporary stack size
 #define INJ_PATH_MAX 128
 
 #define EMIT_LABEL(name) \
@@ -43,7 +40,7 @@
 //align to 16 bytes
 #define STACKALIGN(x) ALIGN(x, 16)
 #else
-#define STACKALIGN(x) MEMALIGN(x)
+#define STACKALIGN(x) WORDALIGN(x)
 #endif
 
 #define PAGEALIGN(x)  ALIGN(x, getpagesize())
@@ -102,6 +99,8 @@ struct injcode_user {
 
 struct injcode_bearing
 {
+	size_t mapping_size;
+
 	pthread_t user_tid;
 	pid_t user_ft;
 

@@ -59,9 +59,9 @@ typedef struct {
 #define EZ_REMOTE(ref, local_addr) (ref.remote + (PTRDIFF(local_addr, ref.local)))
 
 struct ezinj_pl {
-	struct injcode_bearing *br_start;
+	uint8_t *br_start;
 	uint8_t *code_start;
-	uint8_t *sc_ret;
+	uint8_t *stack_top;
 };
 
 struct ezinj_ctx {

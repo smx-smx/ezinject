@@ -39,27 +39,48 @@ extern int crt_userinit(struct injcode_bearing *br);
 
 struct crt_params {
 	pid_t pid;
-	void *mem;
 	int sema;
+	struct injcode_bearing *br;
 };
 
 static struct crt_params gParams;
 
 void* real_entry(void *arg);
 
-INLINE void *acquire_shm(key_t key){
-	int shm_id = shmget(key, MAPPINGSIZE, 0);
+int acquire_shm(key_t key, size_t size, void **ppMem){
+	int is_initial_attach = (size == 0);
+	if(is_initial_attach){
+		size = sizeof(struct injcode_bearing);
+	}
+
+	int shm_id = shmget(key, size, 0);
 	if(shm_id < 0){
 		perror("shmget");
-		return NULL;
+		return 1;
 	}
+
 	void *mem = shmat(shm_id, NULL, 0);
 	if(mem == MAP_FAILED){
 		perror("shmat");
-		return NULL;
+		return 1;
+	}
+	*ppMem = mem;
+
+	if(is_initial_attach){
+		size_t mapping_size = ((struct injcode_bearing *)mem)->mapping_size;
+		if(mapping_size == 0){
+			ERR("mapping_size is 0");
+			return 1;
+		}
+		DBG("mapping_size=%zu", mapping_size);
+		if(shmdt(mem) < 0){
+			PERROR("initial shmdt");
+			return 1;
+		}
+		return acquire_shm(key, mapping_size, ppMem);
 	}
 
-	return mem;
+	return 0;
 }
 
 extern void ret_start(void);
@@ -90,19 +111,18 @@ __attribute__((constructor)) void ctor(void)
 
 	INFO("pid: %u", params->pid);
 
-	DBG("semget");
 	if((params->sema = semget(params->pid, 1, S_IRWXO)) < 0){
 		PERROR("semget");
 		return;
 	}
 
-	DBG("shmget");
-	struct injcode_bearing *br = acquire_shm(params->pid);
-	if(!br){
-		PERROR("shmat");
+	struct injcode_bearing *br;
+	if(acquire_shm(params->pid, 0, (void **)&br) != 0){
+		ERR("acquire_shm failed");
 		return;
 	}
 
+	// copy local br (excluding code and stack)
 	size_t br_size = SIZEOF_BR(*br);
 	void *localBr = malloc(br_size);
 	if(!localBr){
@@ -110,8 +130,7 @@ __attribute__((constructor)) void ctor(void)
 		return;
 	}
 	memcpy(localBr, br, br_size);
-
-	params->mem = localBr;
+	params->br = (struct injcode_bearing *)localBr;
 
 	// workaround for old uClibc (see http://lists.busybox.net/pipermail/uclibc/2009-October/043122.html)
 	// https://github.com/kraj/uClibc/commit/cfa1d49e87eae4d46e0f0d568627b210383534f3
@@ -151,12 +170,16 @@ __attribute__((constructor)) void ctor(void)
 		PERROR("pthread_create");
 		return;
 	}
-	shmdt(br);
+	if(shmdt(br) < 0){
+		PERROR("shmdt");
+		return;
+	}
 
 	// notify thread is ready to be awaited
 	DBG("semop");
 	if(sema_op(params->sema, EZ_SEM_LIBCTL, -1) < 0){
 		PERROR("semop");
+		return;
 	}
 }
 
@@ -166,8 +189,7 @@ __attribute__((constructor)) void ctor(void)
  **/
 void *real_entry(void *arg) {
 	struct crt_params *params = (struct crt_params *)arg;
-
-	struct injcode_bearing *br = (struct injcode_bearing *)(params->mem);
+	struct injcode_bearing *br = params->br;
 
 	// prepare argv
 	char **dynPtr = (char **)((char *)br + sizeof(*br));

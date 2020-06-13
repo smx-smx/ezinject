@@ -414,6 +414,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	int dyn_total_size = dyn_ptr_size + dyn_str_size;
 
 	struct injcode_bearing *br = malloc(sizeof(*br) + dyn_total_size);
+	if(!br){
+		return NULL;
+	}
 
 
 	br->libdl_handle = (void *)ctx.libdl.remote;
@@ -459,28 +462,68 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	return br;
 }
 
+int allocate_shm(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj_pl *layout){
+	// br + argv
+	size_t br_size = (size_t)WORDALIGN(SIZEOF_BR(*br));
+	// size of code payload
+	size_t code_size = (size_t)WORDALIGN(REGION_LENGTH(region_pl_code));
 
-struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
+	size_t stack_offset = (size_t)STACKALIGN(br_size + code_size);
+	size_t mapping_size = stack_offset + PL_STACK_SIZE;
+
+	DBG("br_size=%zu", br_size);
+	DBG("code_size=%zu", code_size);
+	DBG("stack_offset=%zu", stack_offset);
+	DBG("mapping_size=%zu", mapping_size);
+
+	int shm_id, sem_id;
+	if((shm_id = shmget(ctx->target, mapping_size, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+		PERROR("shmget");
+		return 1;
+	}
+	INFO("SHM id: %u", shm_id);
+	ctx->shm_id = shm_id;
+
+	void *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
+	if(mapped_mem == MAP_FAILED){
+		PERROR("shmat");
+		return 1;
+	}
+	ctx->mapped_mem.local = (uintptr_t)mapped_mem;
+
+	if((sem_id = semget(ctx->target, 1, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+		perror("semget");
+		return 1;
+	}
+	ctx->sem_id = sem_id;
+
+	br->mapping_size = mapping_size;
+
+	/** prepare payload layout **/
+
+	uint8_t *pMem = (uint8_t *)ctx->mapped_mem.local;
+	layout->br_start = pMem;
+	pMem += br_size;
+
+	layout->code_start = pMem;
+
+	pMem = (uint8_t *)ctx->mapped_mem.local + stack_offset;
+	layout->stack_top = pMem + PL_STACK_SIZE;
+	return 0;
+}
+
+void prepare_payload(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj_pl *pl){
 	size_t br_size = SIZEOF_BR(*br);
-	size_t injected_size = REGION_LENGTH(region_pl_code);
-	DBG("injsize=%zu", injected_size);
-
-	uint8_t *br_start = (uint8_t *)mapped_mem;
+	uint8_t *br_start = (uint8_t *)(ctx->mapped_mem.local);
 
 	uint8_t *code_start = WORDALIGN(br_start + br_size);
+	size_t code_size = REGION_LENGTH(region_pl_code);
 
-	DBG("dyn_size=%u", br->dyn_size);
+	memcpy(pl->br_start, br, SIZEOF_BR(*br));
+	memcpy(pl->code_start, region_pl_code.start, code_size);
 
 	memcpy(br_start, br, br_size);
-	memcpy(code_start, region_pl_code.start, injected_size);
-	//hexdump(code_start, injected_size);
-
-	struct ezinj_pl pl = {
-		.code_start = code_start,
-		.br_start = (struct injcode_bearing *)br_start
-	};
-
-	return pl;
+	memcpy(code_start, region_pl_code.start, code_size);
 }
 
 #define __RCALL(ctx, insn, argmask, ...) remote_call(ctx->target, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
@@ -503,16 +546,25 @@ struct ezinj_pl prepare_payload(void *mapped_mem, struct injcode_bearing *br){
 
 void cleanup_ipc(struct ezinj_ctx *ctx){
 	if(ctx->sem_id > -1){
-		CHECK(semctl(ctx->sem_id, IPC_RMID, 0));
-		ctx->sem_id = -1;
-	}
-	if(ctx->shm_id > -1){
-		CHECK(shmctl(ctx->shm_id, IPC_RMID, NULL));
-		ctx->shm_id = -1;
+		if(semctl(ctx->sem_id, IPC_RMID, 0) < 0){
+			PERROR("semctl (IPC_RMID)");
+		} else {
+			ctx->sem_id = -1;
+		}
 	}
 	if(ctx->mapped_mem.local != 0){
-		CHECK(shmdt((void *)ctx->mapped_mem.local));
-		ctx->mapped_mem.local = 0;
+		if(shmdt((void *)ctx->mapped_mem.local) < 0){
+			PERROR("shmdt");
+		} else {
+			ctx->mapped_mem.local = 0;
+		}
+	}
+	if(ctx->shm_id > -1){
+		if(shmctl(ctx->shm_id, IPC_RMID, NULL) < 0){
+			PERROR("shmctl (IPC_RMID)");
+		} else {
+			ctx->shm_id = -1;
+		}
 	}
 }
 
@@ -525,50 +577,29 @@ int ezinject_main(
 	struct ezinj_ctx *ctx,
 	int argc, char *argv[]
 ){
-	int shm_id, sem_id;
-
 	uintptr_t codeBase = get_code_base(ctx->target);
 	if(codeBase == 0){
 		ERR("Could not obtain code base");
 		return 1;
 	}
 
-	void *mapped_mem;
-	struct injcode_bearing *br;
-	{
-		signal(SIGINT, sigint_handler);
+	signal(SIGINT, sigint_handler);
 
-		if((shm_id = shmget(ctx->target, MAPPINGSIZE, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
-			PERROR("shmget");
-			return 1;
-		}
-		INFO("SHM id: %u", shm_id);
-		ctx->shm_id = shm_id;
-
-		mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
-		if(mapped_mem == MAP_FAILED){
-			PERROR("shmat");
-			return 1;
-		}
-		ctx->mapped_mem.local = (uintptr_t)mapped_mem;
-
-		if((sem_id = semget(ctx->target, 1, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
-			perror("semget");
-			return 1;
-		}
-		ctx->sem_id = sem_id;
-
-		// Allocate bearing: br is a *LOCAL* pointer
-		br = prepare_bearing(*ctx, argc, argv);
-		if(br == NULL){
-			return -1;
-		}
+	// Allocate bearing: br is a *LOCAL* pointer
+	struct injcode_bearing *br = prepare_bearing(*ctx, argc, argv);
+	if(br == NULL){
+		return -1;
 	}
 
+	struct ezinj_pl pl;
+	if(allocate_shm(ctx, br, &pl) != 0){
+		ERR("Could not allocate shared memory");
+		return -1;
+	}
 	// Prepare payload in shm: pl contains pointers to *SHARED* memory
-	struct ezinj_pl pl = prepare_payload(mapped_mem, br);
+	prepare_payload(ctx, br, &pl);
 
-	// swap local br pointer with shared
+	// free local copy of br
 	free(br);
 
 
@@ -609,7 +640,7 @@ int ezinject_main(
 	do {
 
 #ifdef HAVE_SHM_SYSCALLS
-		uintptr_t remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, shm_id, NULL, SHM_EXEC));
+		uintptr_t remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, ctx->shm_id, NULL, SHM_EXEC));
 		INFO("shmat => %p", (void *)remote_shm_ptr);
 #else
 
@@ -627,7 +658,7 @@ int ezinject_main(
 		 *
 		 * We pass shmaddr as arg3 aswell, so that 0 is used as shmaddr and is replaced with the new addr
 		 **/
-		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, SHM_EXEC, codeBase + 4));
+		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), ctx->shm_id, SHM_EXEC, codeBase + 4));
 		uintptr_t remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, ctx->target, codeBase + 4);
 		DBGPTR(remote_shm_ptr);
 		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_EXEC));
@@ -640,10 +671,10 @@ int ezinject_main(
 
 		ctx->mapped_mem.remote = remote_shm_ptr;
 
-		br = pl.br_start;
+		br = (struct injcode_bearing *)pl.br_start;
 
 		#define PL_REMOTE(pl_addr) \
-			UPTR(remote_shm_ptr + PTRDIFF(pl_addr, mapped_mem))
+			UPTR(remote_shm_ptr + PTRDIFF(pl_addr, ctx->mapped_mem.local))
 
 		#define PL_REMOTE_CODE(addr) \
 			PL_REMOTE(pl.code_start) + PTRDIFF(addr, &injected_code_start)
@@ -653,7 +684,7 @@ int ezinject_main(
 		uintptr_t remote_clone_entry = PL_REMOTE_CODE(&injected_clone_entry);
 
 		// stack base
-		uintptr_t *target_sp = PL_STACK(mapped_mem);
+		uintptr_t *target_sp = (uintptr_t *)pl.stack_top;
 
 		// reserve space for 3 arguments at the top of the initial stack
 		// force stack to snap to the lowest 16 bytes, or it will crash on x64
@@ -672,7 +703,7 @@ int ezinject_main(
 
 		DBGPTR(remote_clone_entry);
 
-		if(msync(mapped_mem, SIZEOF_BR(*br), MS_SYNC|MS_INVALIDATE) < 0){
+		if(msync((void *)ctx->mapped_mem.local, SIZEOF_BR(*br), MS_SYNC|MS_INVALIDATE) < 0){
 			PERROR("msync");
 		}
 		CHECK(RSCALL3(ctx, __NR_madvise, remote_shm_ptr, SIZEOF_BR(*br), MADV_SEQUENTIAL | MADV_WILLNEED));
