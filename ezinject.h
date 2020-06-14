@@ -92,6 +92,8 @@ struct ezinj_ctx {
 	int shm_id;
 	int sem_id;
 	ez_addr mapped_mem;
+
+	struct ezinj_pl pl;
 };
 
 struct ezinj_str {

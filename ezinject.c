@@ -45,6 +45,8 @@ static ez_region region_sc_insn = {
 	.end = (void *)&injected_sc_end
 };
 
+int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size);
+
 void setregs_syscall(
 	regs_t *orig_ctx,
 	regs_t *new_ctx,
@@ -367,7 +369,7 @@ void strPush(char **strData, struct ezinj_str str){
 }
 
 
-struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *argv[]){
+struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *argv[]){
 	size_t dyn_ptr_size = argc * sizeof(char *);
 	size_t dyn_str_size = 0;
 
@@ -405,31 +407,38 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	}
 #undef MAKE_STRING
 
-	int dyn_total_size = dyn_ptr_size + dyn_str_size;
+	size_t dyn_total_size = dyn_ptr_size + dyn_str_size;
+	size_t mapping_size;
 
-	struct injcode_bearing *br = malloc(sizeof(struct injcode_bearing) + dyn_total_size);
+	if(allocate_shm(ctx, dyn_total_size, &ctx->pl, &mapping_size) != 0){
+		ERR("Could not allocate shared memory");
+		return NULL;
+	}
+
+	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
 	if(!br){
 		PERROR("malloc");
 		return NULL;
 	}
+	br->mapping_size = mapping_size;
 
 
-	br->libdl_handle = (void *)ctx.libdl.remote;
+	br->libdl_handle = (void *)ctx->libdl.remote;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
-	br->uclibc_sym_tables = (void *)ctx.uclibc_sym_tables.remote;
-	br->uclibc_dl_fixup = (void *)ctx.uclibc_dl_fixup.remote;
-	br->uclibc_loaded_modules = (void *)ctx.uclibc_loaded_modules.remote;
+	br->uclibc_sym_tables = (void *)ctx->uclibc_sym_tables.remote;
+	br->uclibc_dl_fixup = (void *)ctx->uclibc_dl_fixup.remote;
+	br->uclibc_loaded_modules = (void *)ctx->uclibc_loaded_modules.remote;
 #ifdef EZ_ARCH_MIPS
-	br->uclibc_mips_got_reloc = (void *)ctx.uclibc_mips_got_reloc.remote;
+	br->uclibc_mips_got_reloc = (void *)ctx->uclibc_mips_got_reloc.remote;
 #endif
 #endif
 
-	br->dlopen_offset = ctx.dlopen_offset;
-	br->dlclose_offset = ctx.dlclose_offset;
-	br->dlsym_offset = ctx.dlsym_offset;
+	br->dlopen_offset = ctx->dlopen_offset;
+	br->dlclose_offset = ctx->dlclose_offset;
+	br->dlsym_offset = ctx->dlsym_offset;
 
 #define USE_LIBC_SYM(name) do { \
-	br->libc_##name = (void *)ctx.libc_##name.remote; \
+	br->libc_##name = (void *)ctx->libc_##name.remote; \
 	DBGPTR(br->libc_##name); \
 } while(0)
 
@@ -454,12 +463,16 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	for(int i=0; i<num_strings; i++){
 		strPush(&stringData, args[i]);
 	}
+
+	// copy code
+	memcpy(ctx->pl.code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
+
 	return br;
 }
 
-int allocate_shm(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj_pl *layout){
+int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size){
 	// br + argv
-	size_t br_size = (size_t)WORDALIGN(SIZEOF_BR(*br));
+	size_t br_size = (size_t)WORDALIGN(sizeof(struct injcode_bearing) + dyn_total_size);
 	// size of code payload
 	size_t code_size = (size_t)WORDALIGN(REGION_LENGTH(region_pl_code));
 
@@ -492,7 +505,7 @@ int allocate_shm(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj
 	}
 	ctx->sem_id = sem_id;
 
-	br->mapping_size = mapping_size;
+	*allocated_size = mapping_size;
 
 	/** prepare payload layout **/
 
@@ -516,11 +529,6 @@ int allocate_shm(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj
 	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(sizeof(void *)));
 	#endif
 	return 0;
-}
-
-void prepare_payload(struct injcode_bearing *br, struct ezinj_pl *pl){
-	memcpy(pl->br_start, br, SIZEOF_BR(*br));
-	memcpy(pl->code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
 }
 
 #define __RCALL(ctx, insn, argmask, ...) remote_call(ctx->target, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
@@ -582,23 +590,11 @@ int ezinject_main(
 
 	signal(SIGINT, sigint_handler);
 
-	// Allocate bearing: br is a *LOCAL* pointer
-	struct injcode_bearing *br = prepare_bearing(*ctx, argc, argv);
+	// allocate bearing on shared memory
+	struct injcode_bearing *br = prepare_bearing(ctx, argc, argv);
 	if(br == NULL){
 		return -1;
 	}
-
-	struct ezinj_pl pl;
-	if(allocate_shm(ctx, br, &pl) != 0){
-		ERR("Could not allocate shared memory");
-		return -1;
-	}
-	// Prepare payload in shm: pl contains pointers to *SHARED* memory
-	prepare_payload(br, &pl);
-
-	// free local copy of br
-	free(br);
-
 
 	size_t dataLength = ROUND_UP(
 		REGION_LENGTH(region_sc_insn),
@@ -668,20 +664,20 @@ int ezinject_main(
 
 		ctx->mapped_mem.remote = remote_shm_ptr;
 
-		br = (struct injcode_bearing *)pl.br_start;
+		struct ezinj_pl *pl = &ctx->pl;
 
 		#define PL_REMOTE(pl_addr) \
 			UPTR(remote_shm_ptr + PTRDIFF(pl_addr, ctx->mapped_mem.local))
 
 		#define PL_REMOTE_CODE(addr) \
-			PL_REMOTE(pl.code_start) + PTRDIFF(addr, &injected_code_start)
+			PL_REMOTE(pl->code_start) + PTRDIFF(addr, &injected_code_start)
 
 
 		// clone entry
 		uintptr_t remote_clone_entry = PL_REMOTE_CODE(&injected_clone_entry);
 
 		// stack base
-		uintptr_t *target_sp = (uintptr_t *)pl.stack_top;
+		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
 
 		// reserve space for 3 arguments at the top of the initial stack
 		// force stack to snap to the lowest 16 bytes, or it will crash on x64
@@ -692,7 +688,7 @@ int ezinject_main(
 		DBGPTR(target_sp);
 
 		// push clone arguments
-		stack_argv[0] = PL_REMOTE(pl.br_start);
+		stack_argv[0] = PL_REMOTE(pl->br_start);
 		stack_argv[1] = PL_REMOTE_CODE(&injected_clone_proper);
 
 		DBGPTR(stack_argv[0]);
