@@ -368,8 +368,8 @@ void strPush(char **strData, struct ezinj_str str){
 
 
 struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *argv[]){
-	int dyn_ptr_size = argc * sizeof(char *);
-	int dyn_str_size = 0;
+	size_t dyn_ptr_size = argc * sizeof(char *);
+	size_t dyn_str_size = 0;
 
 	int num_strings;
 
@@ -379,42 +379,37 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx ctx, int argc, char *ar
 	struct ezinj_str args[num_strings];
 	int argi = 0;
 
-	{ //libdl.so name (without path)
-		args[argi] = ezstr_new(DL_LIBRARY_NAME);
-		dyn_str_size += args[argi].len;
-		argi++;
-	}
+#define MAKE_STRING(str) do { \
+	args[argi] = ezstr_new(str); \
+	dyn_str_size += args[argi].len; \
+	argi++; \
+} while(0)
 
-	{ //libpthread.so name (without path)
-		args[argi] = ezstr_new(PTHREAD_LIBRARY_NAME);
-		dyn_str_size += args[argi].len;
-		argi++;
-	}
+	// libdl.so name (without path)
+	MAKE_STRING(DL_LIBRARY_NAME);
+	// libpthread.so name (without path)
+	MAKE_STRING(PTHREAD_LIBRARY_NAME);
 
-	{ //library to load
-		char libName[PATH_MAX];
-		if(!realpath(argv[0], libName))
-		{
-			ERR("realpath: %s", libName);
-			PERROR("realpath");
-			return NULL;
-		}
-
-		args[argi] = ezstr_new(libName);
-		dyn_str_size += args[argi].len;
-		argi++;
+	// library to load
+	char libName[PATH_MAX];
+	if(!realpath(argv[0], libName)) {
+		ERR("realpath: %s", libName);
+		PERROR("realpath");
+		return NULL;
 	}
+	MAKE_STRING(libName);
 
 	// user arguments
-	for(int i=1; i < argc; i++, argi++){
-		args[argi] = ezstr_new(argv[i]);
-		dyn_str_size += args[i].len;
+	for(int i=1; i < argc; i++){
+		MAKE_STRING(argv[i]);
 	}
+#undef MAKE_STRING
 
 	int dyn_total_size = dyn_ptr_size + dyn_str_size;
 
-	struct injcode_bearing *br = malloc(sizeof(*br) + dyn_total_size);
+	struct injcode_bearing *br = malloc(sizeof(struct injcode_bearing) + dyn_total_size);
 	if(!br){
+		PERROR("malloc");
 		return NULL;
 	}
 
@@ -523,15 +518,9 @@ int allocate_shm(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj
 	return 0;
 }
 
-void prepare_payload(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct ezinj_pl *pl){
-	size_t br_size = SIZEOF_BR(*br);
-	uint8_t *br_start = (uint8_t *)(ctx->mapped_mem.local);
-
-	uint8_t *code_start = WORDALIGN(br_start + br_size);
-	size_t code_size = REGION_LENGTH(region_pl_code);
-
+void prepare_payload(struct injcode_bearing *br, struct ezinj_pl *pl){
 	memcpy(pl->br_start, br, SIZEOF_BR(*br));
-	memcpy(pl->code_start, region_pl_code.start, code_size);
+	memcpy(pl->code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
 }
 
 #define __RCALL(ctx, insn, argmask, ...) remote_call(ctx->target, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
@@ -605,7 +594,7 @@ int ezinject_main(
 		return -1;
 	}
 	// Prepare payload in shm: pl contains pointers to *SHARED* memory
-	prepare_payload(ctx, br, &pl);
+	prepare_payload(br, &pl);
 
 	// free local copy of br
 	free(br);
