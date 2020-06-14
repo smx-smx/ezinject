@@ -381,16 +381,16 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	struct ezinj_str args[num_strings];
 	int argi = 0;
 
-#define MAKE_STRING(str) do { \
+#define PUSH_STRING(str) do { \
 	args[argi] = ezstr_new(str); \
 	dyn_str_size += args[argi].len; \
 	argi++; \
 } while(0)
 
 	// libdl.so name (without path)
-	MAKE_STRING(DL_LIBRARY_NAME);
+	PUSH_STRING(DL_LIBRARY_NAME);
 	// libpthread.so name (without path)
-	MAKE_STRING(PTHREAD_LIBRARY_NAME);
+	PUSH_STRING(PTHREAD_LIBRARY_NAME);
 
 	// library to load
 	char libName[PATH_MAX];
@@ -399,13 +399,13 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 		PERROR("realpath");
 		return NULL;
 	}
-	MAKE_STRING(libName);
+	PUSH_STRING(libName);
 
 	// user arguments
 	for(int i=1; i < argc; i++){
-		MAKE_STRING(argv[i]);
+		PUSH_STRING(argv[i]);
 	}
-#undef MAKE_STRING
+#undef PUSH_STRING
 
 	size_t dyn_total_size = dyn_ptr_size + dyn_str_size;
 	size_t mapping_size;
