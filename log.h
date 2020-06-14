@@ -41,12 +41,6 @@ extern enum verbosity_level
 #define LOG_RESERVED_HANDLE stdout
 #endif
 
-#ifdef LOG_USE_FILE
-#define LOG_RESERVED_HANDLE __ghLog
-#else
-#define LOG_RESERVED_HANDLE stdout
-#endif
-
 #define __LOG_DECLARE_VERBOSITY(verb) \
     enum verbosity_level verbosity = verb
 
@@ -57,7 +51,7 @@ extern FILE *LOG_RESERVED_HANDLE;
 #define LOG_SETUP(verb) \
     FILE *LOG_RESERVED_HANDLE; \
     __LOG_DECLARE_VERBOSITY(verb)
-    
+
 
 #define LOG_INIT(filePath) do { \
     LOG_RESERVED_HANDLE = fopen(filePath, "w+"); \

@@ -532,9 +532,6 @@ void prepare_payload(struct ezinj_ctx *ctx, struct injcode_bearing *br, struct e
 
 	memcpy(pl->br_start, br, SIZEOF_BR(*br));
 	memcpy(pl->code_start, region_pl_code.start, code_size);
-
-	memcpy(br_start, br, br_size);
-	memcpy(code_start, region_pl_code.start, code_size);
 }
 
 #define __RCALL(ctx, insn, argmask, ...) remote_call(ctx->target, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
