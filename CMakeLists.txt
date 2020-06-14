@@ -145,6 +145,7 @@ function(add_ezinject_library target)
 	endforeach()
 
 	add_library(${target} SHARED ${sources})
+	target_link_libraries(${target} pthread)
 
 	if(LIB_USE_LH)
 		target_link_libraries(${target}
