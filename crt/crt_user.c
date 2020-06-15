@@ -13,5 +13,7 @@ int crt_userinit(struct injcode_bearing *br){
 		result = lib_main(br->argc, br->argv);
 	}
 
+	DBG("lib_main returned: %d", result);
+
 	return result;
 }

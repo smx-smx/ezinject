@@ -1,6 +1,8 @@
 #ifndef __EZINJECT_INJCODE_H
 #define __EZINJECT_INJCODE_H
 
+#include <stdint.h>
+#include <stdbool.h>
 #include <sys/types.h>
 #include <linux/limits.h>
 #include <pthread.h>
@@ -87,7 +89,7 @@ struct elf_resolve_hdr {
 #endif
 
 struct injcode_user {
-	// any user data here
+	bool persist;
 };
 
 struct injcode_bearing
@@ -135,6 +137,11 @@ struct injcode_bearing
 	int argc;
 	int dyn_size;
 	char *argv[];
+};
+
+enum userlib_return_action {
+	userlib_unload = 0,
+	userlib_persist = 1
 };
 
 #define PL_STACK(br) (uintptr_t *)((uintptr_t)((br) + MAPPINGSIZE))

@@ -207,12 +207,22 @@ void *real_entry(void *arg) {
 	hexdump(br, SIZEOF_BR(*br));
 #endif
 
+	enum userlib_return_action result;
+
 	crt_userinit(br);
+	switch(br->user.persist){
+		case 1:
+			result = userlib_persist;
+			break;
+		default:
+			result = userlib_unload;
+			break;
+	}
 
 	DBG("ret");
 	LOG_FINI();
 
 	free(br);
-	return (void *)EXIT_SUCCESS;
+	return (void *)result;
 }
 
