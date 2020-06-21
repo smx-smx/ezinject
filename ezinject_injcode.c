@@ -233,7 +233,7 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		// just to make sure it's really loaded
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
 		if(h_libdl == NULL){
-			dlopen(libdl_name, RTLD_NOW);
+			dlopen(libdl_name, RTLD_NOW | RTLD_GLOBAL);
 		}
 
 		// acquire libpthread
@@ -241,7 +241,7 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		{
 			had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
 
-			h_pthread = dlopen(libpthread_name, RTLD_LAZY);
+			h_pthread = dlopen(libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
 			if(!h_pthread){
 				DBG('!');
 				break;
