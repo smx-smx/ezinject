@@ -41,9 +41,6 @@ int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC,
 		for(j=0; j<detail->x86.op_count; j++){
 			cs_x86_op *op = &(detail->x86.operands[j]);
 			switch(op->type) {
-				case X86_OP_FP:
-					printf("\t\toperands["LU"].type: FP = %f\n", j, op->fp);
-					break;
 				case X86_OP_REG:
 					printf("\t\toperands["LU"].type: REG = %s\n", j, cs_reg_name(handle, op->reg));
 					break;
