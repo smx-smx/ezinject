@@ -54,11 +54,6 @@ LOG_SETUP(V_DBG);
   #define __cdecl
 #endif
 
-
-static void*(*j_malloc)(size_t size) = NULL;
-static void (*j_free)(void *ptr) = NULL;
-
-
 static char *get_thismod_path(){
 	FILE *maps = fopen("/proc/self/maps", "r");
 	if(maps == NULL){
@@ -413,11 +408,6 @@ int __cdecl clrInit(
 int lib_preinit(struct injcode_user *user){
 	UNUSED(user);
 	return 0;
-}
-
-void lib_init_mman(void *pfnMalloc, void *pfnFree){
-	j_malloc = pfnMalloc;
-	j_free = pfnFree;
 }
 
 static void adjust_ldpath(const char *libMonoPath){
