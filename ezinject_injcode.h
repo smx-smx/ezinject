@@ -101,9 +101,6 @@ struct injcode_bearing
 
 	void *userlib;
 
-	// => "pthread_join"
-	char sym_pthread_join[14];
-
 #if defined(HAVE_LIBC_DLOPEN_MODE)
 	void *(*libc_dlopen)(const char *name, int mode);
 #elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)

@@ -372,7 +372,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	int num_strings;
 
 	// argc + extras
-	num_strings = argc + 2;
+	num_strings = argc + 3;
 
 	struct ezinj_str args[num_strings];
 	int argi = 0;
@@ -387,6 +387,8 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	PUSH_STRING(DL_LIBRARY_NAME);
 	// libpthread.so name (without path)
 	PUSH_STRING(PTHREAD_LIBRARY_NAME);
+
+	PUSH_STRING("pthread_join");
 
 	// library to load
 	char libName[PATH_MAX];
@@ -447,8 +449,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 	br->argc = argc;
 	br->dyn_size = dyn_total_size;
-
-	strncpy(br->sym_pthread_join, "pthread_join", sizeof(br->sym_pthread_join));
 
 	char *stringData = (char *)br + sizeof(*br) + dyn_ptr_size;
 	for(int i=0; i<num_strings; i++){

@@ -232,7 +232,8 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 
 		char *libdl_name = BR_STRTBL(br);
 		char *libpthread_name = STRTBL_NEXT(libdl_name);
-		char *userlib_name = STRTBL_NEXT(libpthread_name);
+		char *sym_pthread_join = STRTBL_NEXT(libpthread_name);
+		char *userlib_name = STRTBL_NEXT(sym_pthread_join);
 
 		// just to make sure it's really loaded
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
@@ -250,7 +251,8 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 				DBG('!');
 				break;
 			}
-			pthread_join = dlsym(h_pthread, br->sym_pthread_join);
+
+			pthread_join = dlsym(h_pthread, sym_pthread_join);
 			if(!pthread_join){
 				DBG('!');
 				break;
