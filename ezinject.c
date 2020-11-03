@@ -350,10 +350,6 @@ int libc_init(struct ezinj_ctx *ctx){
 	DBGPTR(ctx->libc_##name.remote); \
 } while(0)
 
-#ifdef DEBUG
-	USE_LIBC_SYM(putchar);
-	USE_LIBC_SYM(puts);
-#endif
 	USE_LIBC_SYM(syscall);
 	USE_LIBC_SYM(semop);
 #undef USE_LIBC_SYM
@@ -443,11 +439,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 } while(0)
 
 	USE_LIBC_SYM(dlopen);
-
-#ifdef DEBUG
-	USE_LIBC_SYM(putchar);
-	USE_LIBC_SYM(puts);
-#endif
 
 	USE_LIBC_SYM(syscall);
 	USE_LIBC_SYM(semop);

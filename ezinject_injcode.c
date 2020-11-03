@@ -35,11 +35,11 @@
 //#undef DEBUG
 #ifdef DEBUG
 #define DBG(ch) do { \
-	br->libc_putchar('p'); \
-	br->libc_putchar('l'); \
-	br->libc_putchar(':'); \
-	br->libc_putchar(ch); \
-	br->libc_putchar('\n'); \
+	br_putchar(br, 'p'); \
+	br_putchar(br, 'l'); \
+	br_putchar(br, ':'); \
+	br_putchar(br, ch); \
+	br_putchar(br, '\n'); \
 } while(0)
 
 #else
@@ -47,6 +47,10 @@
 #endif
 
 void injected_code_start(void){}
+
+INLINE int br_putchar(struct injcode_bearing *br, char ch){
+	return br->libc_syscall(__NR_write, STDOUT_FILENO, &ch, 1);
+}
 
 INLINE void dbg_bin(struct injcode_bearing *br, uintptr_t dw){
 #ifndef DEBUG
@@ -56,10 +60,10 @@ INLINE void dbg_bin(struct injcode_bearing *br, uintptr_t dw){
 	int n = sizeof(dw) * 8;
 	for(int i=0; i<n; i++){
 		int bit = (dw >> (n-1)) & 1;
-		br->libc_putchar((bit) ? '1' : '0');
+		br_putchar(br, (bit) ? '1' : '0');
 		dw <<= 1;
 	}
-	br->libc_putchar('\n');
+	br_putchar(br, '\n');
 #endif
 }
 

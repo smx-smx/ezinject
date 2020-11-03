@@ -80,10 +80,6 @@ struct ezinj_ctx {
 	ez_addr uclibc_mips_got_reloc;
 	ez_addr uclibc_dl_fixup;
 #endif
-#ifdef DEBUG
-	ez_addr libc_puts;
-	ez_addr libc_putchar;
-#endif
 	off_t dlopen_offset;
 	off_t dlclose_offset;
 	off_t dlsym_offset;

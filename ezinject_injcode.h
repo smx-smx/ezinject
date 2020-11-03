@@ -127,10 +127,6 @@ struct injcode_bearing
 	void *libdl_handle;
 	long (*libc_syscall)(long number, ...);
 	int (*libc_semop)(int semid, struct sembuf *sops, size_t nsops);
-#ifdef DEBUG
-	int (*libc_puts)(const char *s);
-	int (*libc_putchar)(int c);
-#endif
 	int (*libc_snprintf)( char * s, size_t n, const char * format, ... );
 	int (*libc_putenv)(char *string);
 	struct injcode_user user;
