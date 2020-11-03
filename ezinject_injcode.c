@@ -29,7 +29,6 @@
 #endif
 
 #define BR_STRTBL(br) ((char *)br + sizeof(*br) + (sizeof(char *) * br->argc))
-#define STRTBL_NEXT(str) ((str) + STRSZ(str))
 #define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
 
 //#undef DEBUG
@@ -230,10 +229,26 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 		dlclose = (void *)((uintptr_t)libdl_handle + br->dlclose_offset);
 		dlsym = (void *)((uintptr_t)libdl_handle + br->dlsym_offset);
 
-		char *libdl_name = BR_STRTBL(br);
-		char *libpthread_name = STRTBL_NEXT(libdl_name);
-		char *sym_pthread_join = STRTBL_NEXT(libpthread_name);
-		char *userlib_name = STRTBL_NEXT(sym_pthread_join);
+		char *libdl_name = NULL;
+		char *libpthread_name = NULL;
+		char *sym_pthread_join = NULL;
+		char *userlib_name = NULL;
+
+		do {
+			char *stbl = BR_STRTBL(br);
+
+			#define STRTBL_FETCH(out) do { \
+				out = stbl; \
+				stbl += STRSZ(stbl); \
+			} while(0)
+
+			STRTBL_FETCH(libdl_name);
+			STRTBL_FETCH(libpthread_name);
+			STRTBL_FETCH(sym_pthread_join);
+			STRTBL_FETCH(userlib_name);
+
+			#undef STRTBL_FETCH
+		} while(0);
 
 		// just to make sure it's really loaded
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
