@@ -3,6 +3,8 @@
 #include "interface/cpu/cpu_common.h"
 #include "log.h"
 
+#include "ezinject_common.h"
+
 inline int inj_opcode_bytes(){
 	return 4;
 }
@@ -15,17 +17,17 @@ inline int inj_reljmp_opcode_bytes() {
 	return inj_opcode_bytes();
 }
 
-int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address) {
-	if (jump_destination % 4 != 0) {
+int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address) {
+	if (UPTR(jump_destination) % 4 != 0) {
 		ERR("Destination address is not multiple of 4");
 		return -1;
 	}
-	if (jump_opcode_address % 4 != 0) {
+	if (UPTR(jump_opcode_address) % 4 != 0) {
 		ERR("Opcode address is not multiple of 4");
 		return -1;
 	}
 
-	uint32_t offset = (uint32_t) jump_destination - jump_opcode_address - 4;
+	uint32_t offset = (uint32_t) PTRDIFF(jump_destination, jump_opcode_address) - 4;
 	LOG(4, "Offset is: " LX, offset);
 	uint32_t operand = (offset / 4) - 1;
 	LOG(4, "Operand is: " LX, operand);
@@ -43,7 +45,7 @@ int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t ju
 }
 
 //ldr pc, [pc, #-4] => 04 f0 1f e5
-int inj_build_abs_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address) {
+int inj_build_abs_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address) {
 	WRITE32(buffer, 0xE51FF004);
 	WRITE32(buffer, (uint32_t)jump_destination);
 	return 0;

@@ -8,6 +8,8 @@
 #include <x86/reg.h>
 #endif
 
+#include "ezinject_common.h"
+
 //------------------------------------------ x86 begin
 inline int inj_opcode_bytes(){
 	return -1;
@@ -24,10 +26,9 @@ inline int inj_absjmp_opcode_bytes() {
 		1; //ret
 }
 
-int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address) {
-	uintptr_t operand = jump_destination - jump_opcode_address - 5;
-
-	LOG(4, "REL JUMP (X64) TO " LX " FROM " LX " IS: " LX, jump_destination, jump_opcode_address, operand);
+int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address) {
+	uintptr_t operand = PTRDIFF(jump_destination, jump_opcode_address) - 5;
+	LOG(4, "REL JUMP (X64) TO %p FROM %p IS: " LX, jump_destination, jump_opcode_address, operand);
 
 	uint32_t lo = operand & 0xFFFFFFFF;
 	uint32_t hi = ((operand >> 32) & 0xFFFFFFFF);
@@ -42,9 +43,11 @@ int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t ju
 	return 0;
 }
 
-int inj_build_abs_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address) {
-	uint32_t lo = jump_destination & 0xFFFFFFFF;
-	uint32_t hi = ((jump_destination >> 32) & 0xFFFFFFFF);
+int inj_build_abs_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address) {
+	uint64_t target = (uint64_t)jump_destination;
+
+	uint32_t lo = target & 0xFFFFFFFF;
+	uint32_t hi = ((target >> 32) & 0xFFFFFFFF);
 
 	// 0: 68 44 33 22 11    push $11223344	
 	WRITE8(buffer, 0x68);

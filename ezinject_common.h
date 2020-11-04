@@ -1,7 +1,20 @@
 #ifndef __EZINJECT_COMMON_H
 #define __EZINJECT_COMMON_H
 
+#define UNUSED(x) (void)(x)
+#define ALIGNMSK(y) ((y)-1)
+#define ALIGN(x, y) ((void *)((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y)))
+
+#define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
+
+#define WORDALIGN(x) ALIGN(x, sizeof(void *))
+
+#define PAGEALIGN(x)  ALIGN(x, getpagesize())
+
 #define UPTR(x) ((uintptr_t)(x))
+#define PTRADD(a, b) ( UPTR(a) + UPTR(b) )
+#define PTRDIFF(a, b) ( UPTR(a) - UPTR(b) )
+
 #define STRSZ(x) (strlen(x) + 1)
 
 #define BR_STRTBL(br) ((char *)br + sizeof(*br) + (sizeof(char *) * br->argc))

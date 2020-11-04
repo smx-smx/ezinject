@@ -3,6 +3,8 @@
 #include "interface/cpu/cpu_common.h"
 #include "log.h"
 
+#include "ezinject_common.h"
+
 inline int inj_opcode_bytes(){
 	return -1;
 }
@@ -15,10 +17,10 @@ inline int inj_absjmp_opcode_bytes() {
 	return 5 + 1;
 }
 
-int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t source) {
-	uintptr_t operand = jump_destination - source - 5;
+int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *source) {
+	uintptr_t operand = PTRDIFF(jump_destination, source) - 5;
 
-	LOG(4, "REL JUMP (X64) TO " LX " FROM " LX " IS: " LX, jump_destination, source, operand);
+	LOG(4, "REL JUMP (X64) TO %p FROM %p IS: " LX, jump_destination, source, operand);
 
 	uint32_t lo = (uint32_t) (operand);
 
@@ -28,7 +30,7 @@ int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t so
 	return 0;
 }
 
-int inj_build_abs_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t source) {
+int inj_build_abs_jump(uint8_t *buffer, void *jump_destination, void *source) {
 	uint32_t lo = (uint32_t) jump_destination;
 
 // 0: 68 44 33 22 11    push $11223344

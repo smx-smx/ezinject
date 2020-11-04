@@ -71,10 +71,10 @@ struct user
  * Common Functions
  */
 size_t inj_getjmp_size();
-uint8_t *inj_build_jump(uintptr_t dstAddr, uintptr_t srcAddr, size_t *jumpSz);
+uint8_t *inj_build_jump(void *dstAddr, void *srcAddr, size_t *jumpSz);
 
-int inj_getbackup_size(uint8_t *codePtr, unsigned int payloadSz);
-int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC, uintptr_t destPC);
+int inj_getbackup_size(void *codePtr, unsigned int payloadSz);
+int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *destPC);
 
 
 /*
@@ -85,10 +85,10 @@ int inj_absjmp_opcode_bytes();
 int inj_reljmp_opcode_bytes();
 
 #ifndef __arm__
-int inj_getinsn_count(uint8_t *buf, size_t sz, unsigned int *validbytes);
+int inj_getinsn_count(void *buf, size_t sz, unsigned int *validbytes);
 #endif
 
-int inj_build_rel_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address);
-int inj_build_abs_jump(uint8_t *buffer, uintptr_t jump_destination, uintptr_t jump_opcode_address);
+int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address);
+int inj_build_abs_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address);
 int inj_reljmp_opcode_bytes();
 #endif

@@ -7,10 +7,10 @@
 #include "log.h"
 #include "util.h"
 
-#include "interface/hook/linux/lh_hook.h"
+#include "interface/if_hook.h"
 #include "interface/if_cpu.h"
 
-#define UNUSED(x) (void)x
+#include "ezinject_common.h"
 
 size_t inj_getjmp_size(){
 	#ifdef LH_JUMP_ABS
@@ -20,7 +20,7 @@ size_t inj_getjmp_size(){
 	#endif
 }
 
-uint8_t *inj_build_jump(uintptr_t dstAddr, uintptr_t srcAddr, size_t *jumpSzPtr){
+uint8_t *inj_build_jump(void *dstAddr, void *srcAddr, size_t *jumpSzPtr){
 	size_t jumpSz = inj_getjmp_size(dstAddr);
 	uint8_t *buffer = calloc(jumpSz, 1);
 	if(!buffer)
@@ -46,7 +46,7 @@ uint8_t *inj_build_jump(uintptr_t dstAddr, uintptr_t srcAddr, size_t *jumpSzPtr)
 }
 
 #if defined(__i386__) || defined(__x86_64__)
-int inj_getinsn_count(uint8_t *buf, size_t sz, unsigned int *validbytes){
+int inj_getinsn_count(void *buf, size_t sz, unsigned int *validbytes){
 	csh handle;
 	cs_insn *insn;
 	#if __i386__
@@ -85,7 +85,7 @@ int inj_getinsn_count(uint8_t *buf, size_t sz, unsigned int *validbytes){
 }
 #endif
 
-int inj_getbackup_size(uint8_t *codePtr, unsigned int payloadSz){
+int inj_getbackup_size(void *codePtr, unsigned int payloadSz){
 	uint i = 0, opSz;
 	if((opSz = inj_opcode_bytes()) > 0){ //fixed opcode size
 		while(i < payloadSz)
@@ -115,7 +115,7 @@ int inj_getbackup_size(uint8_t *codePtr, unsigned int payloadSz){
  * Relocates code pointed by codePtr from sourcePC to destPC
  */
 #if !defined(__i386__) && !defined(__x86_64__)
-int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC, uintptr_t destPC){
+int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *destPC){
 	/* Not yet implemented for other arches */
 	UNUSED(codePtr);
 	UNUSED(codeSz);
@@ -128,20 +128,20 @@ int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC,
 /*
  * Same as needle variant, but we don't need to copy data back and forth
  */
-void *inj_backup_function(uint8_t *original_code, size_t *saved_bytes, size_t opcode_bytes_to_restore){
+void *inj_backup_function(void *original_code, size_t *saved_bytes, int opcode_bytes_to_restore){
 	if(original_code == NULL){
 		ERR("ERROR: Code Address not specified");
 		return NULL;
 	}
 
 	int num_opcode_bytes;
-	if(opcode_bytes_to_restore > 0){
+	if(opcode_bytes_to_restore > -1){
 		// User specified bytes to save manually
 		num_opcode_bytes = opcode_bytes_to_restore;
 	} else {
 		// Calculate amount of bytes to save (important for Intel, variable opcode size)
 		// NOTE: original_code being passed is just a random address to calculate a jump size (for now)
-		num_opcode_bytes = inj_getbackup_size(original_code, inj_getjmp_size((uintptr_t)original_code));
+		num_opcode_bytes = inj_getbackup_size(original_code, inj_getjmp_size(original_code));
 	}
 
 	if(num_opcode_bytes < 0){
@@ -154,8 +154,9 @@ void *inj_backup_function(uint8_t *original_code, size_t *saved_bytes, size_t op
 	size_t jumpSz;
 	uint8_t *jump_back;			//custom -> original
 	// JUMP from Replacement back to Original code (skip the original bytes that have been replaced to avoid loop)
-	if(!(jump_back = inj_build_jump((uintptr_t)(original_code + num_opcode_bytes), 0, &jumpSz))){
-		ERR("Cannot build jump to 0x%p", original_code + num_opcode_bytes);
+	void *jump_target = (void *)PTRADD(original_code, num_opcode_bytes);
+	if(!(jump_back = inj_build_jump(jump_target, 0, &jumpSz))){
+		ERR("Cannot build jump to %p", jump_target);
 		return NULL;
 	}
 
@@ -172,7 +173,7 @@ void *inj_backup_function(uint8_t *original_code, size_t *saved_bytes, size_t op
 
 	memcpy(remote_code, original_code, num_opcode_bytes);
 	// Make sure code doesn't contain any PC-relative operation once moved to the new location
-	inj_relocate_code(remote_code, num_opcode_bytes, (uintptr_t)original_code, (uintptr_t)pMem);
+	inj_relocate_code(remote_code, num_opcode_bytes, original_code, pMem);
 	memcpy(remote_code + num_opcode_bytes, jump_back, jumpSz);
 
 	if(saved_bytes){

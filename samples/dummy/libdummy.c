@@ -28,10 +28,7 @@ void installHooks(){
 	void *self = dlopen(NULL, RTLD_NOW);
 	original_test_function = dlsym(self, "return1");
 
-	void *origCode = inj_backup_function(
-		(void *)original_test_function,
-		NULL, 0
-	);
+	void *origCode = inj_backup_function(original_test_function, NULL, -1);
 	if(!origCode){
 		ERR("Cannot build the payload!");
 		return;
@@ -67,7 +64,7 @@ void installHooks(){
 	/* Set the code we just generated as the replacement */
 	INFO("Injecting to %p", original_test_function);
 
-	inj_replace_function((uintptr_t)sljit_code, (uintptr_t)original_test_function);
+	inj_replace_function(original_test_function, sljit_code);
 }
 
 int lib_preinit(struct injcode_user *user){

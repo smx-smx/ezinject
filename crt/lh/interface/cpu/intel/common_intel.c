@@ -6,7 +6,7 @@
 /*
  * Relocates code pointed by codePtr from sourcePC to destPC
  */
-int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC, uintptr_t destPC){
+int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *destPC){
 	csh handle;
 	cs_insn *insns;
 	size_t count;

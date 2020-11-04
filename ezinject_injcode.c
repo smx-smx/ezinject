@@ -30,7 +30,7 @@
 
 #define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
 
-//#undef DEBUG
+#undef DEBUG
 #ifdef DEBUG
 #define DBG(ch) do { \
 	br_putchar(br, 'p'); \
