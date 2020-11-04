@@ -13,13 +13,13 @@
 #include <sys/prctl.h>
 
 #include "config.h"
+#include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
 #ifndef HAVE_SHM_SYSCALLS
 #include <asm-generic/ipc.h>
 #endif
-
 
 #define UNUSED(x) (void)(x)
 #define CLONE_FLAGS (CLONE_VM|CLONE_SIGHAND|CLONE_THREAD)
@@ -28,7 +28,6 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-#define BR_STRTBL(br) ((char *)br + sizeof(*br) + (sizeof(char *) * br->argc))
 #define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
 
 //#undef DEBUG
@@ -101,15 +100,9 @@ INLINE int br_semop(struct injcode_bearing *br, int sema, int idx, int op){
 	return br->libc_semop( sema, &sem_op, 1);
 }
 
-INLINE size_t strlen(const char *str){
-	size_t len = 0;
-	while(*(str++)) len++;
-	return len;
-}
-
 #ifdef HAVE_LIBC_DLOPEN_MODE
 INLINE void *get_libdl(struct injcode_bearing *br){
-	char *libdl_name = BR_STRTBL(br);
+	char *libdl_name = STR_DATA(BR_STRTBL(br));
 	struct link_map *libdl = (struct link_map *) br->libc_dlopen(libdl_name, RTLD_NOW | __RTLD_DLOPEN);
 	return (void *)libdl->l_addr;
 }
@@ -125,7 +118,7 @@ INLINE void *memset(void *s, int c, unsigned int n){
 }
 
 INLINE void *get_libdl(struct injcode_bearing *br){
-    char *libdl_name = BR_STRTBL(br);
+    char *libdl_name = STR_DATA(BR_STRTBL(br));
 
 	struct elf_resolve_hdr *tpnt;
 
@@ -170,15 +163,6 @@ INLINE void *get_libdl(struct injcode_bearing *br){
 	return (void *)tpnt->loadaddr;
 }
 #endif
-
-INLINE void memcpy(void *dst, void *src, size_t size){
-	uint8_t *pSrc = (uint8_t *)src;
-	uint8_t *pDst = (uint8_t *)dst;
-	for(size_t i=0; i<size; i++){
-		*(pDst++) = *(pSrc++);
-	}
-}
-
 
 void injected_clone_proper(struct injcode_bearing *shm_br){
 	int sema;
@@ -236,19 +220,12 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 
 		do {
 			char *stbl = BR_STRTBL(br);
-
-			#define STRTBL_FETCH(out) do { \
-				out = stbl; \
-				stbl += STRSZ(stbl); \
-			} while(0)
-
-			STRTBL_FETCH(libdl_name);
-			STRTBL_FETCH(libpthread_name);
-			STRTBL_FETCH(sym_pthread_join);
-			STRTBL_FETCH(userlib_name);
-
-			#undef STRTBL_FETCH
+			STRTBL_FETCH(stbl, libdl_name);
+			STRTBL_FETCH(stbl, libpthread_name);
+			STRTBL_FETCH(stbl, sym_pthread_join);
+			STRTBL_FETCH(stbl, userlib_name);
 		} while(0);
+
 
 		// just to make sure it's really loaded
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);

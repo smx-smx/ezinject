@@ -93,7 +93,7 @@ struct ezinj_ctx {
 };
 
 struct ezinj_str {
-	int len;
+	unsigned int len;
 	char *str;
 };
 

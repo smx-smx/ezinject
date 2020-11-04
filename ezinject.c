@@ -28,6 +28,7 @@
 
 #include "util.h"
 #include "ezinject.h"
+#include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
@@ -358,8 +359,12 @@ int libc_init(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-
 void strPush(char **strData, struct ezinj_str str){
+	// write the number of bytes we need to skip to get to the next string
+	*(unsigned int *)(*strData) = sizeof(unsigned int) + str.len;
+	*strData += sizeof(unsigned int);
+
+	// write the string itself
 	memcpy(*strData, str.str, str.len);
 	*strData += str.len;
 }
@@ -379,7 +384,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 #define PUSH_STRING(str) do { \
 	args[argi] = ezstr_new(str); \
-	dyn_str_size += args[argi].len; \
+	dyn_str_size += args[argi].len + sizeof(unsigned int); \
 	argi++; \
 } while(0)
 

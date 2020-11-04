@@ -21,6 +21,7 @@
 #include <dlfcn.h>
 
 #include "ezinject.h"
+#include "ezinject_common.h"
 #include "ezinject_injcode.h"
 
 #include "log.h"
@@ -193,15 +194,16 @@ void *real_entry(void *arg) {
 
 	// prepare argv
 	char **dynPtr = (char **)((char *)br + sizeof(*br));
-	char *dynStr = (char *)dynPtr + (sizeof(char *) * br->argc);
-
-	dynStr += STRSZ(dynStr); // skip libdl.so name
-	dynStr += STRSZ(dynStr); // skip libpthread.so name
-	dynStr += STRSZ(dynStr); // skip "pthread_join"
+	
+	char *stbl = BR_STRTBL(br);
+	STRTBL_SKIP(stbl); // skip libdl.so name
+	STRTBL_SKIP(stbl); // skip libpthread.so name
+	STRTBL_SKIP(stbl); // skip "pthread_join"
 
 	for(int i=0; i<br->argc; i++){
-		*(dynPtr++) = dynStr;
-		dynStr += strlen(dynStr) + 1;
+		char *arg = NULL;
+		STRTBL_FETCH(stbl, arg);
+		*(dynPtr++) = arg;
 	}
 
 #ifdef DEBUG

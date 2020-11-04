@@ -28,9 +28,6 @@
 
 
 #define UNUSED(x) (void)(x)
-#define UPTR(x) ((uintptr_t)(x))
-
-#define STRSZ(x) (strlen(x) + 1)
 #define ALIGNMSK(y) ((y)-1)
 #define ALIGN(x, y) ((void *)((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y)))
 
