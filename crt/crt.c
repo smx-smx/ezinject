@@ -197,6 +197,7 @@ void *real_entry(void *arg) {
 
 	dynStr += STRSZ(dynStr); // skip libdl.so name
 	dynStr += STRSZ(dynStr); // skip libpthread.so name
+	dynStr += STRSZ(dynStr); // skip "pthread_join"
 
 	for(int i=0; i<br->argc; i++){
 		*(dynPtr++) = dynStr;
