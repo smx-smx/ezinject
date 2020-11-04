@@ -24,21 +24,13 @@ void installHooks(){
 	*/
 
 	void (*original_test_function) (int a, char *b);
-	lh_fn_hook_t lh_hook = {
-		.hook_kind = LHM_FN_HOOK_BY_NAME,
-		.libname = "",
-		.symname = "return1",
-		.hook_fn = (uintptr_t) 0,
-		.orig_function_ptr = (uintptr_t) & original_test_function, //save the original function address to "original_test_function"
-	};
 
 	void *self = dlopen(NULL, RTLD_NOW);
 	original_test_function = dlsym(self, "return1");
 
 	void *origCode = inj_backup_function(
-		&lh_hook,
 		(void *)original_test_function,
-		NULL
+		NULL, 0
 	);
 	if(!origCode){
 		ERR("Cannot build the payload!");
@@ -73,10 +65,9 @@ void installHooks(){
 	INFO("JIT code");
 	hexdump(sljit_code, compiler->executable_size);
 	/* Set the code we just generated as the replacement */
-	lh_hook.hook_fn = (uintptr_t)sljit_code;
 	INFO("Injecting to %p", original_test_function);
 
-	inj_replace_function(&lh_hook, (uintptr_t)original_test_function);
+	inj_replace_function((uintptr_t)sljit_code, (uintptr_t)original_test_function);
 }
 
 int lib_preinit(struct injcode_user *user){
@@ -96,6 +87,6 @@ int lib_main(int argc, char *argv[]){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
 	libdl_test();
-	//installHooks();
+	installHooks();
 	return 0;
 }

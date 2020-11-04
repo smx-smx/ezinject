@@ -128,16 +128,16 @@ int inj_relocate_code(uint8_t *codePtr, unsigned int codeSz, uintptr_t sourcePC,
 /*
  * Same as needle variant, but we don't need to copy data back and forth
  */
-void *inj_backup_function(lh_fn_hook_t *fnh, uint8_t *original_code, size_t *saved_bytes){
+void *inj_backup_function(uint8_t *original_code, size_t *saved_bytes, size_t opcode_bytes_to_restore){
 	if(original_code == NULL){
 		ERR("ERROR: Code Address not specified");
 		return NULL;
 	}
 
 	int num_opcode_bytes;
-	if(fnh->opcode_bytes_to_restore > 0){
+	if(opcode_bytes_to_restore > 0){
 		// User specified bytes to save manually
-		num_opcode_bytes = fnh->opcode_bytes_to_restore;
+		num_opcode_bytes = opcode_bytes_to_restore;
 	} else {
 		// Calculate amount of bytes to save (important for Intel, variable opcode size)
 		// NOTE: original_code being passed is just a random address to calculate a jump size (for now)
@@ -178,9 +178,6 @@ void *inj_backup_function(lh_fn_hook_t *fnh, uint8_t *original_code, size_t *sav
 	if(saved_bytes){
 		*saved_bytes = num_opcode_bytes;
 	}
-
-	INFO("Payload Built! %p -> %p -> %p -> %p",
-		original_code, (void *)fnh->hook_fn, pMem, original_code + num_opcode_bytes);
 
 	return pMem;
 }

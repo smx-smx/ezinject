@@ -72,12 +72,12 @@ int unprotect(void *addr) {
 	return 0;
 }
 
-int inj_replace_function(lh_fn_hook_t *fnh, uintptr_t symboladdr){
+int inj_replace_function(uintptr_t replacement_fn, uintptr_t symboladdr){
 	size_t jumpSz;
 	// Calculate the JUMP from Original to Replacement, so we can get the minimum size to save
 	// We need this to avoid opcode overlapping (especially on Intel, where we can have variable opcode size)
 	uint8_t *replacement_jump;	//original -> custom
-	if(!(replacement_jump = inj_build_jump(fnh->hook_fn, 0, &jumpSz)))
+	if(!(replacement_jump = inj_build_jump(replacement_fn, 0, &jumpSz)))
 		return -1;
 
 	if( unprotect((void *)symboladdr) < 0)
@@ -200,7 +200,7 @@ int lh_process_hooks(void *lib_handle){
 				// Alloc memory (mmap) and prepare orig code + jump back
 				// This is the new address of the original function
 				void *orig_function;
-				if((orig_function = inj_backup_function(fnh, (uint8_t *)symboladdr, &saved_bytes)) == NULL){
+				if((orig_function = inj_backup_function((uint8_t *)symboladdr, &saved_bytes, fnh->opcode_bytes_to_restore)) == NULL){
 					ERR("Failed to build payload!");
 					continue;
 				}
