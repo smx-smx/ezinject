@@ -13,6 +13,19 @@ add_ezinject_library(memloader
 		memloader.S
 )
 
+set(MODULE_FILE $<TARGET_FILE:module>)
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/memloader.S
+	COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_SOURCE_DIR}/memloader.S
+	DEPENDS ${MODULE_FILE}
+)
+
+add_custom_target(touch_memloader ALL
+	DEPENDS ${MODULE_FILE}
+)
+
+add_dependencies(module touch_memloader)
 add_dependencies(memloader module)
-set_target_properties(memloader PROPERTIES COMPILE_DEFINITIONS "MODULE_FILE=\"$<TARGET_FILE:module>\"")
+
+set_target_properties(memloader PROPERTIES COMPILE_DEFINITIONS "MODULE_FILE=\"${MODULE_FILE}\"")
 target_link_libraries(memloader dl)
