@@ -172,5 +172,5 @@ add_executable(ezinject
 # -fomit-frame-pointer: don't save stack frames
 # -ffreestanding: don't assume libc functions exist
 set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -Os -ffreestanding")
-target_link_libraries(ezinject dl lh_elf)
+target_link_libraries(ezinject dl)
 

@@ -15,6 +15,7 @@ add_ezinject_library(memloader
 
 set(MODULE_FILE $<TARGET_FILE:module>)
 
+# if the module file changed, rebuild memloader.S
 add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/memloader.S
 	COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_SOURCE_DIR}/memloader.S
 	DEPENDS ${MODULE_FILE}
@@ -24,7 +25,8 @@ add_custom_target(touch_memloader ALL
 	DEPENDS ${MODULE_FILE}
 )
 
-add_dependencies(module touch_memloader)
+# update memloader only after module has been compiled
+add_dependencies(touch_memloader module)
 add_dependencies(memloader module)
 
 set_target_properties(memloader PROPERTIES COMPILE_DEFINITIONS "MODULE_FILE=\"${MODULE_FILE}\"")
