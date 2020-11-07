@@ -5,3 +5,9 @@ compiler:
   - gcc
 script:
   - ./build.sh
+
+addons:
+  apt:
+    packages:
+    - cmake
+    - libcapstone-dev
