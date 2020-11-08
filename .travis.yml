@@ -11,3 +11,4 @@ addons:
     packages:
     - cmake
     - libcapstone-dev
+    - mono-devel
