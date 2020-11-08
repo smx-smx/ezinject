@@ -73,7 +73,7 @@ struct elf_resolve_hdr {
 #endif
 
 struct injcode_user {
-	bool persist;
+	uint8_t persist;
 };
 
 struct injcode_bearing
