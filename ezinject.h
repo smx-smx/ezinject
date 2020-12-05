@@ -74,6 +74,9 @@ struct ezinj_ctx {
 	ez_addr libc_syscall;
 	ez_addr libc_semop;
 	ez_addr libc_dlopen;
+#ifdef DEBUG
+	ez_addr libc_printf;
+#endif
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	ez_addr uclibc_sym_tables;
 	ez_addr uclibc_loaded_modules;

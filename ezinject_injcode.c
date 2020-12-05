@@ -30,7 +30,6 @@
 
 #define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
 
-#undef DEBUG
 #ifdef DEBUG
 #define DBG(ch) do { \
 	char buf[] = { 'p', 'l', ':', ch, '\n'}; \
@@ -42,25 +41,6 @@
 #endif
 
 void injected_code_start(void){}
-
-INLINE void dbg_bin(struct injcode_bearing *br, uintptr_t dw){
-#ifndef DEBUG
-	UNUSED(br);
-	UNUSED(dw);
-#else
-	const int n = sizeof(dw) * 8;
-	char buf[n + 1];
-
-	int i=0;
-	while(i<n){
-		int bit = (dw >> (n-1)) & 1;
-		buf[i++] = (bit) ? '1' : '0';
-		dw <<= 1;
-	}
-	buf[i] = '\n';
-	br->libc_syscall(__NR_write, STDOUT_FILENO, buf, sizeof(buf));
-#endif
-}
 
 void injected_sc(){
 	EMIT_LABEL("injected_sc_start");
@@ -256,7 +236,11 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 				DBG('!');
 				break;
 			}
-			dbg_bin(br, (unsigned long)br->userlib);
+
+			#ifdef DEBUG
+			char buf[] = {'%','p','\n'};
+			br->libc_printf(buf, br->userlib);
+			#endif
 		}
 
 		// wait for the thread to notify us
