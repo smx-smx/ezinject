@@ -48,6 +48,14 @@ static ez_region region_sc_insn = {
 
 int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size);
 
+/**
+ * Prepares the target process for a call invocation with syscall convention
+ * NOTE: this function can be used to call anything, not just system calls
+ * 
+ * @param[in]  orig_ctx	 the current process context
+ * @param[out] new_ctx   the new process context
+ * @param[in]  call      call arguments and options
+ **/
 void setregs_syscall(
 	regs_t *orig_ctx,
 	regs_t *new_ctx,
@@ -359,6 +367,15 @@ int libc_init(struct ezinj_ctx *ctx){
 	return 0;
 }
 
+/**
+ * Marshals the string @str into @strData, advancing the data pointer as needed
+ * 
+ * @param[in]  str
+ * 	structure describing the string to copy
+ * @param[out] strData  
+ * 	pointer (pass by reference) to a block of memory where the string will be copied
+ * 	the pointer will be incremented by the number of bytes copied
+ **/
 void strPush(char **strData, struct ezinj_str str){
 	// write the number of bytes we need to skip to get to the next string
 	*(unsigned int *)(*strData) = sizeof(unsigned int) + str.len;
