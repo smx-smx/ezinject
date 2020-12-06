@@ -132,7 +132,7 @@ extern void injected_sc_start();
 extern void injected_sc_end();
 
 extern void injected_clone_entry();
-extern void clone_entry();
+extern void trampoline_entry();
 
 extern void injected_clone();
 

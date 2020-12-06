@@ -30,10 +30,11 @@
 
 #define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
 
+//pl:x\n\0
 #ifdef DEBUG
 #define DBG(ch) do { \
-	char buf[] = { 'p', 'l', ':', ch, '\n'}; \
-	br->libc_syscall(__NR_write, STDOUT_FILENO, buf, sizeof(buf)); \
+	const uint64_t str = str64(0x706C3A000A000000 | (((uint64_t)ch << 32) & 0xFF00000000)); \
+	br->libc_syscall(__NR_write, STDOUT_FILENO, &str, 5); \
 } while(0)
 
 #else
@@ -48,16 +49,26 @@ void injected_sc(){
 	EMIT_LABEL("injected_sc_end");
 }
 
-void injected_clone(){
-	EMIT_LABEL("injected_clone_entry");
+void trampoline(){
+	EMIT_LABEL("trampoline_entry");
 
-	register struct injcode_bearing *br;
-	register void (*callWithFrame)(struct injcode_bearing *);
+	register volatile struct injcode_bearing *br;
+	register void (*target)(volatile struct injcode_bearing *);
 
 	EMIT_POP(br);
-	EMIT_POP(callWithFrame);
-	callWithFrame(br);
+	EMIT_POP(target);
+	target(br);
 	while(1);
+}
+
+INLINE uint64_t str64(uint64_t x){
+	#if BYTE_ORDER == BIG_ENDIAN
+		return x;
+	#elif BYTE_ORDER == LITTLE_ENDIAN
+		return __builtin_bswap64(x);
+	#else
+		#error "Unknown endianness"
+	#endif
 }
 
 INLINE int br_semget(struct injcode_bearing *br, key_t key, int nsems, int semflg){
@@ -186,9 +197,9 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 				}
 			}
 		}
-		dlopen = (void *)((uintptr_t)libdl_handle + br->dlopen_offset);
-		dlclose = (void *)((uintptr_t)libdl_handle + br->dlclose_offset);
-		dlsym = (void *)((uintptr_t)libdl_handle + br->dlsym_offset);
+		dlopen = (void *)PTRADD(libdl_handle, br->dlopen_offset);
+		dlclose = (void *)PTRADD(libdl_handle, br->dlclose_offset);
+		dlsym = (void *)PTRADD(libdl_handle, br->dlsym_offset);
 
 		char *libdl_name = NULL;
 		char *libpthread_name = NULL;
@@ -238,8 +249,11 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 			}
 
 			#ifdef DEBUG
-			char buf[] = {'%','p','\n'};
-			br->libc_printf(buf, br->userlib);
+			const uint64_t buf[2] = {
+				str64(0x706C3A757365726C), //pl:userl
+				str64(0x69623A25700A0000)  //ib:%p\n\0
+			};
+			br->libc_printf((char *)buf, br->userlib);
 			#endif
 		}
 

@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 3.0)
 project(ezpatch C ASM)
 
-# some gcc versions need this everywhere for it to work
-add_definitions(-fPIC)
+add_definitions(
+	-fPIC
+	-Werror=implicit-function-declaration
+	-Wl,--no-undefined
+)
 
 include_directories(
 	${CMAKE_SOURCE_DIR}
@@ -26,10 +29,12 @@ if( NOT CMAKE_BUILD_TYPE )
 	set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-	set(DEBUG ON)
-else()
-	set(DEBUG OFF)
+if(NOT DEFINED DEBUG)
+	if(CMAKE_BUILD_TYPE MATCHES Debug)
+		set(DEBUG ON)
+	elseif()
+		set(DEBUG OFF)
+	endif()
 endif()
 
 include(CheckLibraryExists)
@@ -130,6 +135,7 @@ function(add_ezinject_library target)
 	list(APPEND sources
 		${CMAKE_SOURCE_DIR}/crt/crt.c
 		${CMAKE_SOURCE_DIR}/crt/crt_user.c
+		${CMAKE_SOURCE_DIR}/util.c
 	)
 	if(DEBUG)
 		list(APPEND sources ${CMAKE_SOURCE_DIR}/util.c)
@@ -171,6 +177,6 @@ add_executable(ezinject
 # -nostdlib: this code doesn't use any library
 # -fomit-frame-pointer: don't save stack frames
 # -ffreestanding: don't assume libc functions exist
-set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -Os -ffreestanding")
+set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-Os -fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 target_link_libraries(ezinject dl)
 

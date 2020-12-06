@@ -48,6 +48,15 @@ static struct crt_params gParams;
 
 void* real_entry(void *arg);
 
+int sema_op(int sema, int idx, int op){
+	struct sembuf sem_op = {
+		.sem_num = idx,
+		.sem_op = op,
+		.sem_flg = 0
+	};
+	return semop(sema, &sem_op, 1);
+}
+
 int acquire_shm(key_t key, size_t size, void **ppMem){
 	int is_initial_attach = (size == 0);
 	if(is_initial_attach){

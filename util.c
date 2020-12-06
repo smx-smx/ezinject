@@ -6,14 +6,6 @@
 #include "ezinject.h"
 
 #include <sys/sem.h>
-int sema_op(int sema, int idx, int op){
-	struct sembuf sem_op = {
-		.sem_num = idx,
-		.sem_op = op,
-		.sem_flg = 0
-	};
-	return semop(sema, &sem_op, 1);
-}
 
 void hexdump(void *pAddressIn, long lSize) {
 	char szBuf[100];

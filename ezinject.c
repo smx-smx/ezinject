@@ -186,14 +186,12 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 		if(stopsig != SIGSTOP){
 			ERR("Unexpected signal (expected SIGSTOP)");
 
-			#ifdef DEBUG
 			regs_t tmp;
 			ptrace(PTRACE_GETREGS, target, 0, &tmp);
 			DBG("CRASH @ %p (offset: %i)",
 				(void *)REG(tmp, REG_PC),
 				(signed int)(REG(tmp, REG_PC) - call.insn_addr)
 			);
-			#endif
 		}
 
 		if(stopsig == SIGTRAP || stopsig == SIGSEGV){
@@ -536,8 +534,6 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 
 	layout->code_start = pMem;
 
-	pMem = (uint8_t *)ctx->mapped_mem.local + stack_offset;
-
 	// stack is located at the end of the memory map
 	layout->stack_top = (uint8_t *)ctx->mapped_mem.local + mapping_size;
 
@@ -545,6 +541,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 
 	#ifdef EZ_ARCH_AMD64
 	// x64 requires a 16 bytes aligned stack for movaps
+	// force stack to snap to the lowest 16 bytes, or it will crash on x64
 	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(16));
 	#else
 	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(sizeof(void *)));
@@ -694,14 +691,13 @@ int ezinject_main(
 			PL_REMOTE(pl->code_start) + PTRDIFF(addr, &injected_code_start)
 
 
-		// clone entry
-		uintptr_t remote_clone_entry = PL_REMOTE_CODE(&injected_clone_entry);
+		// trampoline entry
+		uintptr_t remote_trampoline_entry = PL_REMOTE_CODE(&trampoline_entry);
 
 		// stack base
 		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
 
-		// reserve space for 3 arguments at the top of the initial stack
-		// force stack to snap to the lowest 16 bytes, or it will crash on x64
+		// reserve space for 2 arguments at the top of the initial stack
 		uintptr_t *stack_argv = (uintptr_t *)(
 			((uintptr_t)target_sp - (sizeof(uintptr_t) * 2))
 		);
@@ -715,7 +711,7 @@ int ezinject_main(
 		DBGPTR(stack_argv[0]);
 		DBGPTR(stack_argv[1]);
 
-		DBGPTR(remote_clone_entry);
+		DBGPTR(remote_trampoline_entry);
 
 		if(msync((void *)ctx->mapped_mem.local, SIZEOF_BR(*br), MS_SYNC|MS_INVALIDATE) < 0){
 			PERROR("msync");
@@ -730,7 +726,7 @@ int ezinject_main(
 		ctx->num_wait_calls = 0;
 		ctx->syscall_stack.remote = (uintptr_t)PL_REMOTE(stack_argv); // stack is at the bottom of arguments (pop will move it up)
 
-		CHECK(__RCALL(ctx, remote_clone_entry, 0));
+		CHECK(__RCALL(ctx, remote_trampoline_entry, 0));
 
 		ctx->num_wait_calls = 1;
 		ctx->syscall_stack.remote = 0;
