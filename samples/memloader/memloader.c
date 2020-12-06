@@ -2,8 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <dlfcn.h>
-#include <linux/memfd.h>
-#include <sys/mman.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
 #include <dlfcn.h>
 #include <unistd.h>
@@ -23,7 +22,7 @@ int lib_preinit(struct injcode_user *user){
 }
 
 int lib_main(int argc, char *argv[]){
-	int fd = memfd_create("", 0);
+	int fd = syscall(__NR_memfd_create, "", 0);
 	if(fd < 0){
 		perror("memfd_create");
 		return 1;

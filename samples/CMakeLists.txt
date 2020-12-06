@@ -8,9 +8,9 @@ if(BUILD_MONO)
 	add_subdirectory(mono)
 endif()
 
-include(CheckIncludeFiles) 
-check_include_files("linux/memfd.h" HAVE_LINUX_MEMFD)
-if(HAVE_LINUX_MEMFD)
+include(CheckSymbolExists) 
+check_symbol_exists("__NR_memfd_create" "asm/unistd.h" HAVE_NR_MEMFD_CREATE)
+if(HAVE_NR_MEMFD_CREATE)
 	add_subdirectory(memloader)
 endif()
 
