@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <dlfcn.h>
+#include <linux/memfd.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <dlfcn.h>
