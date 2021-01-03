@@ -202,7 +202,7 @@ void *real_entry(void *arg) {
 	struct injcode_bearing *br = params->br;
 
 	// prepare argv
-	char **dynPtr = (char **)((char *)br + sizeof(*br));
+	char **dynPtr = &br->argv[0];
 	
 	char *stbl = BR_STRTBL(br);
 	STRTBL_SKIP(stbl); // skip libdl.so name
