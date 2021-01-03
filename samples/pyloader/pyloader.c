@@ -33,18 +33,24 @@ int lib_main(int argc, char *argv[]){
 	}
 
 	if(argc < 5){
-		lprintf("Usage: %s [libpython.so] [PYTHONHOME] [PYTHONPREFIX] [script.py]\n", argv[0]);
+		lprintf(
+			"Usage: %s [libpython.so] [PYTHONHOME] [PYTHONPATH] [script.py]\n"
+			"  PYTHONHOME: root directory of the Python installation\n"
+			"              example: /usr/lib/python2.7\n"
+			"  PYTHONPATH: colon delimited list of paths to probe for Python imports\n"
+			"              example: /usr/lib/python2.7:/usr/lib/python2.7/plat-x86_64-linux-gnu\n"
+			, argv[0]);
 		return 1;
 	}
 
 	const char *libPythonPath = argv[1];
 	const char *pythonHome  = argv[2];
-	const char *pythonPrefix = argv[3];
+	const char *pythonPath = argv[3];
 	const char *pythonScript  = argv[4];
 
 	strncpy(gPythonHome, pythonHome, sizeof(gPythonHome));
 
-	setenv("PYTHONPATH", pythonPrefix, 1);
+	setenv("PYTHONPATH", pythonPath, 1);
 	setenv("PYTHONIOENCODING", "UTF-8", 1);
 
 	/**
@@ -58,7 +64,7 @@ int lib_main(int argc, char *argv[]){
 	char *current_libpath = getenv("LD_LIBRARY_PATH");
 	if(current_libpath == NULL){
 		asprintf(&env, "LD_LIBRARY_PATH=%s", libdir);
-	} else if(strstr(current_libpath, pythonPrefix) == NULL) {
+	} else if(strstr(current_libpath, libdir) == NULL) {
 		asprintf(&env, "LD_LIBRARY_PATH=%s:%s", current_libpath, libdir);
 	}
 	free(libdir);
