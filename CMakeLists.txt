@@ -4,7 +4,6 @@ enable_language(CXX OPTIONAL)
 
 add_definitions(
 	-fPIC
-	-Werror=implicit-function-declaration
 	-Wl,--no-undefined
 )
 
@@ -20,7 +19,9 @@ add_definitions(
 )
 
 set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra")
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror=implicit-function-declaration")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
 if(CMAKE_TOOLCHAIN_FILE)
 	message(STATUS "Using toolchain file: ${CMAKE_TOOLCHAIN_FILE}")
