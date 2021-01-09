@@ -69,8 +69,14 @@ void installHooks(){
 	sljitCode = sljit_build_sample();
 
 	void *self = dlopen(NULL, RTLD_LAZY);
+	if(self == NULL){
+		ERR("dlopen failed: %s", dlerror());
+		return;
+	}
+
 	testFunc_t pfnTestFunc = dlsym(self, "func1");
 	if(pfnTestFunc == NULL){
+		ERR("Couldn't locate test function");
 		return;
 	}
 
