@@ -11,6 +11,7 @@
 #include "interface/if_cpu.h"
 
 #include "ezinject_common.h"
+#include "config.h"
 
 size_t inj_getjmp_size(){
 	#ifdef LH_JUMP_ABS
@@ -86,13 +87,14 @@ int inj_getinsn_count(void *buf, size_t sz, unsigned int *validbytes){
 #endif
 
 int inj_getbackup_size(void *codePtr, unsigned int payloadSz){
-	uint i = 0, opSz;
+	uint i = 0;
+	int opSz;
 	if((opSz = inj_opcode_bytes()) > 0){ //fixed opcode size
 		while(i < payloadSz)
 			i += opSz;
 		return i;
 	} else { //dynamic opcode size
-#if defined(__i386__) || defined(__x86_64__)
+#if defined(EZ_ARCH_I386) || defined(EZ_ARCH_AMD64)
 		unsigned int totalBytes = 0;
 		int total_insn = inj_getinsn_count(codePtr, payloadSz, &totalBytes);
 		if(total_insn <= 0 || totalBytes == 0)
