@@ -8,7 +8,7 @@
 
 int unprotect(void *addr);
 int inj_inject_library(const char *dllPath, int argc, char *argv[], void **out_libaddr);
-void *inj_backup_function(void *original_code, size_t *saved_bytes, int opcode_bytes_to_restore);
+void *inj_backup_function(void *original_code, size_t *num_saved_bytes, int opcode_bytes_to_restore);
 int inj_replace_function(void *original_fn, void *replacement_fn);
 
 #endif

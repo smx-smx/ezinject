@@ -130,7 +130,7 @@ int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *
 /*
  * Same as needle variant, but we don't need to copy data back and forth
  */
-void *inj_backup_function(void *original_code, size_t *saved_bytes, int opcode_bytes_to_restore){
+void *inj_backup_function(void *original_code, size_t *num_saved_bytes, int opcode_bytes_to_restore){
 	if(original_code == NULL){
 		ERR("ERROR: Code Address not specified");
 		return NULL;
@@ -178,8 +178,8 @@ void *inj_backup_function(void *original_code, size_t *saved_bytes, int opcode_b
 	inj_relocate_code(remote_code, num_opcode_bytes, original_code, pMem);
 	memcpy(remote_code + num_opcode_bytes, jump_back, jumpSz);
 
-	if(saved_bytes){
-		*saved_bytes = num_opcode_bytes;
+	if(num_saved_bytes){
+		*num_saved_bytes = num_opcode_bytes;
 	}
 
 	return pMem;

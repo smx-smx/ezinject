@@ -28,7 +28,7 @@ int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *
 
 	size_t i, j;
 
-	count = cs_disasm(handle, codePtr, codeSz, sourcePC, 0, &insns);
+	count = cs_disasm(handle, codePtr, codeSz, (uint64_t)sourcePC, 0, &insns);
 	if((ssize_t)count < 0)
 		goto err_disasm;
 

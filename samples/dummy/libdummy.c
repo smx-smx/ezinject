@@ -11,8 +11,9 @@
 
 LOG_SETUP(V_DBG);
 
-int lib_main(int argc, char *argv[]);
-
+/**
+ * Sample function that demonstrates the use of sljit
+ **/
 void *sljit_build_sample(){
 	void *sljit_code = NULL;
 	struct sljit_compiler *compiler = sljit_create_compiler(NULL);
@@ -49,11 +50,16 @@ static testFunc_t sljitCode = NULL;
 
 int myCustomFn(int arg1, int arg2){
 	DBG("original arguments: %d, %d", arg1, arg2);
+
+	// call the sljit code sample
 	arg1 = sljitCode(arg1, arg2);
 	arg2 = 0;
 
 	DBG("calling original(%d,%d)", arg1, arg2);
+	// call the original function
 	int origRet = pfnOrigTestFunc(arg1, arg2);
+
+	// modify original return
 	int newReturn = origRet * 10;
 	DBG("return: %d, give %d", origRet, newReturn);
 	return newReturn;
@@ -62,9 +68,16 @@ int myCustomFn(int arg1, int arg2){
 void installHooks(){
 	sljitCode = sljit_build_sample();
 
-	void *self = dlopen(NULL, RTLD_NOW);
-	testFunc_t pfnTestFunc = dlsym(self, "return1");
+	void *self = dlopen(NULL, RTLD_LAZY);
+	testFunc_t pfnTestFunc = dlsym(self, "func1");
+	if(pfnTestFunc == NULL){
+		return;
+	}
 
+	/**
+	 * create a trampoline to call the original function once the hook is installed
+	 * -1 enables automatic backup length detection (most relevant for arches with variable opcode size)
+	 **/
 	pfnOrigTestFunc = inj_backup_function(pfnTestFunc, NULL, -1);
 	if(!pfnOrigTestFunc){
 		ERR("Cannot build the payload!");
@@ -72,11 +85,23 @@ void installHooks(){
 	}
 
 	testFunc_t pfnReplacement = myCustomFn;
+
+	// print the chain (original -> hook -> orig_trampoline)
 	INFO("%p -> %p -> %p", pfnTestFunc, pfnReplacement, pfnOrigTestFunc);
+
+	/**
+	 * overwrite the original function entry with a jump to the replacement
+	 **/
 	inj_replace_function(pfnTestFunc, pfnReplacement);
 }
 
 int lib_preinit(struct injcode_user *user){
+	/**
+	 * this is needed for hooks pointing to code in this library
+	 * if we don't set this, dlclose() will be called and the hooks will segfault when called
+	 * (because they will then refer to unmapped memory)
+	 * this is *NOT* needed for code allocated elsewhere, e.g. on the heap (sljit)
+	 **/
 	user->persist = 1;
 	return 0;
 }

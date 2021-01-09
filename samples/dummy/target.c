@@ -6,7 +6,7 @@
 
 #define UNUSED(x) (void)x
 
-int return1(int arg1, int arg2) {
+int func1(int arg1, int arg2) {
 	printf("arg1: %d, arg2: %d\n", arg1, arg2);
 	return arg1 + arg2;
 }
@@ -29,10 +29,10 @@ int main(int argc, char *argv[])
 	//signal(SIGTRAP, onSignal);
 
 	int interactive = argc > 1;
-	printf("pid=%d\n&main=%p\n&return2=%p\n&func2=%p\n", getpid(), main, return1, func2);
+	printf("pid=%d\n&main=%p\n&return2=%p\n&func2=%p\n", getpid(), main, func1, func2);
 	for(;;)
 	{
-		int val = return1(0, 1);
+		int val = func1(0, 1);
 		printf("return1() = %d\n", val);
 		if(!val)
 			break;
