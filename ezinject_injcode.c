@@ -165,6 +165,11 @@ void injected_fn(struct injcode_bearing *br){
 	int signal = SIGTRAP;
 
 	do {
+
+		if(br->pl_debug){
+			inj_halt: goto inj_halt;
+		}
+
 		// entry
 		DBG('e');
 

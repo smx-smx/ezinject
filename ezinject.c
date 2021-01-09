@@ -171,6 +171,15 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 				return -1;
 			}
 
+			/**
+			 * if we're debugging payload
+			 * we break early as the target should
+			 * now be in an endless loop
+			 **/
+			if(ctx.pl_debug){
+				return -1;
+			}
+
 			// wait for the children to stop
 			status = remote_wait(target);
 
@@ -444,6 +453,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	}
 	br->mapping_size = mapping_size;
 
+	br->pl_debug = ctx->pl_debug;
 
 	br->libdl_handle = (void *)ctx->libdl.remote;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
@@ -728,6 +738,13 @@ int ezinject_main(
 
 		CHECK(__RCALL(ctx, remote_trampoline_entry, 0));
 
+		/**
+		 * if payload debugging is on, skip any cleanup
+		 **/
+		if(ctx->pl_debug){
+			return -1;
+		}
+
 		ctx->num_wait_calls = 1;
 		ctx->syscall_stack.remote = 0;
 
@@ -758,7 +775,21 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 
-	const char *argPid = argv[1];
+	memset(&ctx, 0x00, sizeof(ctx));
+
+	{
+		int c;
+		while ((c = getopt (argc, argv, "d")) != -1){
+			switch(c){
+				case 'd':
+					WARN("payload debugging enabled, the target **WILL** freeze");
+					ctx.pl_debug = 1;
+					break;
+			}
+		}
+	}
+
+	const char *argPid = argv[optind++];
 	pid_t target = atoi(argPid);
 
 	if(ptrace(PTRACE_ATTACH, target, 0, 0) < 0){
@@ -793,11 +824,18 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 
-	err = ezinject_main(&ctx, argc - 2, &argv[2]);
+	err = ezinject_main(&ctx, argc - optind, &argv[optind]);
 
 	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
 
+	/**
+	 * skip IPC cleanup if we encountered any error
+	 * (payload debugging counts as failure)
+	 **/
 	if(err != 0){
+		if(ctx.pl_debug){
+			INFO("You may now attach with gdb for payload debugging");
+		}
 		return err;
 	}
 

@@ -78,9 +78,8 @@ struct injcode_bearing
 {
 	size_t mapping_size;
 
+	int pl_debug;
 	pthread_t user_tid;
-	pid_t user_ft;
-
 	void *userlib;
 
 #if defined(HAVE_LIBC_DLOPEN_MODE)
