@@ -6,13 +6,12 @@
 
 #define UNUSED(x) (void)x
 
-int return1(void)
-{
-	return 1;
+int return1(int arg1, int arg2) {
+	printf("arg1: %d, arg2: %d\n", arg1, arg2);
+	return arg1 + arg2;
 }
 
-void func2(void)
-{
+void func2(void) {
 	puts("Func2 called!");
 }
 
@@ -33,7 +32,7 @@ int main(int argc, char *argv[])
 	printf("pid=%d\n&main=%p\n&return2=%p\n&func2=%p\n", getpid(), main, return1, func2);
 	for(;;)
 	{
-		int val = return1();
+		int val = return1(0, 1);
 		printf("return1() = %d\n", val);
 		if(!val)
 			break;

@@ -2,74 +2,82 @@
 #include <stdio.h>
 #include <dlfcn.h>
 
-//#define LOG_USE_FILE
 #include "log.h"
 #include "util.h"
 #include "interface/if_hook.h"
 #include "interface/cpu/if_sljit.h"
-#include "ezinject_injcode.h"
 
-#define UNUSED(x) (void)(x)
+#include "ezinject_injcode.h"
 
 LOG_SETUP(V_DBG);
 
-void installHooks(){
+int lib_main(int argc, char *argv[]);
+
+void *sljit_build_sample(){
 	void *sljit_code = NULL;
-	struct sljit_compiler *compiler = NULL;
-
-	/* Uncomment to call the original */
-	/*
-	void (*f)(int, char*) = (void (*)(int a, char *b))original_test_function;
-	f(1, "test");
-	*/
-
-	void (*original_test_function) (int a, char *b);
-
-	void *self = dlopen(NULL, RTLD_NOW);
-	original_test_function = dlsym(self, "return1");
-
-	void *origCode = inj_backup_function(original_test_function, NULL, -1);
-	if(!origCode){
-		ERR("Cannot build the payload!");
-		return;
-	}
-
-	compiler = sljit_create_compiler(NULL);
+	struct sljit_compiler *compiler = sljit_create_compiler(NULL);
 	if(!compiler){
 		ERR("Unable to create sljit compiler instance");
-		return;
+		return NULL;
 	}
 
-	/*
-		Simple routine that returns 1337
-	*/
-	#if 0
-	sljit_emit_ijump(compiler, SLJIT_JUMP, SLJIT_IMM, (sljit_sw)origCode);
-	#else
+	/** Simple routine that returns 1337 **/
 	sljit_emit_enter(compiler, 0, 0, 0, 0, 0, 0, 0);
 	sljit_emit_op1(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 0, SLJIT_IMM, 1337);
 	sljit_emit_return(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 1337);
-	#endif
 
 	sljit_code = sljit_generate_code(compiler) + compiler->executable_offset;
 	if(!sljit_code){
 		ERR("Unable to build JIT Code");
+		return NULL;
 	}
 
-	if(compiler)
+	if(compiler){
 		sljit_free_compiler(compiler);
+	}
 
 	INFO("JIT code");
 	hexdump(sljit_code, compiler->executable_size);
-	/* Set the code we just generated as the replacement */
-	INFO("Injecting to %p", original_test_function);
 
-	inj_replace_function(original_test_function, sljit_code);
+	return sljit_code;
+}
+
+typedef int(*testFunc_t)(int arg1, int arg2);
+
+static testFunc_t pfnOrigTestFunc = NULL;
+static testFunc_t sljitCode = NULL;
+
+int myCustomFn(int arg1, int arg2){
+	DBG("original arguments: %d, %d", arg1, arg2);
+	arg1 = sljitCode(arg1, arg2);
+	arg2 = 0;
+
+	DBG("calling original(%d,%d)", arg1, arg2);
+	int origRet = pfnOrigTestFunc(arg1, arg2);
+	int newReturn = origRet * 10;
+	DBG("return: %d, give %d", origRet, newReturn);
+	return newReturn;
+}
+
+void installHooks(){
+	sljitCode = sljit_build_sample();
+
+	void *self = dlopen(NULL, RTLD_NOW);
+	testFunc_t pfnTestFunc = dlsym(self, "return1");
+
+	pfnOrigTestFunc = inj_backup_function(pfnTestFunc, NULL, -1);
+	if(!pfnOrigTestFunc){
+		ERR("Cannot build the payload!");
+		return;
+	}
+
+	testFunc_t pfnReplacement = myCustomFn;
+	INFO("%p -> %p -> %p", pfnTestFunc, pfnReplacement, pfnOrigTestFunc);
+	inj_replace_function(pfnTestFunc, pfnReplacement);
 }
 
 int lib_preinit(struct injcode_user *user){
-	UNUSED(user);
-	// access user data
+	user->persist = 1;
 	return 0;
 }
 
