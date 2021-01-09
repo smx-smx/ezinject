@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <dlfcn.h>
 
 #include "log.h"
@@ -14,7 +14,7 @@ LOG_SETUP(V_DBG);
 /**
  * Sample function that demonstrates the use of sljit
  **/
-void *sljit_build_sample(){
+void *sljit_build_sample(void **ppCodeMem){
 	void *sljit_code = NULL;
 	struct sljit_compiler *compiler = sljit_create_compiler(NULL);
 	if(!compiler){
@@ -27,11 +27,15 @@ void *sljit_build_sample(){
 	sljit_emit_op1(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 0, SLJIT_IMM, 1337);
 	sljit_emit_return(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 1337);
 
-	sljit_code = sljit_generate_code(compiler) + compiler->executable_offset;
-	if(!sljit_code){
+	sljit_code = sljit_generate_code(compiler);
+	if(sljit_code == NULL){
 		ERR("Unable to build JIT Code");
 		return NULL;
 	}
+	if(ppCodeMem != NULL){
+		*ppCodeMem = sljit_code;
+	}
+	sljit_code += compiler->executable_offset;	
 
 	if(compiler){
 		sljit_free_compiler(compiler);
@@ -66,39 +70,55 @@ int myCustomFn(int arg1, int arg2){
 }
 
 void installHooks(){
-	sljitCode = sljit_build_sample();
-
 	void *self = dlopen(NULL, RTLD_LAZY);
 	if(self == NULL){
 		ERR("dlopen failed: %s", dlerror());
 		return;
 	}
 
-	testFunc_t pfnTestFunc = dlsym(self, "func1");
-	if(pfnTestFunc == NULL){
-		ERR("Couldn't locate test function");
-		return;
+	void *codeMem = NULL;
+	int error = 1;
+
+	do {
+		testFunc_t pfnTestFunc = dlsym(self, "func1");
+		if(pfnTestFunc == NULL){
+			ERR("Couldn't locate test function");
+			break;
+		}
+
+		sljitCode = sljit_build_sample(&codeMem);
+
+		/**
+		 * create a trampoline to call the original function once the hook is installed
+		 * -1 enables automatic backup length detection (most relevant for arches with variable opcode size)
+		 **/
+		pfnOrigTestFunc = inj_backup_function(pfnTestFunc, NULL, -1);
+		if(!pfnOrigTestFunc){
+			ERR("Cannot build the payload!");
+			break;
+		}
+
+		testFunc_t pfnReplacement = myCustomFn;
+
+		// print the chain (original -> hook -> orig_trampoline)
+		INFO("%p -> %p -> %p", pfnTestFunc, pfnReplacement, pfnOrigTestFunc);
+
+		/**
+		 * overwrite the original function entry with a jump to the replacement
+		 **/
+		inj_replace_function(pfnTestFunc, pfnReplacement);
+		error = 0;
+	} while(0);
+
+	if(error){
+		INFO("failed to install hooks");
+		if(codeMem != NULL){
+			sljit_free_exec(codeMem);
+		}
+		dlclose(self);
+	} else {
+		INFO("hooks installed succesfully");
 	}
-
-	/**
-	 * create a trampoline to call the original function once the hook is installed
-	 * -1 enables automatic backup length detection (most relevant for arches with variable opcode size)
-	 **/
-	pfnOrigTestFunc = inj_backup_function(pfnTestFunc, NULL, -1);
-	if(!pfnOrigTestFunc){
-		ERR("Cannot build the payload!");
-		return;
-	}
-
-	testFunc_t pfnReplacement = myCustomFn;
-
-	// print the chain (original -> hook -> orig_trampoline)
-	INFO("%p -> %p -> %p", pfnTestFunc, pfnReplacement, pfnOrigTestFunc);
-
-	/**
-	 * overwrite the original function entry with a jump to the replacement
-	 **/
-	inj_replace_function(pfnTestFunc, pfnReplacement);
 }
 
 int lib_preinit(struct injcode_user *user){
@@ -112,17 +132,11 @@ int lib_preinit(struct injcode_user *user){
 	return 0;
 }
 
-void libdl_test(){
-	void *self = dlopen(NULL, RTLD_LAZY | RTLD_NOLOAD);
-	lprintf("self: %p\n", self);
-}
-
 int lib_main(int argc, char *argv[]){
 	lputs("Hello World from main");
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
-	libdl_test();
 	installHooks();
 	return 0;
 }
