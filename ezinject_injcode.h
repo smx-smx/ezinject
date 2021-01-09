@@ -19,8 +19,6 @@
 // temporary stack size
 #define PL_STACK_SIZE 64 * 1024
 
-#define INJ_PATH_MAX 128
-
 #define EMIT_LABEL(name) \
 	asm volatile( \
 		".globl "name"\n" \
@@ -124,15 +122,11 @@ enum userlib_return_action {
 
 #define PL_STACK(br) (uintptr_t *)((uintptr_t)((br) + MAPPINGSIZE))
 
-extern void injected_clone_proper(struct injcode_bearing *br);
-
-extern int clone_fn(void *arg);
-
 extern void injected_sc_start();
 extern void injected_sc_end();
 
-extern void injected_clone_entry();
 extern void trampoline_entry();
+extern void injected_fn(struct injcode_bearing *br);
 
 extern void injected_clone();
 

@@ -706,7 +706,7 @@ int ezinject_main(
 
 		// push clone arguments
 		stack_argv[0] = PL_REMOTE(pl->br_start);
-		stack_argv[1] = PL_REMOTE_CODE(&injected_clone_proper);
+		stack_argv[1] = PL_REMOTE_CODE(&injected_fn);
 
 		DBGPTR(stack_argv[0]);
 		DBGPTR(stack_argv[1]);

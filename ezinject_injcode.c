@@ -22,7 +22,6 @@
 #endif
 
 #define UNUSED(x) (void)(x)
-#define CLONE_FLAGS (CLONE_VM|CLONE_SIGHAND|CLONE_THREAD)
 
 #ifdef HAVE_LIBC_DLOPEN_MODE
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
@@ -152,18 +151,16 @@ INLINE void *get_libdl(struct injcode_bearing *br){
 }
 #endif
 
-void injected_clone_proper(struct injcode_bearing *shm_br){
-	int sema;
+void injected_fn(struct injcode_bearing *br){
+	int sema = -1;
 
-	struct injcode_bearing *br = shm_br;
+	void *h_pthread = NULL;
+	int had_pthread = 0;
 
-	void *h_pthread;
-	int had_pthread;
-
-	void *(*dlopen)(const char *filename, int flag);
-	void *(*dlsym)(void *handle, const char *symbol);
-	int (*dlclose)(void *handle);
-	int (*pthread_join)(pthread_t thread, void **retval);
+	void *(*dlopen)(const char *filename, int flag) = NULL;
+	void *(*dlsym)(void *handle, const char *symbol) = NULL;
+	int (*dlclose)(void *handle) = NULL;
+	int (*pthread_join)(pthread_t thread, void **retval) = NULL;
 
 	int signal = SIGTRAP;
 
@@ -288,11 +285,12 @@ void injected_clone_proper(struct injcode_bearing *shm_br){
 	} while(0);
 
 
+	// bye
+	DBG('b');
+
 	// awake ptrace
 	// success: SIGSTOP
 	// failure: anything else
-	DBG('b');
-
 	br->libc_syscall(__NR_kill, br->libc_syscall(__NR_getpid), signal);
 	while(1);
 }
