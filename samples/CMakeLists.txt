@@ -1,5 +1,9 @@
 add_subdirectory(dummy)
 
+if(CMAKE_CXX_COMPILER_WORKS)
+	add_subdirectory(cpp)
+endif()
+
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(MONO mono-2)
 

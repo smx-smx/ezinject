@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.0)
 project(ezpatch C ASM)
+enable_language(CXX OPTIONAL)
 
 add_definitions(
 	-fPIC
