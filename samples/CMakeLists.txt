@@ -1,10 +1,11 @@
 add_subdirectory(dummy)
 
-option(BUILD_MONO "enable mono module" ON)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(MONO mono-2)
 
 add_subdirectory(pyloader)
 add_subdirectory(dotnetcore)
-if(BUILD_MONO)
+if(MONO_FOUND)
 	add_subdirectory(mono)
 endif()
 
