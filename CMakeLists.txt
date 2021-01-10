@@ -1,6 +1,10 @@
-cmake_minimum_required(VERSION 3.0)
+# 3.14 requirement: https://cmake.org/cmake/help/latest/policy/CMP0083.html
+cmake_minimum_required(VERSION 3.14)
 project(ezpatch C ASM)
 enable_language(CXX OPTIONAL)
+
+include(CheckPIESupported)
+check_pie_supported()
 
 add_definitions(-fPIC)
 
@@ -156,7 +160,8 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	if(EZ_LIBC_VARIANT STREQUAL "android-2")
 		set(HAVE_ANDROID_GINGERBREAD TRUE)
 	elseif(EZ_LIBC_VARIANT STREQUAL "android-5")
-		message(FATAL_ERROR "TODO")
+		# android 5+ requires -fPIE
+		set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 	else()
 		message(FATAL_ERROR "Unsupported libc variant ${EZ_LIBC_VARIANT}")
 	endif()

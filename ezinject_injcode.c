@@ -63,6 +63,18 @@ INLINE uint64_t str64(uint64_t x){
 	#endif
 }
 
+#ifdef DEBUG
+#define DBGPTR(ptr) do { \
+	const uint64_t buf[2] = { \
+		str64(0x706C3A7074723A25), /* pl:ptr:% */ \
+		str64(0x700A000000000000)  /* p\n\0    */ \
+	}; \
+	br->libc_printf((char *)buf, ptr); \
+} while(0);
+#else
+#define DBGPTR(ptr)
+#endif
+
 INLINE int br_semop(struct injcode_bearing *br, int sema, int idx, int op){
 	struct sembuf sem_op = {
 		.sem_num = idx,
@@ -147,6 +159,7 @@ void injected_fn(struct injcode_bearing *br){
 		dlopen = (void *)PTRADD(libdl_handle, br->dlopen_offset);
 		dlclose = (void *)PTRADD(libdl_handle, br->dlclose_offset);
 		dlsym = (void *)PTRADD(libdl_handle, br->dlsym_offset);
+		DBGPTR(libdl_handle);
 
 		char *libdl_name = NULL;
 		char *libpthread_name = NULL;
@@ -163,6 +176,7 @@ void injected_fn(struct injcode_bearing *br){
 
 		// just to make sure it's really loaded
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
+		DBGPTR(h_libdl);
 		if(h_libdl == NULL){
 			dlopen(libdl_name, RTLD_NOW | RTLD_GLOBAL);
 		}
@@ -196,13 +210,7 @@ void injected_fn(struct injcode_bearing *br){
 				break;
 			}
 
-			#ifdef DEBUG
-			const uint64_t buf[2] = {
-				str64(0x706C3A757365726C), //pl:userl
-				str64(0x69623A25700A0000)  //ib:%p\n\0
-			};
-			br->libc_printf((char *)buf, br->userlib);
-			#endif
+			DBGPTR(br->userlib);
 		}
 
 		// wait for the thread to notify us
