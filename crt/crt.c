@@ -7,13 +7,18 @@
 #include <sched.h>
 #include <pthread.h>
 #include <unistd.h>
+#ifdef HAVE_SYS_SEM_H
 #include <sys/sem.h>
+#endif
+#ifdef HAVE_SYS_SHM_H
 #include <sys/shm.h>
+#endif
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <asm/unistd.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 
 #include <pthread.h>
@@ -21,9 +26,11 @@
 #include <dlfcn.h>
 
 #include "ezinject.h"
+#include "ezinject_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_injcode.h"
 
+#include "config.h"
 #include "log.h"
 
 #ifdef DEBUG

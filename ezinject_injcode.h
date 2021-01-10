@@ -6,7 +6,9 @@
 #include <sys/types.h>
 #include <linux/limits.h>
 #include <pthread.h>
+#ifdef HAVE_SYS_SEM_H
 #include <sys/sem.h>
+#endif
 
 
 #include "config.h"
@@ -27,6 +29,17 @@
 
 
 #define INLINE static inline __attribute__((always_inline))
+
+//pl:x\n\0
+#if defined(DEBUG)
+#define PL_DBG(ch) do { \
+	const uint64_t str = str64(0x706C3A000A000000 | (((uint64_t)ch << 32) & 0xFF00000000)); \
+	br->libc_syscall(__NR_write, STDOUT_FILENO, &str, 5); \
+} while(0)
+
+#else
+#define PL_DBG(ch)
+#endif
 
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 #include <elf.h>
@@ -82,7 +95,7 @@ struct injcode_bearing
 	pthread_t user_tid;
 	void *userlib;
 
-#if defined(HAVE_LIBC_DLOPEN_MODE)
+#if defined(HAVE_LIBC_DLOPEN_MODE) || defined(EZ_TARGET_ANDROID)
 	void *(*libc_dlopen)(const char *name, int mode);
 #elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,

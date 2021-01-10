@@ -25,13 +25,13 @@ extern enum verbosity_level
 
 #define STRINGIFY(x) STRINGIFY2(x)
 #define STRINGIFY2(x) #x
-#ifdef DEBUG
+//#ifdef DEBUG
 #define DBG(fmt, ...) LOG(V_DBG, "[DEBG] " fmt, ##__VA_ARGS__)
 #define LOG_PREFIX "[" __FILE__ ":" STRINGIFY(__LINE__) "] "
-#else
-#define DBG(fmt, ...)
-#define LOG_PREFIX ""
-#endif
+//#else
+//#define DBG(fmt, ...)
+//#define LOG_PREFIX ""
+//#endif
 
 #define DBGPTR(p) DBG("%s=%p", #p, (void *)p)
 

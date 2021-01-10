@@ -17,10 +17,18 @@
 #include <sys/syscall.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
 
 #include "config.h"
+
+#ifdef HAVE_SYS_SEM_H
+#include <sys/sem.h>
+#endif
+#ifdef HAVE_SYS_SHM_H
+#include <sys/shm.h>
+#endif
+
+#include <sys/ipc.h>
+#include <sys/stat.h>
 
 #ifndef HAVE_SHM_SYSCALLS
 #include <asm-generic/ipc.h>
@@ -264,7 +272,7 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
 	uintptr_t sym_addr = (uintptr_t)dlsym(handle, sym_name);
 	ez_addr sym = {
 		.local = sym_addr,
-		.remote = EZ_REMOTE(lib, sym_addr)
+		.remote = (sym_addr == 0) ? 0 : EZ_REMOTE(lib, sym_addr)
 	};
 	return sym;
 }
@@ -425,7 +433,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->pl_debug = ctx->pl_debug;
 
 	br->libdl_handle = (void *)ctx->libdl.remote;
-#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
+#if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	br->uclibc_sym_tables = (void *)ctx->uclibc_sym_tables.remote;
 	br->uclibc_dl_fixup = (void *)ctx->uclibc_dl_fixup.remote;
 	br->uclibc_loaded_modules = (void *)ctx->uclibc_loaded_modules.remote;

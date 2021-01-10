@@ -5,7 +5,9 @@
 #include <ctype.h>
 #include "ezinject.h"
 
+#ifdef HAVE_SYS_SEM_H
 #include <sys/sem.h>
+#endif
 
 void hexdump(void *pAddressIn, long lSize) {
 	char szBuf[100];
@@ -92,7 +94,6 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 	bool found = false;
 
 	int sublen = strlen(substr);
-	char *end = (char *)&line + sizeof(line);
 
 	snprintf(line, 256, "/proc/%u/maps", pid);
 	FILE *fp = fopen(line, "r");
@@ -104,8 +105,11 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 		strcpy(path, "[anonymous]");
 		val = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
 		
+		char *end = (char *)&path[0] + strlen(path);
+
 		char *sub;
 		if((sub=strstr(path, substr)) != NULL){
+			/** check if this match should be ignored **/
 			bool skip = false;
 			if(ignores != NULL){
 				char **sptr = ignores;
@@ -123,6 +127,8 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 
 			sub += sublen;
 			if(sub >= end){
+				// whole match, assume found
+				found = true;
 				break;
 			}
 

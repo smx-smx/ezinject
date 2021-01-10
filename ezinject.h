@@ -2,25 +2,13 @@
 #define __EZINJECT_H
 
 #include "config.h"
-#include "ezinject_injcode.h"
 
 #include <stdint.h>
 #include <asm/ptrace.h>
 #include <sys/user.h>
 
-#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
-
-#ifndef HAVE_SHM_EXEC
-#define	SHM_EXEC	0100000	/* execution access */
-#endif
-
-#ifndef PTRACE_SETOPTIONS
-#define PTRACE_SETOPTIONS 0x4200
-#endif
-
-#ifndef PTRACE_O_TRACESYSGOOD
-#define PTRACE_O_TRACESYSGOOD 1
-#endif
+#include "ezinject_compat.h"
+#include "ezinject_injcode.h"
 
 #ifdef EZ_ARCH_MIPS
 // the bundled pt_regs definition is wrong (https://www.linux-mips.org/archives/linux-mips/2014-07/msg00443.html)

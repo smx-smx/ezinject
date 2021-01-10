@@ -1,4 +1,6 @@
 #define _GNU_SOURCE
+#define EZINJECT_INJCODE
+
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -7,12 +9,14 @@
 #include <pthread.h>
 #include <link.h>
 #include <sys/stat.h>
-#include <sys/shm.h>
 #include <sys/wait.h>
 #include <sys/syscall.h>
 #include <sys/prctl.h>
 
 #include "config.h"
+
+#include "ezinject_compat.c"
+
 #include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
@@ -28,17 +32,6 @@
 #endif
 
 #define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
-
-//pl:x\n\0
-#ifdef DEBUG
-#define DBG(ch) do { \
-	const uint64_t str = str64(0x706C3A000A000000 | (((uint64_t)ch << 32) & 0xFF00000000)); \
-	br->libc_syscall(__NR_write, STDOUT_FILENO, &str, 5); \
-} while(0)
-
-#else
-#define DBG(ch)
-#endif
 
 void injected_code_start(void){}
 
@@ -70,38 +63,43 @@ INLINE uint64_t str64(uint64_t x){
 	#endif
 }
 
-INLINE int br_semget(struct injcode_bearing *br, key_t key, int nsems, int semflg){
-#ifdef HAVE_SHM_SYSCALLS
-	return br->libc_syscall(__NR_semget, key, nsems, semflg);
-#else
-	return br->libc_syscall(__NR_ipc, IPCCALL(0, SEMGET), key, nsems, semflg);
-#endif
-}
-
 INLINE int br_semop(struct injcode_bearing *br, int sema, int idx, int op){
 	struct sembuf sem_op = {
 		.sem_num = idx,
 		.sem_op = op,
 		.sem_flg = 0
 	};
-	return br->libc_semop( sema, &sem_op, 1);
+	// prefer libc semop, if available
+	if(br->libc_semop != NULL){
+		return br->libc_semop(sema, &sem_op, 1);
+	}
+
+	// use built-in compatibility semop
+	return semop(br, sema, &sem_op, 1);
 }
 
 #if defined(HAVE_LIBC_DLOPEN_MODE)
 #include "ezinject_injcode_glibc.c"
 #elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 #include "ezinject_injcode_uclibc.c"
+#else
+INLINE void *get_libdl(struct injcode_bearing *br){
+	return br->libdl_handle;
+}
 #endif
 
 INLINE int inj_get_sema(struct injcode_bearing *br){
 	pid_t pid = br->libc_syscall(__NR_getpid);
-	int sema = br_semget(br, pid, 1, 0);
+	int sema = semget(br, pid, 1, 0);
 	if(sema < 0){
 		return sema;
 	}
 
 	// initialize signal
-	br_semop(br, sema, EZ_SEM_LIBCTL, 1);
+	int rc = br_semop(br, sema, EZ_SEM_LIBCTL, 1);
+	if(rc < 0){
+		return rc;
+	}
 	return sema;
 }
 
@@ -125,23 +123,23 @@ void injected_fn(struct injcode_bearing *br){
 		}
 
 		// entry
-		DBG('e');
+		PL_DBG('e');
 
 		// acquire semaphores
-		DBG('s');
+		PL_DBG('s');
 		if((sema = inj_get_sema(br)) < 0){
-			DBG('!');
+			PL_DBG('!');
 			break;
 		}
 
 		void *libdl_handle = br->libdl_handle;
 		// acquire libdl
 		if(libdl_handle == NULL){
-			DBG('l');
+			PL_DBG('l');
 			{
 				libdl_handle = get_libdl(br);
 				if(libdl_handle == NULL){
-					DBG('!');
+					PL_DBG('!');
 					break;
 				}
 			}
@@ -163,7 +161,6 @@ void injected_fn(struct injcode_bearing *br){
 			STRTBL_FETCH(stbl, userlib_name);
 		} while(0);
 
-
 		// just to make sure it's really loaded
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
 		if(h_libdl == NULL){
@@ -171,29 +168,31 @@ void injected_fn(struct injcode_bearing *br){
 		}
 
 		// acquire libpthread
-		DBG('p');
+		PL_DBG('p');
 		{
 			had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
 
 			h_pthread = dlopen(libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
 			if(!h_pthread){
-				DBG('!');
+				PL_DBG('!');
+				PL_DBG('1');
 				break;
 			}
 
 			pthread_join = dlsym(h_pthread, sym_pthread_join);
 			if(!pthread_join){
-				DBG('!');
+				PL_DBG('!');
+				PL_DBG('2');
 				break;
 			}
 		}
 
 		// dlopen
-		DBG('d');
+		PL_DBG('d');
 		{
 			br->userlib = dlopen(userlib_name, RTLD_NOW);
 			if(br->userlib == NULL){
-				DBG('!');
+				PL_DBG('!');
 				break;
 			}
 
@@ -207,18 +206,18 @@ void injected_fn(struct injcode_bearing *br){
 		}
 
 		// wait for the thread to notify us
-		DBG('w');
+		PL_DBG('w');
 		br_semop(br, sema, EZ_SEM_LIBCTL, 0);
 
 		void *result;
 
 		// wait for user thread to die
-		DBG('j');
+		PL_DBG('j');
 		pthread_join(br->user_tid, &result);
 
 		if((enum userlib_return_action)result != userlib_persist){
 			// cleanup
-			DBG('c');
+			PL_DBG('c');
 			{
 				/**
 				 * NOTE: uclibc old might trigger segfaults in the user library while doing this (sigh)
@@ -238,7 +237,7 @@ void injected_fn(struct injcode_bearing *br){
 
 
 	// bye
-	DBG('b');
+	PL_DBG('b');
 
 	// awake ptrace
 	// success: SIGSTOP
