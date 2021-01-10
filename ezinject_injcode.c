@@ -87,69 +87,23 @@ INLINE int br_semop(struct injcode_bearing *br, int sema, int idx, int op){
 	return br->libc_semop( sema, &sem_op, 1);
 }
 
-#ifdef HAVE_LIBC_DLOPEN_MODE
-INLINE void *get_libdl(struct injcode_bearing *br){
-	char *libdl_name = STR_DATA(BR_STRTBL(br));
-	struct link_map *libdl = (struct link_map *) br->libc_dlopen(libdl_name, RTLD_NOW | __RTLD_DLOPEN);
-	return (void *)libdl->l_addr;
-}
+#if defined(HAVE_LIBC_DLOPEN_MODE)
+#include "ezinject_injcode_glibc.c"
+#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
+#include "ezinject_injcode_uclibc.c"
 #endif
 
-#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
-INLINE void *memset(void *s, int c, unsigned int n){
-    unsigned char* p=s;
-    while(n--){
-        *p++ = (unsigned char)c;
-	}
-    return s;
-}
-
-INLINE void *get_libdl(struct injcode_bearing *br){
-    char *libdl_name = STR_DATA(BR_STRTBL(br));
-
-	struct elf_resolve_hdr *tpnt;
-
-	struct dyn_elf *rpnt;
-	for (rpnt = *(br->uclibc_sym_tables); rpnt && rpnt->next; rpnt = rpnt->next){
-		continue;
+INLINE int inj_get_sema(struct injcode_bearing *br){
+	pid_t pid = br->libc_syscall(__NR_getpid);
+	int sema = br_semget(br, pid, 1, 0);
+	if(sema < 0){
+		return sema;
 	}
 
-	tpnt = br->libc_dlopen(0, &rpnt, NULL, libdl_name, 0);
-	if(tpnt == NULL){
-		return NULL;
-	}
-
-#ifdef EZ_ARCH_MIPS
-	br->uclibc_mips_got_reloc(tpnt, 0);
-#endif
-
-#ifndef UCLIBC_OLD
-#define GDB_SHARED_SIZE (5 * sizeof(void *))
-#define SYMBOL_SCOPE_OFFSET (10 * sizeof(void *))
-	struct r_scope_elem *global_scope = (struct r_scope_elem *)(
-		(uintptr_t)*(br->uclibc_loaded_modules) + GDB_SHARED_SIZE +
-		SYMBOL_SCOPE_OFFSET
-	);
-#endif
-
-	struct dyn_elf dyn;
-	memset(&dyn, 0x00, sizeof(dyn));
-	dyn.dyn = tpnt;
-
-	/**
-	  * FIXME: we are not handling init/fini arrays
- 	  * This means the call will likely warn about 'dl_cleanup' being unresolved, but it will work anyways.
- 	  * -- symbol 'dl_cleanup': can't resolve symbol
- 	  */
-#ifdef UCLIBC_OLD
-	br->uclibc_dl_fixup(&dyn, RTLD_NOW);
-#else
-	br->uclibc_dl_fixup(&dyn, global_scope, RTLD_NOW);
-#endif
-
-	return (void *)tpnt->loadaddr;
+	// initialize signal
+	br_semop(br, sema, EZ_SEM_LIBCTL, 1);
+	return sema;
 }
-#endif
 
 void injected_fn(struct injcode_bearing *br){
 	int sema = -1;
@@ -175,16 +129,9 @@ void injected_fn(struct injcode_bearing *br){
 
 		// acquire semaphores
 		DBG('s');
-		{
-			pid_t pid = br->libc_syscall(__NR_getpid);
-			sema = br_semget(br, pid, 1, 0);
-			if(sema < 0){
-				DBG('!');
-				break;
-			}
-
-			// initialize signal
-			br_semop(br, sema, EZ_SEM_LIBCTL, 1);
+		if((sema = inj_get_sema(br)) < 0){
+			DBG('!');
+			break;
 		}
 
 		void *libdl_handle = br->libdl_handle;

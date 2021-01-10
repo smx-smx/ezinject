@@ -117,4 +117,6 @@ struct call_req {
 	struct sc_req syscall;
 	int num_wait_calls;
 };
+
+ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 #endif

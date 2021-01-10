@@ -2,10 +2,12 @@ cmake_minimum_required(VERSION 3.0)
 project(ezpatch C ASM)
 enable_language(CXX OPTIONAL)
 
-add_definitions(
-	-fPIC
-	-Wl,--no-undefined
-)
+add_definitions(-fPIC)
+
+if(NOT ANDROID)
+	add_definitions(-Wl,--no-undefined)
+endif()
+
 
 include_directories(
 	${CMAKE_SOURCE_DIR}
@@ -41,28 +43,43 @@ endif()
 
 include(CheckLibraryExists)
 
-find_library(C_LIBRARY "libc.so.0")
-if(NOT C_LIBRARY)
-	find_library(C_LIBRARY "libc.so.6")
+set(requires_libpthread REQUIRED)
+
+if(ANDROID)
+	set(prefix ${CMAKE_SYSROOT}/usr/lib/${ANDROID_TOOLCHAIN_NAME})
+	# remove last dash
+	string(FIND "${prefix}" "-" index REVERSE)
+	string(SUBSTRING "${prefix}" 0 ${index}	prefix)
+
+	set(libs_path ${prefix}/${ANDROID_NATIVE_API_LEVEL})
+	list(APPEND CMAKE_LIBRARY_PATH ${libs_path})
+	set(CMAKE_FIND_USE_CMAKE_PATH TRUE)
+
+	set(requires_libpthread "")
 endif()
 
-if(NOT C_LIBRARY)
-	message(FATAL_ERROR "libc.so not found")
-endif()
+find_library(C_LIBRARY
+	NAMES
+		libc.so
+		libc.so.0
+		libc.so.6
+	REQUIRED
+)
 
-find_library(DL_LIBRARY "libdl.so.0")
-if(NOT DL_LIBRARY)
-	find_library(DL_LIBRARY "libdl.so.2")
-endif()
+find_library(DL_LIBRARY
+	NAMES
+		libdl.so
+		libdl.so.0
+		libdl.so.2
+	REQUIRED
+)
 
-if(NOT DL_LIBRARY)
-	message(FATAL_ERROR "libdl.so not found")
-endif()
-
-find_library(PTHREAD_LIBRARY "libpthread.so.0")
-if(NOT PTHREAD_LIBRARY)
-	message(FATAL_ERROR "libpthread.so not found")
-endif()
+find_library(PTHREAD_LIBRARY
+	NAMES
+		libpthread.so
+		libpthread.so.0
+	${requires_libpthread}
+)
 
 check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)
@@ -72,22 +89,24 @@ endif()
 
 get_filename_component(DL_LIBRARY_NAME "${DL_LIBRARY}" NAME)
 
-find_library(DYN_LINKER "ld-uClibc.so.0")
-
 check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
 get_filename_component(C_LIBRARY_NAME "${C_LIBRARY}" NAME)
 
 get_filename_component(PTHREAD_LIBRARY_NAME "${PTHREAD_LIBRARY}" NAME)
 
-if(NOT HAVE_LIBC_DLOPEN_MODE)
-	if(NOT DYN_LINKER)
-		message(FATAL_ERROR "ld-uClibc.so.0 not found")
-	endif()
+if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT ANDROID)
+	find_library(DYN_LINKER
+		NAMES ld-uClibc.so.0
+		REQUIRED
+	)	
 	check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
 	get_filename_component(DYN_LINKER_NAME "${DYN_LINKER}" NAME)
 endif()
 
-if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT HAVE_DL_LOAD_SHARED_LIBRARY)
+if(NOT ANDROID
+   AND NOT HAVE_LIBC_DLOPEN_MODE
+   AND NOT HAVE_DL_LOAD_SHARED_LIBRARY
+)
 	message(FATAL_ERROR "Unsupported C library")
 endif()
 
@@ -167,11 +186,20 @@ endfunction()
 add_subdirectory(crt)
 add_subdirectory(samples)
 
-add_executable(ezinject
+set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
 	util.c
 )
+
+if(HAVE_LIBC_DLOPEN_MODE)
+	list(APPEND ezinject_sources ezinject_libc_glibc.c)
+elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
+	list(APPEND ezinject_sources ezinject_libc_uclibc.c)
+endif()
+
+add_executable(ezinject ${ezinject_sources})
+
 
 # -fno-toplevel-reorder: keep order of code as it was written
 # -fno-stack-protector: remove stack cookie checks
