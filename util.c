@@ -5,10 +5,6 @@
 #include <ctype.h>
 #include "ezinject.h"
 
-#ifdef HAVE_SYS_SEM_H
-#include <sys/sem.h>
-#endif
-
 void hexdump(void *pAddressIn, long lSize) {
 	char szBuf[100];
 	long lIndent = 1;

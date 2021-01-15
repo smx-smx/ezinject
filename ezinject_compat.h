@@ -23,7 +23,7 @@
 #include "config.h"
 #include <sys/ipc.h>
 
-#ifndef HAVE_SYS_SEM_H
+#ifndef HAVE_SYS_SHM_H
 struct sembuf {
 	unsigned short int sem_num;   /* semaphore number */
 	short int sem_op;             /* semaphore operation */

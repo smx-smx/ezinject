@@ -6,9 +6,6 @@
 #include <sys/types.h>
 #include <linux/limits.h>
 #include <pthread.h>
-#ifdef HAVE_SYS_SEM_H
-#include <sys/sem.h>
-#endif
 
 
 #include "config.h"
