@@ -10,6 +10,10 @@ add_definitions(-fPIC)
 
 if(NOT ANDROID)
 	add_definitions(-Wl,--no-undefined)
+else()
+	if(NOT DEFINED USE_ANDROID_ASHMEM)
+		set(USE_ANDROID_ASHMEM ON)
+	endif()
 endif()
 
 
@@ -180,7 +184,6 @@ include_directories(${CAPSTONE_INCLUDE_DIRS})
 endif()
 
 include(CheckIncludeFile)
-check_include_file(sys/sem.h HAVE_SYS_SEM_H)
 check_include_file(sys/shm.h HAVE_SYS_SHM_H)
 
 
@@ -247,8 +250,9 @@ set(ezinject_sources
 	util.c
 )
 
-if(NOT EZ_TARGET_ANDROID)
-	if(NOT HAVE_SYS_SEM_H OR NOT HAVE_SYS_SHM_H)
+# not android, or android without ashmem
+if(NOT EZ_TARGET_ANDROID OR NOT USE_ANDROID_ASHMEM)
+	if(NOT HAVE_SYS_SHM_H)
 		list(APPEND ezinject_sources ezinject_compat.c)
 	endif()
 endif()
@@ -276,7 +280,7 @@ endif()
 set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-Os -fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 target_link_libraries(ezinject dl)
 
-if(EZ_TARGET_ANDROID)
+if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
 	add_subdirectory(android-shmem)
 	target_link_options(ezinject PUBLIC
 		-Wl,--whole-archive $<TARGET_FILE:ashmem> -Wl,--no-whole-archive

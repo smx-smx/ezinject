@@ -8,7 +8,6 @@
 #cmakedefine HAVE_LIBC_DLOPEN_MODE
 #cmakedefine HAVE_DL_LOAD_SHARED_LIBRARY
 #cmakedefine HAVE_SHM_SYSCALLS
-#cmakedefine HAVE_SYS_SEM_H
 #cmakedefine HAVE_RTLD_NOLOAD
 #cmakedefine USE_ANDROID_ASHMEM
 #cmakedefine HAVE_SYS_SHM_H
