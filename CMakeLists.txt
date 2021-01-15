@@ -3,9 +3,6 @@ cmake_minimum_required(VERSION 3.14)
 project(ezpatch C ASM)
 enable_language(CXX OPTIONAL)
 
-include(CheckPIESupported)
-check_pie_supported()
-
 add_definitions(-fPIC)
 
 if(NOT ANDROID)
@@ -174,6 +171,10 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	endif()
 endif()
 
+if(CMAKE_POSITION_INDEPENDENT_CODE)
+	include(CheckPIESupported)
+	check_pie_supported()
+endif()
 
 if(EZ_ARCH_I386 OR EZ_ARCH_AMD64)
 	set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")

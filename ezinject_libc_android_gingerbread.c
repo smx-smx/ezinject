@@ -65,7 +65,6 @@ int linker_find_sections(struct gb_linker_ctx *ctx){
 
 	// get strtab
 	Elf32_Shdr *strtab = &sec[hdr->e_shstrndx];
-	
 	Elf32_Shdr *symtab = NULL;
 	for(int i=0; i<hdr->e_shnum; i++){
 		char *name = CAST(char *, UPTR(ctx->mem) + strtab->sh_offset + sec[i].sh_name);
@@ -135,23 +134,41 @@ int resolve_libc_symbols_android10(struct ezinj_ctx *ctx){
 	};
 	DBGPTR(linker.local);
 	DBGPTR(linker.remote);
+	if(!linker.local || !linker.remote){
+		ERR("Cannot find linker " DYN_LINKER_NAME);
+		return -1;
+	}
 
 	struct gb_linker_ctx linker_ctx;
 	memset(&linker_ctx, 0x00, sizeof(linker_ctx));
 
-	if(
-		!load_linker(&linker_ctx) &&
-		!linker_find_sections(&linker_ctx) &&
-		!linker_find_symbols(&linker_ctx) &&
-		!unload_linker(&linker_ctx)
-	){
-		INFO("== SUCCESS");
+	if(!load_linker(&linker_ctx)){
+		ERR("Failed to open "DYN_LINKER_NAME);
+		return -1;
+	}
+
+	do {
+		if(!linker_find_sections(&linker_ctx)){
+			ERR("Failed to find linker sections in "DYN_LINKER_NAME);
+			break;
+		}
+		if(!linker_find_symbols(&linker_ctx)){
+			ERR("Failed to find linker symbols in "DYN_LINKER_NAME);
+			break;
+		}
+	} while(0);
+
+	if(!unload_linker(&linker_ctx)){
+		ERR("Failed to close "DYN_LINKER_NAME);
+		return -1;
 	}
 
 	ez_addr dlopen_addr = {
 		.local = PTRADD(linker.local, ctx->dlopen_offset),
 		.remote = PTRADD(linker.remote, ctx->dlopen_offset)
 	};
+	DBGPTR(dlopen_addr.local);
+	DBGPTR(dlopen_addr.remote);
 
 	// the real libdl is the linker (which holds the implementation of dl* symbols)
 	ctx->libdl = linker;
@@ -160,13 +177,19 @@ int resolve_libc_symbols_android10(struct ezinj_ctx *ctx){
 	ctx->dlopen_offset = linker_ctx.dlopen_offset;
 	ctx->dlclose_offset = linker_ctx.dlclose_offset;
 	ctx->dlsym_offset = linker_ctx.dlsym_offset;
+
+	DBG("dlopen_offset: 0x%0x", ctx->dlopen_offset);
+	DBG("dlclose_offset: 0x%0x", ctx->dlclose_offset);
+	DBG("dlsym_offset: 0x%0x", ctx->dlsym_offset);
 	return 0;
 }
 
 int resolve_libc_symbols(struct ezinj_ctx *ctx){
+	INFO("Trying new (Android 10) method");
 	if(resolve_libc_symbols_android10(ctx) == 0){
 		return 0;
 	}
+	INFO("Trying previous method");
 
 	/**
 	 * libdl.so is a fake library
@@ -184,6 +207,10 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	};
 	DBGPTR(linker.local);
 	DBGPTR(linker.remote);
+	if(!linker.local || !linker.remote){
+		ERR("Cannot find linker " DYN_LINKER_NAME);
+		return -1;
+	}
 
 	ez_addr linker_dlopen = sym_addr(libdl, "dlopen", linker);
 	ez_addr linker_dlclose = sym_addr(libdl, "dlclose", linker);

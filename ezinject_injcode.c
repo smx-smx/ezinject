@@ -71,8 +71,16 @@ INLINE uint64_t str64(uint64_t x){
 	}; \
 	br->libc_printf((char *)buf, ptr); \
 } while(0);
+INLINE void br_puts(struct injcode_bearing *br, char *str){
+	int l;
+	for(l=0; str[l] != 0x00; l++);
+	br->libc_syscall(__NR_write, STDOUT_FILENO, str, l);
+	char nl = '\n';
+	br->libc_syscall(__NR_write, STDOUT_FILENO, &nl, 1);
+}
 #else
 #define DBGPTR(ptr)
+INLINE void br_puts(struct injcode_bearing *br, char *str){}
 #endif
 
 #if defined(HAVE_LIBC_DLOPEN_MODE)
@@ -151,6 +159,7 @@ void injected_fn(struct injcode_bearing *br){
 			STRTBL_FETCH(stbl, userlib_name); // argv[0]
 		} while(0);
 
+		br_puts(br, libdl_name);
 		// just to make sure it's really loaded
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
 		DBGPTR(h_libdl);
@@ -163,6 +172,7 @@ void injected_fn(struct injcode_bearing *br){
 		{
 			had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
 
+			br_puts(br, libpthread_name);
 			h_pthread = dlopen(libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
 			if(!h_pthread){
 				PL_DBG('!');
@@ -195,6 +205,7 @@ void injected_fn(struct injcode_bearing *br){
 		// dlopen
 		PL_DBG('d');
 		{
+			br_puts(br, userlib_name);
 			br->userlib = dlopen(userlib_name, RTLD_NOW);
 			if(br->userlib == NULL){
 				PL_DBG('!');
