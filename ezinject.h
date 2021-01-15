@@ -2,25 +2,13 @@
 #define __EZINJECT_H
 
 #include "config.h"
-#include "ezinject_injcode.h"
 
 #include <stdint.h>
 #include <asm/ptrace.h>
 #include <sys/user.h>
 
-#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
-
-#ifndef HAVE_SHM_EXEC
-#define	SHM_EXEC	0100000	/* execution access */
-#endif
-
-#ifndef PTRACE_SETOPTIONS
-#define PTRACE_SETOPTIONS 0x4200
-#endif
-
-#ifndef PTRACE_O_TRACESYSGOOD
-#define PTRACE_O_TRACESYSGOOD 1
-#endif
+#include "ezinject_compat.h"
+#include "ezinject_injcode.h"
 
 #ifdef EZ_ARCH_MIPS
 // the bundled pt_regs definition is wrong (https://www.linux-mips.org/archives/linux-mips/2014-07/msg00443.html)
@@ -73,7 +61,6 @@ struct ezinj_ctx {
 	ez_addr syscall_insn;
 	ez_addr syscall_stack;
 	ez_addr libc_syscall;
-	ez_addr libc_semop;
 	ez_addr libc_dlopen;
 #ifdef DEBUG
 	ez_addr libc_printf;
@@ -103,8 +90,8 @@ struct ezinj_str {
 
 #define SC_HAS_ARG(sc, i) (sc.argmask & (1 << i))
 #define SC_GET_ARG(sc, i) (SC_HAS_ARG(sc, i) ? sc.argv[i] : 0)
-// nr, a0, a1, a2, a3
-#define SC_MAX_ARGS 5
+// nr, a0, a1, a2, a3, a4, a5, a6
+#define SC_MAX_ARGS 8
 
 struct sc_req {
 	unsigned int argmask;
@@ -117,4 +104,6 @@ struct call_req {
 	struct sc_req syscall;
 	int num_wait_calls;
 };
+
+ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 #endif

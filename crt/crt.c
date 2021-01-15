@@ -1,3 +1,5 @@
+#include "config.h"
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,20 +9,22 @@
 #include <sched.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <sys/sem.h>
+#ifdef HAVE_SYS_SHM_H
 #include <sys/shm.h>
+#endif
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <asm/unistd.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 
 #include <pthread.h>
-
 #include <dlfcn.h>
 
 #include "ezinject.h"
+#include "ezinject_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_injcode.h"
 
@@ -47,15 +51,6 @@ struct crt_params {
 static struct crt_params gParams;
 
 void* real_entry(void *arg);
-
-int sema_op(int sema, int idx, int op){
-	struct sembuf sem_op = {
-		.sem_num = idx,
-		.sem_op = op,
-		.sem_flg = 0
-	};
-	return semop(sema, &sem_op, 1);
-}
 
 int acquire_shm(key_t key, size_t size, void **ppMem){
 	int is_initial_attach = (size == 0);
@@ -121,11 +116,6 @@ __attribute__((constructor)) void ctor(void)
 
 	INFO("pid: %u", params->pid);
 
-	if((params->sema = semget(params->pid, 1, S_IRWXO)) < 0){
-		PERROR("semget");
-		return;
-	}
-
 	struct injcode_bearing *br;
 	if(acquire_shm(params->pid, 0, (void **)&br) != 0){
 		ERR("acquire_shm failed");
@@ -180,15 +170,21 @@ __attribute__((constructor)) void ctor(void)
 		PERROR("pthread_create");
 		return;
 	}
+
+	DBG("sending pthread signal");
+	pthread_mutex_lock(&br->mutex);
+	DBG("LOCK");
+	{
+		br->loaded_signal = 1;
+		DBG("SIGNAL");
+		pthread_cond_signal(&br->cond);
+		DBG("DONE");
+	}
+	DBG("UNLOCK");
+	pthread_mutex_unlock(&br->mutex);
+
 	if(shmdt(br) < 0){
 		PERROR("shmdt");
-		return;
-	}
-
-	// notify thread is ready to be awaited
-	DBG("semop");
-	if(sema_op(params->sema, EZ_SEM_LIBCTL, -1) < 0){
-		PERROR("semop");
 		return;
 	}
 }
@@ -205,9 +201,13 @@ void *real_entry(void *arg) {
 	char **dynPtr = &br->argv[0];
 	
 	char *stbl = BR_STRTBL(br);
+	// $TODO: place a marker to argv at the beginning instead
+
 	STRTBL_SKIP(stbl); // skip libdl.so name
 	STRTBL_SKIP(stbl); // skip libpthread.so name
-	STRTBL_SKIP(stbl); // skip "pthread_join"
+	// skip pthread API names
+	STRTBL_SKIP(stbl);STRTBL_SKIP(stbl);STRTBL_SKIP(stbl);
+	STRTBL_SKIP(stbl);STRTBL_SKIP(stbl);STRTBL_SKIP(stbl);
 
 	for(int i=0; i<br->argc; i++){
 		char *arg = NULL;

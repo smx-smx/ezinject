@@ -1,4 +1,6 @@
 #define _GNU_SOURCE
+#define EZINJECT_INJCODE
+
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -7,12 +9,14 @@
 #include <pthread.h>
 #include <link.h>
 #include <sys/stat.h>
-#include <sys/shm.h>
 #include <sys/wait.h>
 #include <sys/syscall.h>
 #include <sys/prctl.h>
 
 #include "config.h"
+
+#include "ezinject_compat.c"
+
 #include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
@@ -28,17 +32,6 @@
 #endif
 
 #define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
-
-//pl:x\n\0
-#ifdef DEBUG
-#define DBG(ch) do { \
-	const uint64_t str = str64(0x706C3A000A000000 | (((uint64_t)ch << 32) & 0xFF00000000)); \
-	br->libc_syscall(__NR_write, STDOUT_FILENO, &str, 5); \
-} while(0)
-
-#else
-#define DBG(ch)
-#endif
 
 void injected_code_start(void){}
 
@@ -70,96 +63,41 @@ INLINE uint64_t str64(uint64_t x){
 	#endif
 }
 
-INLINE int br_semget(struct injcode_bearing *br, key_t key, int nsems, int semflg){
-#ifdef HAVE_SHM_SYSCALLS
-	return br->libc_syscall(__NR_semget, key, nsems, semflg);
+#ifdef DEBUG
+#define DBGPTR(ptr) do { \
+	const uint64_t buf[2] = { \
+		str64(0x706C3A7074723A25), /* pl:ptr:% */ \
+		str64(0x700A000000000000)  /* p\n\0    */ \
+	}; \
+	br->libc_printf((char *)buf, ptr); \
+} while(0);
 #else
-	return br->libc_syscall(__NR_ipc, IPCCALL(0, SEMGET), key, nsems, semflg);
-#endif
-}
-
-INLINE int br_semop(struct injcode_bearing *br, int sema, int idx, int op){
-	struct sembuf sem_op = {
-		.sem_num = idx,
-		.sem_op = op,
-		.sem_flg = 0
-	};
-	return br->libc_semop( sema, &sem_op, 1);
-}
-
-#ifdef HAVE_LIBC_DLOPEN_MODE
-INLINE void *get_libdl(struct injcode_bearing *br){
-	char *libdl_name = STR_DATA(BR_STRTBL(br));
-	struct link_map *libdl = (struct link_map *) br->libc_dlopen(libdl_name, RTLD_NOW | __RTLD_DLOPEN);
-	return (void *)libdl->l_addr;
-}
+#define DBGPTR(ptr)
 #endif
 
-#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
-INLINE void *memset(void *s, int c, unsigned int n){
-    unsigned char* p=s;
-    while(n--){
-        *p++ = (unsigned char)c;
-	}
-    return s;
-}
-
-INLINE void *get_libdl(struct injcode_bearing *br){
-    char *libdl_name = STR_DATA(BR_STRTBL(br));
-
-	struct elf_resolve_hdr *tpnt;
-
-	struct dyn_elf *rpnt;
-	for (rpnt = *(br->uclibc_sym_tables); rpnt && rpnt->next; rpnt = rpnt->next){
-		continue;
-	}
-
-	tpnt = br->libc_dlopen(0, &rpnt, NULL, libdl_name, 0);
-	if(tpnt == NULL){
-		return NULL;
-	}
-
-#ifdef EZ_ARCH_MIPS
-	br->uclibc_mips_got_reloc(tpnt, 0);
-#endif
-
-#ifndef UCLIBC_OLD
-#define GDB_SHARED_SIZE (5 * sizeof(void *))
-#define SYMBOL_SCOPE_OFFSET (10 * sizeof(void *))
-	struct r_scope_elem *global_scope = (struct r_scope_elem *)(
-		(uintptr_t)*(br->uclibc_loaded_modules) + GDB_SHARED_SIZE +
-		SYMBOL_SCOPE_OFFSET
-	);
-#endif
-
-	struct dyn_elf dyn;
-	memset(&dyn, 0x00, sizeof(dyn));
-	dyn.dyn = tpnt;
-
-	/**
-	  * FIXME: we are not handling init/fini arrays
- 	  * This means the call will likely warn about 'dl_cleanup' being unresolved, but it will work anyways.
- 	  * -- symbol 'dl_cleanup': can't resolve symbol
- 	  */
-#ifdef UCLIBC_OLD
-	br->uclibc_dl_fixup(&dyn, RTLD_NOW);
+#if defined(HAVE_LIBC_DLOPEN_MODE)
+#include "ezinject_injcode_glibc.c"
+#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
+#include "ezinject_injcode_uclibc.c"
 #else
-	br->uclibc_dl_fixup(&dyn, global_scope, RTLD_NOW);
-#endif
-
-	return (void *)tpnt->loadaddr;
+INLINE void *get_libdl(struct injcode_bearing *br){
+	return br->libdl_handle;
 }
 #endif
 
 void injected_fn(struct injcode_bearing *br){
-	int sema = -1;
-
 	void *h_pthread = NULL;
 	int had_pthread = 0;
 
 	void *(*dlopen)(const char *filename, int flag) = NULL;
 	void *(*dlsym)(void *handle, const char *symbol) = NULL;
 	int (*dlclose)(void *handle) = NULL;
+
+	int (*pthread_mutex_init)(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr) = NULL;
+	int (*pthread_mutex_lock)(pthread_mutex_t *mutex) = NULL;
+	int (*pthread_mutex_unlock)(pthread_mutex_t *mutex) = NULL;
+	int (*pthread_cond_init)(pthread_cond_t *cond, const pthread_condattr_t *attr) = NULL;
+	int (*pthread_cond_wait)(pthread_cond_t *restrict cond, pthread_mutex_t *restrict mutex) = NULL;
 	int (*pthread_join)(pthread_t thread, void **retval) = NULL;
 
 	int signal = SIGTRAP;
@@ -171,30 +109,16 @@ void injected_fn(struct injcode_bearing *br){
 		}
 
 		// entry
-		DBG('e');
-
-		// acquire semaphores
-		DBG('s');
-		{
-			pid_t pid = br->libc_syscall(__NR_getpid);
-			sema = br_semget(br, pid, 1, 0);
-			if(sema < 0){
-				DBG('!');
-				break;
-			}
-
-			// initialize signal
-			br_semop(br, sema, EZ_SEM_LIBCTL, 1);
-		}
+		PL_DBG('e');
 
 		void *libdl_handle = br->libdl_handle;
 		// acquire libdl
 		if(libdl_handle == NULL){
-			DBG('l');
+			PL_DBG('l');
 			{
 				libdl_handle = get_libdl(br);
 				if(libdl_handle == NULL){
-					DBG('!');
+					PL_DBG('!');
 					break;
 				}
 			}
@@ -202,76 +126,101 @@ void injected_fn(struct injcode_bearing *br){
 		dlopen = (void *)PTRADD(libdl_handle, br->dlopen_offset);
 		dlclose = (void *)PTRADD(libdl_handle, br->dlclose_offset);
 		dlsym = (void *)PTRADD(libdl_handle, br->dlsym_offset);
+		DBGPTR(libdl_handle);
 
 		char *libdl_name = NULL;
 		char *libpthread_name = NULL;
-		char *sym_pthread_join = NULL;
 		char *userlib_name = NULL;
 
+		char *sym_pthread_mutex_init = NULL;
+		char *sym_pthread_mutex_lock = NULL;
+		char *sym_pthread_mutex_unlock = NULL;
+		char *sym_pthread_cond_init = NULL;
+		char *sym_pthread_cond_wait = NULL;
+		char *sym_pthread_join = NULL;
 		do {
 			char *stbl = BR_STRTBL(br);
 			STRTBL_FETCH(stbl, libdl_name);
 			STRTBL_FETCH(stbl, libpthread_name);
+			STRTBL_FETCH(stbl, sym_pthread_mutex_init);
+			STRTBL_FETCH(stbl, sym_pthread_mutex_lock);
+			STRTBL_FETCH(stbl, sym_pthread_mutex_unlock);
+			STRTBL_FETCH(stbl, sym_pthread_cond_init);
+			STRTBL_FETCH(stbl, sym_pthread_cond_wait);
 			STRTBL_FETCH(stbl, sym_pthread_join);
-			STRTBL_FETCH(stbl, userlib_name);
+			STRTBL_FETCH(stbl, userlib_name); // argv[0]
 		} while(0);
-
 
 		// just to make sure it's really loaded
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
+		DBGPTR(h_libdl);
 		if(h_libdl == NULL){
 			dlopen(libdl_name, RTLD_NOW | RTLD_GLOBAL);
 		}
 
 		// acquire libpthread
-		DBG('p');
+		PL_DBG('p');
 		{
 			had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
 
 			h_pthread = dlopen(libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
 			if(!h_pthread){
-				DBG('!');
+				PL_DBG('!');
+				PL_DBG('1');
 				break;
 			}
 
+			pthread_mutex_init = dlsym(h_pthread, sym_pthread_mutex_init);
+			pthread_mutex_lock = dlsym(h_pthread, sym_pthread_mutex_lock);
+			pthread_mutex_unlock = dlsym(h_pthread, sym_pthread_mutex_unlock);
+			pthread_cond_init = dlsym(h_pthread, sym_pthread_cond_init);
+			pthread_cond_wait = dlsym(h_pthread, sym_pthread_cond_wait);
 			pthread_join = dlsym(h_pthread, sym_pthread_join);
-			if(!pthread_join){
-				DBG('!');
+
+			if(!pthread_mutex_init || !pthread_mutex_lock
+			|| !pthread_mutex_unlock || !pthread_cond_init
+			|| !pthread_cond_wait || !pthread_join
+			){
+				PL_DBG('!');
+				PL_DBG('2');
 				break;
 			}
 		}
 
+		// initialize signal
+		PL_DBG('s');
+		pthread_mutex_init(&br->mutex, 0);
+		pthread_cond_init(&br->cond, 0);
+
 		// dlopen
-		DBG('d');
+		PL_DBG('d');
 		{
 			br->userlib = dlopen(userlib_name, RTLD_NOW);
 			if(br->userlib == NULL){
-				DBG('!');
+				PL_DBG('!');
 				break;
 			}
 
-			#ifdef DEBUG
-			const uint64_t buf[2] = {
-				str64(0x706C3A757365726C), //pl:userl
-				str64(0x69623A25700A0000)  //ib:%p\n\0
-			};
-			br->libc_printf((char *)buf, br->userlib);
-			#endif
+			DBGPTR(br->userlib);
 		}
 
 		// wait for the thread to notify us
-		DBG('w');
-		br_semop(br, sema, EZ_SEM_LIBCTL, 0);
+		PL_DBG('w');
+		pthread_mutex_lock(&br->mutex);
+		while(!br->loaded_signal){
+			pthread_cond_wait(&br->cond, &br->mutex);
+		}
+		pthread_mutex_unlock(&br->mutex);
 
 		void *result;
 
 		// wait for user thread to die
-		DBG('j');
+		PL_DBG('j');
 		pthread_join(br->user_tid, &result);
 
 		if((enum userlib_return_action)result != userlib_persist){
 			// cleanup
-			DBG('c');
+			PL_DBG('c');
 			{
 				/**
 				 * NOTE: uclibc old might trigger segfaults in the user library while doing this (sigh)
@@ -291,7 +240,7 @@ void injected_fn(struct injcode_bearing *br){
 
 
 	// bye
-	DBG('b');
+	PL_DBG('b');
 
 	// awake ptrace
 	// success: SIGSTOP

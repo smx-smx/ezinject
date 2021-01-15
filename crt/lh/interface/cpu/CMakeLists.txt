@@ -1,5 +1,4 @@
 add_library(lh_ifcpu cpu_common.c)
-target_link_libraries(lh_ifcpu util)
 set_target_properties(lh_ifcpu PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(EZ_ARCH_ARM)
