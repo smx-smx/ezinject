@@ -68,9 +68,9 @@ endif()
 
 find_library(C_LIBRARY
 	NAMES
-		libc.so
-		libc.so.0
 		libc.so.6
+		libc.so.0
+		libc.so
 	REQUIRED
 )
 get_filename_component(C_LIBRARY_NAME "${C_LIBRARY}" NAME)
