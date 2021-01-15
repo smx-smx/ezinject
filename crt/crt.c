@@ -173,14 +173,10 @@ __attribute__((constructor)) void ctor(void)
 
 	DBG("sending pthread signal");
 	pthread_mutex_lock(&br->mutex);
-	DBG("LOCK");
 	{
 		br->loaded_signal = 1;
-		DBG("SIGNAL");
 		pthread_cond_signal(&br->cond);
-		DBG("DONE");
 	}
-	DBG("UNLOCK");
 	pthread_mutex_unlock(&br->mutex);
 
 	if(shmdt(br) < 0){
