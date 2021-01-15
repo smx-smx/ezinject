@@ -137,12 +137,14 @@ void injected_fn(struct injcode_bearing *br){
 		// entry
 		PL_DBG('e');
 
+#if 0
 		// acquire semaphores
 		PL_DBG('s');
 		if((sema = inj_get_sema(br)) < 0){
 			PL_DBG('!');
 			break;
 		}
+#endif
 
 		void *libdl_handle = br->libdl_handle;
 		// acquire libdl
@@ -215,7 +217,9 @@ void injected_fn(struct injcode_bearing *br){
 
 		// wait for the thread to notify us
 		PL_DBG('w');
+		#if 0
 		br_semop(br, sema, EZ_SEM_LIBCTL, 0);
+		#endif
 
 		void *result;
 

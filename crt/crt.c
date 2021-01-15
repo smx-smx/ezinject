@@ -128,10 +128,12 @@ __attribute__((constructor)) void ctor(void)
 
 	INFO("pid: %u", params->pid);
 
+#if 0
 	if((params->sema = semget(params->pid, 1, S_IRWXO)) < 0){
 		PERROR("semget");
 		return;
 	}
+#endif
 
 	struct injcode_bearing *br;
 	if(acquire_shm(params->pid, 0, (void **)&br) != 0){
@@ -192,12 +194,14 @@ __attribute__((constructor)) void ctor(void)
 		return;
 	}
 
+#if 0
 	// notify thread is ready to be awaited
 	DBG("semop");
 	if(sema_op(params->sema, EZ_SEM_LIBCTL, -1) < 0){
 		PERROR("semop");
 		return;
 	}
+#endif
 }
 
 

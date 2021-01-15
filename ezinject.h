@@ -91,8 +91,8 @@ struct ezinj_str {
 
 #define SC_HAS_ARG(sc, i) (sc.argmask & (1 << i))
 #define SC_GET_ARG(sc, i) (SC_HAS_ARG(sc, i) ? sc.argv[i] : 0)
-// nr, a0, a1, a2, a3
-#define SC_MAX_ARGS 5
+// nr, a0, a1, a2, a3, a4, a5, a6
+#define SC_MAX_ARGS 8
 
 struct sc_req {
 	unsigned int argmask;

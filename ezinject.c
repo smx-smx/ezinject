@@ -34,6 +34,11 @@
 #include <asm-generic/ipc.h>
 #endif
 
+#ifdef EZ_TARGET_ANDROID
+#include <sys/socket.h>
+#include <sys/un.h>
+#endif
+
 #include "util.h"
 #include "ezinject.h"
 #include "ezinject_common.h"
@@ -80,6 +85,12 @@ void setregs_syscall(
 		REG(*new_ctx, REG_ARG2) = sc.argv[2];
 		REG(*new_ctx, REG_ARG3) = sc.argv[3];
 		REG(*new_ctx, REG_ARG4) = sc.argv[4];
+		#ifdef REG_ARG5
+		REG(*new_ctx, REG_ARG5) = sc.argv[5];
+		#endif
+		#ifdef REG_ARG6
+		REG(*new_ctx, REG_ARG6) = sc.argv[6];
+		#endif
 
 		DBG("remote_call(%u)", (unsigned int)sc.argv[0]);
 	}
@@ -105,6 +116,26 @@ void remote_call_setup(pid_t target, struct call_req call, regs_t *orig_ctx, reg
 
 	setregs_syscall(orig_ctx, new_ctx, call);
 	ptrace(PTRACE_SETREGS, target, 0, new_ctx);
+}
+
+size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
+	uintptr_t *destWords = (uintptr_t *)dest;
+	
+	size_t read;
+	for(read=0; read < size; read+=sizeof(uintptr_t), destWords++){
+		*destWords = (uintptr_t)ptrace(PTRACE_PEEKTEXT, ctx->target, source + read, 0);
+	}
+	return read;
+}
+
+size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
+	uintptr_t *sourceWords = (uintptr_t *)source;
+	
+	size_t written;
+	for(written=0; written < size; written+=sizeof(uintptr_t), sourceWords++){
+		ptrace(PTRACE_POKETEXT, ctx->target, dest + written, *sourceWords);
+	}
+	return written;
 }
 
 int remote_wait(pid_t target){
@@ -505,11 +536,13 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	}
 	ctx->mapped_mem.local = (uintptr_t)mapped_mem;
 
+#ifndef EZ_TARGET_ANDROID
 	if((sem_id = semget(ctx->target, 1, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
 		perror("semget");
 		return 1;
 	}
 	ctx->sem_id = sem_id;
+#endif
 
 	*allocated_size = mapping_size;
 
@@ -545,6 +578,8 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 #define SC_2ARGS ARGMASK(SC_1ARGS, 2)
 #define SC_3ARGS ARGMASK(SC_2ARGS, 3)
 #define SC_4ARGS ARGMASK(SC_3ARGS, 4)
+#define SC_5ARGS ARGMASK(SC_4ARGS, 5)
+#define SC_6ARGS ARGMASK(SC_5ARGS, 6)
 
 // Remote System Call
 #define FAILED(result) ((signed int)(result) < 0)
@@ -553,8 +588,11 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 #define RSCALL2(ctx,nr,a1,a2)         __RCALL_SC(ctx,nr,SC_2ARGS,UPTR(a1),UPTR(a2))
 #define RSCALL3(ctx,nr,a1,a2,a3)      __RCALL_SC(ctx,nr,SC_3ARGS,UPTR(a1),UPTR(a2),UPTR(a3))
 #define RSCALL4(ctx,nr,a1,a2,a3,a4)   __RCALL_SC(ctx,nr,SC_4ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
+#define RSCALL5(ctx,nr,a1,a2,a3,a4,a5) __RCALL_SC(ctx,nr,SC_5ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5))
+#define RSCALL6(ctx,nr,a1,a2,a3,a4,a5,a6) __RCALL_SC(ctx,nr,SC_6ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5),UPTR(a6))
 
 void cleanup_ipc(struct ezinj_ctx *ctx){
+	#ifndef EZ_TARGET_ANDROID
 	if(ctx->sem_id > -1){
 		if(semctl(ctx->sem_id, IPC_RMID, 0) < 0){
 			PERROR("semctl (IPC_RMID)");
@@ -562,6 +600,7 @@ void cleanup_ipc(struct ezinj_ctx *ctx){
 			ctx->sem_id = -1;
 		}
 	}
+	#endif
 	if(ctx->mapped_mem.local != 0){
 		if(shmdt((void *)ctx->mapped_mem.local) < 0){
 			PERROR("shmdt");
@@ -583,10 +622,77 @@ void sigint_handler(int signum){
 	cleanup_ipc(&ctx);
 }
 
+#ifdef EZ_TARGET_ANDROID
+#include "ezinject_android.c"
+#endif
+
+uintptr_t remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int shmflg){
+	uintptr_t remote_shm_ptr = 0;
+	#ifdef HAVE_SHM_SYSCALLS
+		remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, shm_id, shmaddr, shmflg));
+	#else
+		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_WRITE | PROT_EXEC));
+		/**
+		 * Calling convention for shmat in sys_ipc()
+		 * arg0 - IPCCALL(0, SHMAT)    specifies version 0 of the call format (1 is apparently "iBCS2 emulator")
+		 * arg1 - shmat: id
+		 * arg2 - shmat: flags
+		 * arg3 - pointer to memory that will hold the resulting shmaddr
+		 * arg4 [VIA STACK] - shmat: shmaddr (we want this to be 0 to let the kernel pick a free region)
+		 *
+		 * Return: 0 on success, nonzero on error
+		 * Stack layout: arguments start from offset 16 on Mips O32
+		 *
+		 * We pass shmaddr as arg3 aswell, so that 0 is used as shmaddr and is replaced with the new addr
+		 **/
+		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, shmflg, codeBase + 4));
+		remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, target, codeBase + 4);
+		DBGPTR(remote_shm_ptr);
+		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_EXEC));
+	#endif
+	INFO("shmat => %p", (void *)remote_shm_ptr);
+	return remote_shm_ptr;
+}
+
+int remote_shmdt(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
+	int result = -1;
+	#ifdef HAVE_SHM_SYSCALLS
+		result = (int) CHECK(RSCALL1(ctx, __NR_shmdt, remote_shmaddr));
+	#else
+		// skip syscall instruction and apply stack offset (see note about sys_ipc)
+		ctx->syscall_stack.remote = codeBase + 4 - 16;
+		result = (int) CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, codeBase + 4));
+	#endif
+	return result;
+}
+
+void print_maps(){
+	pid_t pid = syscall(__NR_getpid);
+	char *path;
+	asprintf(&path, "/proc/%u/maps", pid);
+	do {
+		FILE *fh = fopen(path, "r");
+		if(!fh){
+			return;
+		}
+		
+		char line[256];
+		while(!feof(fh)){
+			fgets(line, sizeof(line), fh);
+			fputs(line, stdout);
+		}
+		fclose(fh);
+	} while(0);
+	free(path);
+}
+
 int ezinject_main(
 	struct ezinj_ctx *ctx,
 	int argc, char *argv[]
 ){
+	print_maps();
+	fflush(stdout);
+
 	uintptr_t codeBase = get_code_base(ctx->target);
 	if(codeBase == 0){
 		ERR("Could not obtain code base");
@@ -636,31 +742,16 @@ int ezinject_main(
 
 	int err = 1;
 	do {
-
-#ifdef HAVE_SHM_SYSCALLS
-		uintptr_t remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, ctx->shm_id, NULL, SHM_EXEC));
-		INFO("shmat => %p", (void *)remote_shm_ptr);
-#else
-
-		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_WRITE | PROT_EXEC));
-		/**
-		 * Calling convention for shmat in sys_ipc()
-		 * arg0 - IPCCALL(0, SHMAT)    specifies version 0 of the call format (1 is apparently "iBCS2 emulator")
-		 * arg1 - shmat: id
-		 * arg2 - shmat: flags
-		 * arg3 - pointer to memory that will hold the resulting shmaddr
-		 * arg4 [VIA STACK] - shmat: shmaddr (we want this to be 0 to let the kernel pick a free region)
-		 *
-		 * Return: 0 on success, nonzero on error
-		 * Stack layout: arguments start from offset 16 on Mips O32
-		 *
-		 * We pass shmaddr as arg3 aswell, so that 0 is used as shmaddr and is replaced with the new addr
-		 **/
-		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), ctx->shm_id, SHM_EXEC, codeBase + 4));
-		uintptr_t remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, ctx->target, codeBase + 4);
-		DBGPTR(remote_shm_ptr);
-		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_EXEC));
-#endif
+		uintptr_t remote_shm_ptr = 0;
+		#ifdef EZ_TARGET_ANDROID
+		remote_shm_ptr = remote_shmat_android(
+			ctx, ctx->shm_id, NULL,
+			SHM_EXEC,
+			br->mapping_size
+		);
+		#else
+		remote_shm_ptr = remote_shmat(ctx, ctx->shm_id, NULL, SHM_EXEC);
+		#endif
 		if(remote_shm_ptr == (uintptr_t)MAP_FAILED || remote_shm_ptr == 0){
 			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
 			break;
@@ -703,7 +794,10 @@ int ezinject_main(
 		if(msync((void *)ctx->mapped_mem.local, SIZEOF_BR(*br), MS_SYNC|MS_INVALIDATE) < 0){
 			PERROR("msync");
 		}
+
+#ifndef EZ_TARGET_ANDROID
 		CHECK(RSCALL3(ctx, __NR_madvise, remote_shm_ptr, SIZEOF_BR(*br), MADV_SEQUENTIAL | MADV_WILLNEED));
+#endif
 		// some broken kernels don't actually do this immediately (cache issue?)
 #if defined(EZ_ARCH_ARM) || defined(EZ_ARCH_MIPS)
 		usleep(50000);
@@ -725,13 +819,7 @@ int ezinject_main(
 		ctx->num_wait_calls = 1;
 		ctx->syscall_stack.remote = 0;
 
-#ifdef HAVE_SHM_SYSCALLS
-		CHECK(RSCALL1(ctx, __NR_shmdt, remote_shm_ptr));
-#else
-		// skip syscall instruction and apply stack offset (see note about sys_ipc)
-		ctx->syscall_stack.remote = codeBase + 4 - 16;
-		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, codeBase + 4));
-#endif
+		remote_shmdt(ctx, remote_shm_ptr);
 
 		{ //restore ELF header
 			uintptr_t *pWordsOut = (uintptr_t *)&dataBak;
@@ -815,6 +903,8 @@ int main(int argc, char *argv[]){
 		}
 		return err;
 	}
+
+	getchar();
 
 	cleanup_ipc(&ctx);
 	return err;

@@ -106,7 +106,7 @@ check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
 check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
 check_symbol_exists("__ANDROID__" "" EZ_TARGET_ANDROID)
 
-if(NOT HAVE_SHM_SYSCALLS AND NOT HAVE_SC_IPC)
+if(NOT HAVE_SHM_SYSCALLS AND NOT HAVE_SC_IPC AND NOT USE_ANDROID_ASHMEM)
 	message(FATAL_ERROR "Unsupported system")
 endif()
 
@@ -162,6 +162,9 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	elseif(EZ_LIBC_VARIANT STREQUAL "android-5")
 		# android 5+ requires -fPIE
 		set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+	elseif(EZ_LIBC_VARIANT STREQUAL "android-10")
+		set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+		set(DYN_LINKER_NAME "/apex/com.android.runtime/bin/linker")
 	else()
 		message(FATAL_ERROR "Unsupported libc variant ${EZ_LIBC_VARIANT}")
 	endif()
@@ -199,7 +202,7 @@ function(add_ezinject_library target)
 	set(sources "${LIB_SOURCES}")
 
 	list(APPEND sources
-		${CMAKE_SOURCE_DIR}/ezinject_compat.c
+		#${CMAKE_SOURCE_DIR}/ezinject_compat.c
 		${CMAKE_SOURCE_DIR}/crt/crt.c
 		${CMAKE_SOURCE_DIR}/crt/crt_user.c
 		${CMAKE_SOURCE_DIR}/util.c
@@ -230,10 +233,13 @@ function(add_ezinject_library target)
 			lh_hook_linux
 		)
 	endif()
-endfunction()
 
-add_subdirectory(crt)
-add_subdirectory(samples)
+	if(EZ_TARGET_ANDROID)
+		target_link_options(${target} PUBLIC
+			-Wl,--whole-archive $<TARGET_FILE:ashmem> -Wl,--no-whole-archive
+		)
+	endif()
+endfunction()
 
 set(ezinject_sources
 	ezinject.c
@@ -241,8 +247,10 @@ set(ezinject_sources
 	util.c
 )
 
-if(NOT HAVE_SYS_SEM_H OR NOT HAVE_SYS_SHM_H)
-	list(APPEND ezinject_sources ezinject_compat.c)
+if(NOT EZ_TARGET_ANDROID)
+	if(NOT HAVE_SYS_SEM_H OR NOT HAVE_SYS_SHM_H)
+		list(APPEND ezinject_sources ezinject_compat.c)
+	endif()
 endif()
 
 if(HAVE_LIBC_DLOPEN_MODE)
@@ -268,3 +276,12 @@ endif()
 set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-Os -fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 target_link_libraries(ezinject dl)
 
+if(EZ_TARGET_ANDROID)
+	add_subdirectory(staging/android-shmem)
+	target_link_options(ezinject PUBLIC
+		-Wl,--whole-archive $<TARGET_FILE:ashmem> -Wl,--no-whole-archive
+	)
+endif()
+
+add_subdirectory(crt)
+add_subdirectory(samples)

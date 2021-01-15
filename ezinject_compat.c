@@ -19,11 +19,23 @@
 #define PL_DBG
 #endif
 
+#ifdef USE_ANDROID_ASHMEM
+#include "ashmem.h"
+#endif
+
+#ifndef EZINJECT_INJCODE
+int ashmem_create_region(key_t key, size_t size, int shmflg);
+#endif
+
 INLINE int shmget(BR_PARAM key_t key, size_t size, int shmflg){
-	#ifdef HAVE_SHM_SYSCALLS
-	return SYSCALL(__NR_shmget, key, size, shmflg);
+	#if !defined(EZINJECT_INJCODE) && defined(USE_ANDROID_ASHMEM)
+	 return ashmem_create_region(key, size, shmflg);
 	#else
-	return SYSCALL(__NR_ipc, IPCCALL(0, SHMGET), key, size, fhmflg)
+	 #if defined(HAVE_SHM_SYSCALLS)
+	 return SYSCALL(__NR_shmget, key, size, shmflg);
+	 #else
+	 return SYSCALL(__NR_ipc, IPCCALL(0, SHMGET), key, size, fhmflg)
+	 #endif
 	#endif
 }
 
@@ -184,5 +196,44 @@ int shmctl(int id, int cmd, struct shmid_ds *buf) {
 #endif
 	return r;
 }
+
+
+#ifdef USE_ANDROID_ASHMEM
+#include <string.h>
+#include <fcntl.h>
+#define ASHMEM_DEVICE	"/dev/ashmem"
+
+int ashmem_create_region(key_t key, size_t size, int shmflg){
+	char name[12];
+	snprintf(name, sizeof(name), "%d", key);
+
+	int fd = open(ASHMEM_DEVICE, O_RDWR);
+	if (fd < 0){
+		return fd;
+	}
+
+	int ret;
+	do {
+		ret = ioctl(fd, ASHMEM_SET_NAME, name);
+		if(ret < 0){
+			break;
+		}
+
+		ret = ioctl(fd, ASHMEM_SET_SIZE, size);
+	} while(0);
+
+
+	close(fd);
+	return ret;
+}
+int ashmem_pin_region(int fd, size_t offset, size_t len) {
+	struct ashmem_pin pin = { offset, len };
+	return ioctl(fd, ASHMEM_PIN, &pin);
+}
+int ashmem_unpin_region(int fd, size_t offset, size_t len) {
+	struct ashmem_pin pin = { offset, len };
+	return ioctl(fd, ASHMEM_UNPIN, &pin);
+}
+#endif
 
 #endif
