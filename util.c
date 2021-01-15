@@ -96,8 +96,10 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 	int val;
 	do
 	{
-		if(!fgets(line, 256, fp))
+		if(!fgets(line, 256, fp)){
 			break;
+		}
+
 		strcpy(path, "[anonymous]");
 		val = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
 		
@@ -107,6 +109,7 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 		if((sub=strstr(path, substr)) != NULL){
 			/** check if this match should be ignored **/
 			bool skip = false;
+
 			if(ignores != NULL){
 				char **sptr = ignores;
 				while(*sptr != NULL){
@@ -116,9 +119,13 @@ void *get_base(pid_t pid, char *substr, char **ignores)
 					}
 				}
 			}
+
+			if(strchr(perms, 'x') == NULL){
+				continue;
+			}
 			
 			if(skip){
-				break;
+				continue;
 			}
 
 			sub += sublen;
