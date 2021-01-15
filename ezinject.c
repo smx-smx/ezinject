@@ -413,6 +413,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 	struct ezinj_str args[num_strings];
 	int argi = 0;
+	off_t argv_offset = 0;
 
 #define PUSH_STRING(str) do { \
 	args[argi] = ezstr_new(str); \
@@ -439,6 +440,8 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 		PERROR("realpath");
 		return NULL;
 	}
+
+	argv_offset = dyn_str_size;
 	PUSH_STRING(libName);
 
 	// user arguments
@@ -496,6 +499,8 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 	br->argc = argc;
 	br->dyn_size = dyn_total_size;
+	br->num_strings = num_strings;
+	br->argv_offset = argv_offset;
 
 	char *stringData = (char *)br + sizeof(*br) + dyn_ptr_size;
 	for(int i=0; i<num_strings; i++){

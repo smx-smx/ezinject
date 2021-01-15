@@ -121,6 +121,8 @@ struct injcode_bearing
 	pthread_cond_t cond;
 	uint8_t loaded_signal;
 	struct injcode_user user;
+	int num_strings;
+	off_t argv_offset;
 	int argc;
 	int dyn_size;
 	char *argv[];

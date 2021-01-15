@@ -200,15 +200,7 @@ void *real_entry(void *arg) {
 	// prepare argv
 	char **dynPtr = &br->argv[0];
 	
-	char *stbl = BR_STRTBL(br);
-	// $TODO: place a marker to argv at the beginning instead
-
-	STRTBL_SKIP(stbl); // skip libdl.so name
-	STRTBL_SKIP(stbl); // skip libpthread.so name
-	// skip pthread API names
-	STRTBL_SKIP(stbl);STRTBL_SKIP(stbl);STRTBL_SKIP(stbl);
-	STRTBL_SKIP(stbl);STRTBL_SKIP(stbl);STRTBL_SKIP(stbl);
-
+	char *stbl = BR_STRTBL(br) + br->argv_offset;
 	for(int i=0; i<br->argc; i++){
 		char *arg = NULL;
 		STRTBL_FETCH(stbl, arg);
