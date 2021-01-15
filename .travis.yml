@@ -1,6 +1,7 @@
 language: c
-os:
-  - linux
+dist: focal
+os: linux
+
 compiler:
   - gcc
 script:
