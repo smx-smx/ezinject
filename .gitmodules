@@ -1,0 +1,3 @@
+[submodule "android-shmem"]
+	path = android-shmem
+	url = https://github.com/smx-smx/android-shmem.git

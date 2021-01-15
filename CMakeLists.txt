@@ -277,7 +277,7 @@ set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-Os -fn
 target_link_libraries(ezinject dl)
 
 if(EZ_TARGET_ANDROID)
-	add_subdirectory(staging/android-shmem)
+	add_subdirectory(android-shmem)
 	target_link_options(ezinject PUBLIC
 		-Wl,--whole-archive $<TARGET_FILE:ashmem> -Wl,--no-whole-archive
 	)
