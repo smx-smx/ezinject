@@ -117,10 +117,12 @@ struct injcode_bearing
 	// libdl base address, if already loaded
 	void *libdl_handle;
 	long (*libc_syscall)(long number, ...);
-	int (*libc_semop)(int semid, struct sembuf *sops, size_t nsops);
 #ifdef DEBUG
 	int (*libc_printf)(const char *format, ...);
 #endif
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
+	uint8_t loaded_signal;
 	struct injcode_user user;
 	int argc;
 	int dyn_size;

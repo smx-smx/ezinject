@@ -61,7 +61,6 @@ struct ezinj_ctx {
 	ez_addr syscall_insn;
 	ez_addr syscall_stack;
 	ez_addr libc_syscall;
-	ez_addr libc_semop;
 	ez_addr libc_dlopen;
 #ifdef DEBUG
 	ez_addr libc_printf;

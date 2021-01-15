@@ -75,21 +75,6 @@ INLINE uint64_t str64(uint64_t x){
 #define DBGPTR(ptr)
 #endif
 
-INLINE int br_semop(struct injcode_bearing *br, int sema, int idx, int op){
-	struct sembuf sem_op = {
-		.sem_num = idx,
-		.sem_op = op,
-		.sem_flg = 0
-	};
-	// prefer libc semop, if available
-	if(br->libc_semop != NULL){
-		return br->libc_semop(sema, &sem_op, 1);
-	}
-
-	// use built-in compatibility semop
-	return semop(br, sema, &sem_op, 1);
-}
-
 #if defined(HAVE_LIBC_DLOPEN_MODE)
 #include "ezinject_injcode_glibc.c"
 #elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
@@ -100,30 +85,19 @@ INLINE void *get_libdl(struct injcode_bearing *br){
 }
 #endif
 
-INLINE int inj_get_sema(struct injcode_bearing *br){
-	pid_t pid = br->libc_syscall(__NR_getpid);
-	int sema = semget(br, pid, 1, 0);
-	if(sema < 0){
-		return sema;
-	}
-
-	// initialize signal
-	int rc = br_semop(br, sema, EZ_SEM_LIBCTL, 1);
-	if(rc < 0){
-		return rc;
-	}
-	return sema;
-}
-
 void injected_fn(struct injcode_bearing *br){
-	int sema = -1;
-
 	void *h_pthread = NULL;
 	int had_pthread = 0;
 
 	void *(*dlopen)(const char *filename, int flag) = NULL;
 	void *(*dlsym)(void *handle, const char *symbol) = NULL;
 	int (*dlclose)(void *handle) = NULL;
+
+	int (*pthread_mutex_init)(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr) = NULL;
+	int (*pthread_mutex_lock)(pthread_mutex_t *mutex) = NULL;
+	int (*pthread_mutex_unlock)(pthread_mutex_t *mutex) = NULL;
+	int (*pthread_cond_init)(pthread_cond_t *cond, const pthread_condattr_t *attr) = NULL;
+	int (*pthread_cond_wait)(pthread_cond_t *restrict cond, pthread_mutex_t *restrict mutex) = NULL;
 	int (*pthread_join)(pthread_t thread, void **retval) = NULL;
 
 	int signal = SIGTRAP;
@@ -136,15 +110,6 @@ void injected_fn(struct injcode_bearing *br){
 
 		// entry
 		PL_DBG('e');
-
-#if 0
-		// acquire semaphores
-		PL_DBG('s');
-		if((sema = inj_get_sema(br)) < 0){
-			PL_DBG('!');
-			break;
-		}
-#endif
 
 		void *libdl_handle = br->libdl_handle;
 		// acquire libdl
@@ -165,15 +130,25 @@ void injected_fn(struct injcode_bearing *br){
 
 		char *libdl_name = NULL;
 		char *libpthread_name = NULL;
-		char *sym_pthread_join = NULL;
 		char *userlib_name = NULL;
 
+		char *sym_pthread_mutex_init = NULL;
+		char *sym_pthread_mutex_lock = NULL;
+		char *sym_pthread_mutex_unlock = NULL;
+		char *sym_pthread_cond_init = NULL;
+		char *sym_pthread_cond_wait = NULL;
+		char *sym_pthread_join = NULL;
 		do {
 			char *stbl = BR_STRTBL(br);
 			STRTBL_FETCH(stbl, libdl_name);
 			STRTBL_FETCH(stbl, libpthread_name);
+			STRTBL_FETCH(stbl, sym_pthread_mutex_init);
+			STRTBL_FETCH(stbl, sym_pthread_mutex_lock);
+			STRTBL_FETCH(stbl, sym_pthread_mutex_unlock);
+			STRTBL_FETCH(stbl, sym_pthread_cond_init);
+			STRTBL_FETCH(stbl, sym_pthread_cond_wait);
 			STRTBL_FETCH(stbl, sym_pthread_join);
-			STRTBL_FETCH(stbl, userlib_name);
+			STRTBL_FETCH(stbl, userlib_name); // argv[0]
 		} while(0);
 
 		// just to make sure it's really loaded
@@ -195,13 +170,27 @@ void injected_fn(struct injcode_bearing *br){
 				break;
 			}
 
+			pthread_mutex_init = dlsym(h_pthread, sym_pthread_mutex_init);
+			pthread_mutex_lock = dlsym(h_pthread, sym_pthread_mutex_lock);
+			pthread_mutex_unlock = dlsym(h_pthread, sym_pthread_mutex_unlock);
+			pthread_cond_init = dlsym(h_pthread, sym_pthread_cond_init);
+			pthread_cond_wait = dlsym(h_pthread, sym_pthread_cond_wait);
 			pthread_join = dlsym(h_pthread, sym_pthread_join);
-			if(!pthread_join){
+
+			if(!pthread_mutex_init || !pthread_mutex_lock
+			|| !pthread_mutex_unlock || !pthread_cond_init
+			|| !pthread_cond_wait || !pthread_join
+			){
 				PL_DBG('!');
 				PL_DBG('2');
 				break;
 			}
 		}
+
+		// initialize signal
+		PL_DBG('s');
+		pthread_mutex_init(&br->mutex, 0);
+		pthread_cond_init(&br->cond, 0);
 
 		// dlopen
 		PL_DBG('d');
@@ -217,9 +206,11 @@ void injected_fn(struct injcode_bearing *br){
 
 		// wait for the thread to notify us
 		PL_DBG('w');
-		#if 0
-		br_semop(br, sema, EZ_SEM_LIBCTL, 0);
-		#endif
+		pthread_mutex_lock(&br->mutex);
+		while(!br->loaded_signal){
+			pthread_cond_wait(&br->cond, &br->mutex);
+		}
+		pthread_mutex_unlock(&br->mutex);
 
 		void *result;
 

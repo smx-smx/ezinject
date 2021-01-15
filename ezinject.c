@@ -20,9 +20,6 @@
 
 #include "config.h"
 
-#ifdef HAVE_SYS_SEM_H
-#include <sys/sem.h>
-#endif
 #ifdef HAVE_SYS_SHM_H
 #include <sys/shm.h>
 #endif
@@ -379,7 +376,6 @@ int libc_init(struct ezinj_ctx *ctx){
 #endif
 
 	USE_LIBC_SYM(syscall);
-	USE_LIBC_SYM(semop);
 #undef USE_LIBC_SYM
 
 	dlclose(h_libc);
@@ -413,7 +409,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	int num_strings;
 
 	// argc + extras
-	num_strings = argc + 3;
+	num_strings = argc + 8;
 
 	struct ezinj_str args[num_strings];
 	int argi = 0;
@@ -429,6 +425,11 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	// libpthread.so name (without path)
 	PUSH_STRING(PTHREAD_LIBRARY_NAME);
 
+	PUSH_STRING("pthread_mutex_init");
+	PUSH_STRING("pthread_mutex_lock");
+	PUSH_STRING("pthread_mutex_unlock");
+	PUSH_STRING("pthread_cond_init");
+	PUSH_STRING("pthread_cond_wait");
 	PUSH_STRING("pthread_join");
 
 	// library to load
@@ -455,6 +456,8 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	}
 
 	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
+	memset(br, 0x00, sizeof(*br));
+
 	if(!br){
 		PERROR("malloc");
 		return NULL;
@@ -489,8 +492,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 	USE_LIBC_SYM(syscall);
-	USE_LIBC_SYM(semop);
-
 #undef USE_LIBC_SYM
 
 	br->argc = argc;
@@ -535,14 +536,6 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 		return 1;
 	}
 	ctx->mapped_mem.local = (uintptr_t)mapped_mem;
-
-#ifndef EZ_TARGET_ANDROID
-	if((sem_id = semget(ctx->target, 1, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
-		perror("semget");
-		return 1;
-	}
-	ctx->sem_id = sem_id;
-#endif
 
 	*allocated_size = mapping_size;
 
@@ -903,8 +896,6 @@ int main(int argc, char *argv[]){
 		}
 		return err;
 	}
-
-	getchar();
 
 	cleanup_ipc(&ctx);
 	return err;
