@@ -54,12 +54,6 @@ struct shmid_ds {
 int shmget(BR_PARAM key_t key, size_t size, int shmflg);
 void *shmat(BR_PARAM int shmid, const void *shmaddr, int shmflg);
 int shmdt(BR_PARAM const void *shmaddr);
-#endif
-
-#ifndef HAVE_SYS_SEM_H
-int semget(BR_PARAM key_t key, int nsems, int semflg);
-int semop(BR_PARAM int semid, struct sembuf *sops, size_t nsops);
-int semctl(int id, int num, int cmd, ...);
 int shmctl(int id, int cmd, struct shmid_ds *buf);
 #endif
 

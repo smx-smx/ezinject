@@ -5,7 +5,6 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
-#include <linux/ipc.h>
 
 #include "config.h"
 #include "ezinject_compat.h"
@@ -53,24 +52,6 @@ INLINE int shmdt(BR_PARAM const void *shmaddr){
 	return SYSCALL(__NR_shmdt, shmaddr);
 	#else
 	return SYSCALL(__NR_ipc, IPCCALL(0, SHMDR), shmaddr);
-	#endif
-}
-
-INLINE int semget(BR_PARAM key_t key, int nsems, int semflg){
-	#ifdef HAVE_SHM_SYSCALLS
-	return SYSCALL(__NR_semget, key, nsems, semflg);
-	#else
-	return SYSCALL(__NR_ipc, IPCCALL(0, SEMGET), key, nsems, semflg);
-	#endif
-}
-
-INLINE int semop(BR_PARAM int semid, struct sembuf *sops, size_t nsops){
-	#ifdef HAVE_SHM_SYSCALLS
-	return SYSCALL(__NR_semop, semid, sops, nsops);
-	#else
-	void *result = sops;
-	SYSCALL(__NR_ipc, IPCCALL(0, SEMOP), shmid, nsops, 0, sops);
-	return result;
 	#endif
 }
 
@@ -197,43 +178,5 @@ int shmctl(int id, int cmd, struct shmid_ds *buf) {
 	return r;
 }
 
-
-#ifdef USE_ANDROID_ASHMEM
-#include <string.h>
-#include <fcntl.h>
-#define ASHMEM_DEVICE	"/dev/ashmem"
-
-int ashmem_create_region(key_t key, size_t size, int shmflg){
-	char name[12];
-	snprintf(name, sizeof(name), "%d", key);
-
-	int fd = open(ASHMEM_DEVICE, O_RDWR);
-	if (fd < 0){
-		return fd;
-	}
-
-	int ret;
-	do {
-		ret = ioctl(fd, ASHMEM_SET_NAME, name);
-		if(ret < 0){
-			break;
-		}
-
-		ret = ioctl(fd, ASHMEM_SET_SIZE, size);
-	} while(0);
-
-
-	close(fd);
-	return ret;
-}
-int ashmem_pin_region(int fd, size_t offset, size_t len) {
-	struct ashmem_pin pin = { offset, len };
-	return ioctl(fd, ASHMEM_PIN, &pin);
-}
-int ashmem_unpin_region(int fd, size_t offset, size_t len) {
-	struct ashmem_pin pin = { offset, len };
-	return ioctl(fd, ASHMEM_UNPIN, &pin);
-}
-#endif
 
 #endif

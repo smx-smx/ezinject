@@ -1,3 +1,5 @@
+#include "config.h"
+
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +21,6 @@
 #include <fcntl.h>
 
 #include <pthread.h>
-
 #include <dlfcn.h>
 
 #include "ezinject.h"
@@ -27,7 +28,6 @@
 #include "ezinject_common.h"
 #include "ezinject_injcode.h"
 
-#include "config.h"
 #include "log.h"
 
 #ifdef DEBUG
@@ -51,15 +51,6 @@ struct crt_params {
 static struct crt_params gParams;
 
 void* real_entry(void *arg);
-
-int sema_op(int sema, int idx, int op){
-	struct sembuf sem_op = {
-		.sem_num = idx,
-		.sem_op = op,
-		.sem_flg = 0
-	};
-	return semop(sema, &sem_op, 1);
-}
 
 int acquire_shm(key_t key, size_t size, void **ppMem){
 	int is_initial_attach = (size == 0);

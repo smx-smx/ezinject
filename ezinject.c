@@ -522,7 +522,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	DBG("stack_offset=%zu", stack_offset);
 	DBG("mapping_size=%zu", mapping_size);
 
-	int shm_id, sem_id;
+	int shm_id;
 	if((shm_id = shmget(ctx->target, mapping_size, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
 		PERROR("shmget");
 		return 1;
@@ -585,15 +585,6 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 #define RSCALL6(ctx,nr,a1,a2,a3,a4,a5,a6) __RCALL_SC(ctx,nr,SC_6ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5),UPTR(a6))
 
 void cleanup_ipc(struct ezinj_ctx *ctx){
-	#ifndef EZ_TARGET_ANDROID
-	if(ctx->sem_id > -1){
-		if(semctl(ctx->sem_id, IPC_RMID, 0) < 0){
-			PERROR("semctl (IPC_RMID)");
-		} else {
-			ctx->sem_id = -1;
-		}
-	}
-	#endif
 	if(ctx->mapped_mem.local != 0){
 		if(shmdt((void *)ctx->mapped_mem.local) < 0){
 			PERROR("shmdt");
