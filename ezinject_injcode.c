@@ -164,8 +164,9 @@ void injected_fn(struct injcode_bearing *br){
 		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
 		DBGPTR(h_libdl);
 		if(h_libdl == NULL){
-			dlopen(libdl_name, RTLD_NOW | RTLD_GLOBAL);
+			h_libdl = dlopen(libdl_name, RTLD_NOW | RTLD_GLOBAL);
 		}
+		DBGPTR(h_libdl);
 
 		// acquire libpthread
 		PL_DBG('p');

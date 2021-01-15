@@ -4,6 +4,8 @@ project(ezpatch C ASM)
 enable_language(CXX OPTIONAL)
 
 add_definitions(-fPIC)
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export-dynamic")
+
 
 if(NOT ANDROID)
 	add_definitions(-Wl,--no-undefined)
@@ -34,7 +36,7 @@ if(CMAKE_TOOLCHAIN_FILE)
 	message(STATUS "Using toolchain file: ${CMAKE_TOOLCHAIN_FILE}")
 endif()
 
-if( NOT CMAKE_BUILD_TYPE )
+if(NOT CMAKE_BUILD_TYPE)
 	set(CMAKE_BUILD_TYPE Debug)
 endif()
 
@@ -74,9 +76,9 @@ get_filename_component(C_LIBRARY_NAME "${C_LIBRARY}" NAME)
 
 find_library(DL_LIBRARY
 	NAMES
-		libdl.so
-		libdl.so.0
 		libdl.so.2
+		libdl.so.0
+		libdl.so
 	REQUIRED
 )
 get_filename_component(DL_LIBRARY_NAME "${DL_LIBRARY}" NAME)

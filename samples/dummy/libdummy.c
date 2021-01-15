@@ -82,7 +82,7 @@ void installHooks(){
 	do {
 		testFunc_t pfnTestFunc = dlsym(self, "func1");
 		if(pfnTestFunc == NULL){
-			ERR("Couldn't locate test function");
+			ERR("Couldn't locate test function: %s", dlerror());
 			break;
 		}
 
