@@ -682,11 +682,12 @@ int ezinject_main(
 	print_maps();
 	fflush(stdout);
 
-	uintptr_t codeBase = get_code_base(ctx->target);
+	uintptr_t codeBase = get_base(ctx->target, NULL, NULL);
 	if(codeBase == 0){
 		ERR("Could not obtain code base");
 		return 1;
 	}
+	DBGPTR(codeBase);
 
 	signal(SIGINT, sigint_handler);
 

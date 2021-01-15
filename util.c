@@ -52,138 +52,92 @@ void hexdump(void *pAddressIn, long lSize) {
 	}
 }
 
-int get_stack(pid_t pid, uintptr_t *stack_start, size_t *stack_size){
-    char line[256];
-    snprintf(line, 256, "/proc/%u/maps", pid);
-    FILE *fp = fopen(line, "r");
-
-    void *start = NULL;
-    void *end = NULL;
-    char path[128];
-    while(fgets(line, 256, fp)){
-        if(sscanf(line, "%p-%p %*s %*p %*x:%*x %*u %s", &start, &end, path) <= 0){
-            continue;
-        }
-        if(strstr(path, "[stack]")){
-            break;
-        } else {
-			start = NULL;
-			end = NULL;
-		}
-    }
-
-    if(start == NULL || end == NULL){
-        return -1;
-    }
-
-    *stack_start = (uintptr_t)start;
-    *stack_size = (uintptr_t)end - (uintptr_t)start;
-    return 0;
-}
-
-void *get_base(pid_t pid, char *substr, char **ignores)
-{
+void *get_base(pid_t pid, char *substr, char **ignores) {
 	char line[256];
 	char path[128];
 	void *base;
 	char perms[8];
 	bool found = false;
 
-	int sublen = strlen(substr);
+	int sublen = 0;
+	if(substr != NULL){
+		sublen = strlen(substr);
+	}
 
 	snprintf(line, 256, "/proc/%u/maps", pid);
 	FILE *fp = fopen(line, "r");
-	int val;
-	do
-	{
-		if(!fgets(line, 256, fp)){
-			break;
-		}
+	while(fgets(line, sizeof(line), fp) != NULL){
+		strncpy(path, "[anonymous]", sizeof(path));
 
-		strcpy(path, "[anonymous]");
-		val = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
+		int filled = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
+		if(filled < 2){
+			continue;
+		}
 		
+		// pointer to the last character in the path
 		char *end = (char *)&path[0] + strlen(path);
 
-		char *sub;
-		if((sub=strstr(path, substr)) != NULL){
-			/** check if this match should be ignored **/
+		char *sub = NULL;
+		if(substr != NULL){
+			sub = strstr(path, substr);
+			if(sub == NULL){
+				// substring not found
+				continue;
+			}
+		}
+
+		if(ignores != NULL){
 			bool skip = false;
 
-			if(ignores != NULL){
-				char **sptr = ignores;
-				while(*sptr != NULL){
-					if(strstr(path, *(sptr++))){
-						skip = true;
-						break;
-					}
+			char **listPtr = ignores;
+			while(*listPtr != NULL){
+				if(strstr(path, *(listPtr++))){
+					// found a match in the ignores list, skip this entry
+					skip = true;
+					break;
 				}
 			}
 
-			if(strchr(perms, 'x') == NULL){
-				continue;
-			}
-			
 			if(skip){
 				continue;
 			}
+		}
 
+		// if we have no substring, get the first executable segment
+		if(substr == NULL){
+			if(strchr(perms, 'x') != NULL){
+				found = true;
+				break;
+			}
+		} else {
+			if(strchr(perms, 's') != NULL){
+				// it's a shared semgent, skip it
+				continue;
+			}
+
+			// skip the matched part
 			sub += sublen;
 			if(sub >= end){
-				// whole match, assume found
+				// we're at the end of the path string
+				// it's a full match
 				found = true;
 				break;
 			}
 
+			// check common version suffixes
 			switch(*sub){
 				case '.': //libc.
 				case '-': //libc-
 					found = true;
 					break;
 			}
-
-			if(found){
-				break;
-			}
 		}
-	} while(val > 0 && !found);
+
+		if(found){
+			break;
+		}
+	}
 	fclose(fp);
 
 	return (found) ? base : NULL;
-}
-
-uintptr_t get_code_base(pid_t pid){
-	char line[256];
-
-	snprintf(line, sizeof(line), "/proc/%u/maps", pid);
-	FILE *fp = fopen(line, "r");
-	if(fp == NULL){
-		PERROR("fopen maps");
-		return 0;
-	}
-
-	uintptr_t start, end;
-	char perms[8];
-	memset(perms, 0x00, sizeof(perms));
-
-	int val;
-	uintptr_t region_addr = 0;
-
-	while(region_addr == 0){
-		if(!fgets(line, sizeof(line), fp)){
-			PERROR("fgets");
-			break;			
-		}
-		val = sscanf(line, "%p-%p %s %*p %*x:%*x %*u %*s", (void **)&start, (void **)&end, (char *)&perms);
-		if(val == 0){
-			break;
-		}
-
-		if(strchr(perms, 'x') != NULL){
-			region_addr = start;
-		}
-	}
-
-	fclose(fp);
-	return region_addr;
 }
