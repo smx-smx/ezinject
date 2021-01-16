@@ -144,6 +144,7 @@ __attribute__((constructor)) void ctor(void)
 	}
 	pthread_mutex_unlock(&br->mutex);
 
+	DBG("detaching shm");
 	if(shmdt(br) < 0){
 		PERROR("shmdt");
 		return;

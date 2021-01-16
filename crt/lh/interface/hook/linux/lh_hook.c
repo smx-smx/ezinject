@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "log.h"
+#include "util.h"
 
 #include "interface/if_cpu.h"
 #include "interface/if_hook.h"
@@ -32,6 +33,9 @@ int inj_replace_function(void *original_fn, void *replacement_fn){
 	uint8_t *replacement_jump;	//original -> custom
 	if(!(replacement_jump = inj_build_jump(replacement_fn, 0, &jumpSz)))
 		return -1;
+
+	DBG("jump trampoline");
+	hexdump(replacement_jump, jumpSz);
 
 	if( unprotect(original_fn) < 0)
 			return -1;

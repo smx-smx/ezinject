@@ -1,4 +1,5 @@
 #include "ezinject_injcode.h"
+
 INLINE void *memset(void *s, int c, unsigned int n){
     unsigned char* p=s;
     while(n--){
@@ -19,6 +20,7 @@ INLINE void *get_libdl(struct injcode_bearing *br){
 
 	tpnt = br->libc_dlopen(0, &rpnt, NULL, libdl_name, 0);
 	if(tpnt == NULL){
+		PL_DBG('!');
 		return NULL;
 	}
 
