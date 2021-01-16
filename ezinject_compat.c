@@ -33,26 +33,26 @@
 
 INLINE int shmget(BR_PARAM key_t key, size_t size, int shmflg){
 #if defined(HAVE_SHM_SYSCALLS)
-	return SYSCALL(__NR_shmget, key, size, shmflg);
+	return (int)SYSCALL(__NR_shmget, key, size, shmflg);
 #else
-	return SYSCALL(__NR_ipc, IPCCALL(0, SHMGET), key, size, shmflg);
+	return (int)SYSCALL(__NR_ipc, IPCCALL(0, SHMGET), key, size, shmflg);
 #endif
 }
 
 INLINE void *shmat(BR_PARAM int shmid, const void *shmaddr, int shmflg){
 	#ifdef HAVE_SHM_SYSCALLS
-	return SYSCALL(__NR_shmat, shmid, shmaddr, shmflg);
+	return (void *)SYSCALL(__NR_shmat, shmid, shmaddr, shmflg);
 	#else
-	return SYSCALL(__NR_ipc, IPCCALL(0, SHMAT), shmid, shmflg, &shmaddr, shmaddr);
+	return (void *)SYSCALL(__NR_ipc, IPCCALL(0, SHMAT), shmid, shmflg, &shmaddr, shmaddr);
 	// return (ret > -(unsigned long)pageSize) ? (void *)ret : (void *)shmaddr;
 	#endif
 }
 
 INLINE int shmdt(BR_PARAM const void *shmaddr){
 	#ifdef HAVE_SHM_SYSCALLS
-	return SYSCALL(__NR_shmdt, shmaddr);
+	return (int)SYSCALL(__NR_shmdt, shmaddr);
 	#else
-	return SYSCALL(__NR_ipc, IPCCALL(0, SHMDT), shmaddr);
+	return (int)SYSCALL(__NR_ipc, IPCCALL(0, SHMDT), shmaddr);
 	#endif
 }
 
