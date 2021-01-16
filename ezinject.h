@@ -56,6 +56,7 @@ struct ezinj_ctx {
 	int pl_debug;
 	int num_wait_calls;
 	pid_t target;
+	uintptr_t target_codebase;
 	ez_addr libc;
 	ez_addr libdl;
 	ez_addr syscall_insn;

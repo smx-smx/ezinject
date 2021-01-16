@@ -621,7 +621,7 @@ uintptr_t remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int s
 	#ifdef HAVE_SHM_SYSCALLS
 		remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, shm_id, shmaddr, shmflg));
 	#else
-		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_WRITE | PROT_EXEC));
+		CHECK(RSCALL3(ctx, __NR_mprotect, ctx->target_codebase, getpagesize(), PROT_READ | PROT_WRITE | PROT_EXEC));
 		/**
 		 * Calling convention for shmat in sys_ipc()
 		 * arg0 - IPCCALL(0, SHMAT)    specifies version 0 of the call format (1 is apparently "iBCS2 emulator")
@@ -635,10 +635,10 @@ uintptr_t remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int s
 		 *
 		 * We pass shmaddr as arg3 aswell, so that 0 is used as shmaddr and is replaced with the new addr
 		 **/
-		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, shmflg, codeBase + 4));
-		remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, target, codeBase + 4);
+		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, shmflg, ctx->target_codebase + 4));
+		remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, ctx->target, ctx->target_codebase + 4);
 		DBGPTR(remote_shm_ptr);
-		CHECK(RSCALL3(ctx, __NR_mprotect, codeBase, getpagesize(), PROT_READ | PROT_EXEC));
+		CHECK(RSCALL3(ctx, __NR_mprotect, ctx->target_codebase, getpagesize(), PROT_READ | PROT_EXEC));
 	#endif
 	INFO("shmat => %p", (void *)remote_shm_ptr);
 	return remote_shm_ptr;
@@ -650,8 +650,8 @@ int remote_shmdt(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 		result = (int) CHECK(RSCALL1(ctx, __NR_shmdt, remote_shmaddr));
 	#else
 		// skip syscall instruction and apply stack offset (see note about sys_ipc)
-		ctx->syscall_stack.remote = codeBase + 4 - 16;
-		result = (int) CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, codeBase + 4));
+		ctx->syscall_stack.remote = ctx->target_codebase + 4 - 16;
+		result = (int) CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, ctx->target_codebase + 4));
 	#endif
 	return result;
 }
@@ -689,6 +689,7 @@ int ezinject_main(
 		return 1;
 	}
 	DBGPTR(codeBase);
+	ctx->target_codebase = codeBase;
 
 	signal(SIGINT, sigint_handler);
 

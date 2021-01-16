@@ -1,6 +1,6 @@
 add_subdirectory(dummy)
 
-if(CMAKE_CXX_COMPILER_WORKS)
+if(CMAKE_CXX_COMPILER_WORKS AND ENABLE_CPP_SAMPLES)
 	add_subdirectory(cpp)
 endif()
 
