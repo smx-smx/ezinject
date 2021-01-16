@@ -30,7 +30,7 @@ struct shmat_payload {
 	key_t key;
 
 	char nothing;
-	struct iovec nothing_ptr;
+	struct iovec msgdata;
 	struct msghdr msghdr;
 
 	struct {
@@ -41,30 +41,38 @@ struct shmat_payload {
 
 uintptr_t prepare_socket_payload(ez_addr payload){
 	struct shmat_payload *pl = (struct shmat_payload *)payload.local;
-	// prepare message data (dummy, single char)
-	pl->nothing_ptr.iov_len = 1;
-	pl->nothing_ptr.iov_base = (void *)EZ_REMOTE(payload, &pl->nothing_ptr);
 	
-	// attach message data to header
-	pl->msghdr.msg_name = NULL;
-	pl->msghdr.msg_namelen = 0;
-    pl->msghdr.msg_iov = (void *)EZ_REMOTE(payload, &pl->nothing_ptr);
-    pl->msghdr.msg_iovlen = 1;
-    pl->msghdr.msg_flags = 0;
+	// prepare message data (dummy, single char)
+	struct iovec iovec = {
+		.iov_len = 1,
+		.iov_base = (void *)EZ_REMOTE(payload, &pl->msgdata)
+	};
+	pl->msgdata = iovec;
 
 	// prepare control header
-	struct cmsghdr *chdr = &pl->cmsg;
-    chdr->cmsg_len = pl->msghdr.msg_controllen;
-    chdr->cmsg_level = SOL_SOCKET;
-    chdr->cmsg_type = SCM_RIGHTS;
+	struct cmsghdr chdr = {
+		.cmsg_len = pl->msghdr.msg_controllen,
+		.cmsg_level = SOL_SOCKET,
+		.cmsg_type = SCM_RIGHTS
+	};
+    pl->cmsg.h = chdr;
 	
 	// set initial control data
-	void *cdata = (void *)(UPTR(chdr) + sizeof(struct cmsghdr));
-	*(int *)cdata = -1; // set initial fd value
+	pl->cmsg.fd = -1; // set initial fd value
 	
-	// attach control data to message
-    pl->msghdr.msg_control = (void *)EZ_REMOTE(payload, &pl->cmsg);
-    pl->msghdr.msg_controllen = sizeof(pl->cmsg);
+	// attach message data and control data to header
+	struct msghdr msghdr = {
+		.msg_name = NULL,
+		.msg_namelen = 0,
+		// message data
+		.msg_iov = (void *)EZ_REMOTE(payload, &pl->msgdata),
+		.msg_iovlen = 1,
+		.msg_flags = 0,
+		// control data
+		.msg_control = (void *)EZ_REMOTE(payload, &pl->cmsg),
+		.msg_controllen = sizeof(pl->cmsg)
+	};
+	pl->msghdr = msghdr;
 
 	// return remote control data address
 	return UPTR(pl->msghdr.msg_control) + sizeof(struct cmsghdr);
