@@ -734,7 +734,7 @@ int ezinject_main(
 	int err = 1;
 	do {
 		uintptr_t remote_shm_ptr = 0;
-		#ifdef EZ_TARGET_ANDROID
+		#if defined(EZ_TARGET_ANDROID) && defined(USE_ANDROID_ASHMEM)
 		remote_shm_ptr = remote_shmat_android(
 			ctx, ctx->shm_id, NULL,
 			SHM_EXEC,

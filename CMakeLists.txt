@@ -205,11 +205,17 @@ function(add_ezinject_library target)
 	set(sources "${LIB_SOURCES}")
 
 	list(APPEND sources
-		#${CMAKE_SOURCE_DIR}/ezinject_compat.c
 		${CMAKE_SOURCE_DIR}/crt/crt.c
 		${CMAKE_SOURCE_DIR}/crt/crt_user.c
 		${CMAKE_SOURCE_DIR}/util.c
 	)
+
+	if(ANDROID AND NOT USE_ANDROID_ASHMEM)
+		list(APPEND sources
+			${CMAKE_SOURCE_DIR}/ezinject_compat.c
+		)
+	endif()
+
 	if(DEBUG)
 		list(APPEND sources ${CMAKE_SOURCE_DIR}/util.c)
 	endif()
@@ -237,7 +243,7 @@ function(add_ezinject_library target)
 		)
 	endif()
 
-	if(EZ_TARGET_ANDROID)
+	if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
 		target_link_options(${target} PUBLIC
 			-Wl,--whole-archive $<TARGET_FILE:ashmem> -Wl,--no-whole-archive
 		)
