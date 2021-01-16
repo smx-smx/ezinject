@@ -142,23 +142,23 @@ int resolve_libc_symbols_android10(struct ezinj_ctx *ctx){
 	struct gb_linker_ctx linker_ctx;
 	memset(&linker_ctx, 0x00, sizeof(linker_ctx));
 
-	if(!load_linker(&linker_ctx)){
+	if(load_linker(&linker_ctx) != 0){
 		ERR("Failed to open "DYN_LINKER_NAME);
 		return -1;
 	}
 
 	do {
-		if(!linker_find_sections(&linker_ctx)){
+		if(linker_find_sections(&linker_ctx) != 0){
 			ERR("Failed to find linker sections in "DYN_LINKER_NAME);
 			break;
 		}
-		if(!linker_find_symbols(&linker_ctx)){
+		if(linker_find_symbols(&linker_ctx) != 0){
 			ERR("Failed to find linker symbols in "DYN_LINKER_NAME);
 			break;
 		}
 	} while(0);
 
-	if(!unload_linker(&linker_ctx)){
+	if(unload_linker(&linker_ctx) != 0){
 		ERR("Failed to close "DYN_LINKER_NAME);
 		return -1;
 	}
