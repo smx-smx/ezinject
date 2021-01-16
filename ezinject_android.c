@@ -1,3 +1,6 @@
+#include <sys/socket.h>
+#include <sys/un.h>
+
 #include "ezinject.h"
 
 #define SOCKNAME "/dev/shm/%08x"
@@ -78,17 +81,10 @@ uintptr_t prepare_socket_payload(ez_addr payload){
 	return UPTR(pl->msghdr.msg_control) + sizeof(struct cmsghdr);
 }
 
-uintptr_t remote_shmat_android(
-	struct ezinj_ctx *ctx,
-	int shm_id,
-	void *shmaddr,
-	int shmflg,
-	size_t map_size
-){
+uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 	uintptr_t result = (uintptr_t)MAP_FAILED;
 
 	key_t shm_key = (key_t)ctx->target;
-	uintptr_t remote_shm_ptr = 0;
 
 	struct shmat_payload payload;
 	memset(&payload, 0x00, sizeof(payload));
@@ -121,7 +117,7 @@ uintptr_t remote_shmat_android(
 		DBG("remote payload: %p", (void *)r_payload);
 
 		ez_addr payload_addr = {
-			.local = &payload,
+			.local = UPTR(&payload),
 			.remote = r_payload
 		};
 		

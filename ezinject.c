@@ -31,11 +31,6 @@
 #include <asm-generic/ipc.h>
 #endif
 
-#ifdef EZ_TARGET_ANDROID
-#include <sys/socket.h>
-#include <sys/un.h>
-#endif
-
 #include "util.h"
 #include "ezinject.h"
 #include "ezinject_common.h"
@@ -683,7 +678,7 @@ int ezinject_main(
 	print_maps();
 	fflush(stdout);
 
-	uintptr_t codeBase = get_base(ctx->target, NULL, NULL);
+	uintptr_t codeBase = (uintptr_t) get_base(ctx->target, NULL, NULL);
 	if(codeBase == 0){
 		ERR("Could not obtain code base");
 		return 1;
@@ -731,11 +726,7 @@ int ezinject_main(
 	do {
 		uintptr_t remote_shm_ptr = 0;
 		#if defined(EZ_TARGET_ANDROID) && defined(USE_ANDROID_ASHMEM)
-		remote_shm_ptr = remote_shmat_android(
-			ctx, ctx->shm_id, NULL,
-			SHM_EXEC,
-			br->mapping_size
-		);
+		remote_shm_ptr = remote_shmat_android(ctx, br->mapping_size);
 		#else
 		remote_shm_ptr = remote_shmat(ctx, ctx->shm_id, NULL, SHM_EXEC);
 		#endif
