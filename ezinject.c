@@ -706,19 +706,14 @@ int ezinject_main(
 
 	DBG("dataLength: %zu", dataLength);
 	uint8_t dataBak[dataLength];
-	{ //backup and replace ELF header
-		uintptr_t *pWordsIn = (uintptr_t *)&dataBak;
-		uintptr_t *pWordsOut = (uintptr_t *)region_sc_insn.start;
-		for(unsigned int i=0; i<dataLength; i+=sizeof(uintptr_t), pWordsIn++, pWordsOut++){
-			*pWordsIn = (uintptr_t)ptrace(PTRACE_PEEKTEXT, ctx->target, codeBase + i, 0);
-			ptrace(PTRACE_POKETEXT, ctx->target, codeBase + i, *pWordsOut);
-		}
-		ctx->syscall_insn.remote = codeBase;
+	//backup and replace ELF header
+	remote_read(ctx, &dataBak, codeBase, dataLength);
+	remote_write(ctx, codeBase, region_sc_insn.start, dataLength);
+	ctx->syscall_insn.remote = codeBase;
 #ifdef EZ_ARCH_MIPS
-		// skip syscall instruction and apply stack offset (see note about sys_ipc)
-		ctx->syscall_stack.remote = codeBase + 4 - 16;
+	// skip syscall instruction and apply stack offset (see note about sys_ipc)
+	ctx->syscall_stack.remote = codeBase + 4 - 16;
 #endif
-	}
 
 	// wait for a single syscall
 	ctx->num_wait_calls = 1;
@@ -813,12 +808,8 @@ int ezinject_main(
 
 		remote_shmdt(ctx, remote_shm_ptr);
 
-		{ //restore ELF header
-			uintptr_t *pWordsOut = (uintptr_t *)&dataBak;
-			for(unsigned int i=0; i<dataLength; i+=sizeof(uintptr_t), pWordsOut++){
-				ptrace(PTRACE_POKETEXT, ctx->target, codeBase + i, *pWordsOut);
-			}
-		}
+		//restore ELF header
+		remote_write(ctx, codeBase, &dataBak, dataLength);
 
 		err = 0;
 	} while(0);
