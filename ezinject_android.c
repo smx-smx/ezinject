@@ -6,6 +6,10 @@
 #define SOCKNAME "/dev/shm/%08x"
 #define SUN_PATH_ABSTRACT(ptr) ((char *)(ptr) + offsetof(struct sockaddr_un, sun_path) + 1)
 
+#ifndef __NR_mmap
+#define __NR_mmap __NR_mmap2
+#endif
+
 static char *asun_build_path(key_t key){
 	struct sockaddr_un dummy;
 	int max_length = sizeof(dummy.sun_path) - 1;
@@ -99,11 +103,19 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 
 	regs_t orig_regs;
 	regs_t regs;
-	ptrace(PTRACE_GETREGS, ctx->target, 0, &regs);
+	remote_getregs(ctx->target, &regs);
 	memcpy(&orig_regs, &regs, sizeof(regs));
 
 	uintptr_t remote_stack = REG(regs, REG_SP);
-	size_t payload_size = (size_t) WORDALIGN(sizeof(payload));
+
+	size_t payload_size = 0;
+	#if defined(EZ_ARCH_ARM64) || defined(EZ_ARCH_AMD64)
+	payload_size = (size_t) ALIGN(sizeof(payload), 16);
+	#else
+	payload_size = (size_t) WORDALIGN(sizeof(payload));
+	#endif
+	DBG("stack payload_size: %zu", payload_size);
+
 	uint8_t *backup = calloc(payload_size, 1);
 	do {
 		INFO("backing up stack...");
@@ -128,7 +140,7 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 		remote_write(ctx, r_payload, &payload, payload_size);
 
 		REG(regs, REG_SP) = r_payload;
-		ptrace(PTRACE_SETREGS, ctx->target, 0, &regs);
+		remote_setregs(ctx->target, &regs);
 
 		int remote_sock_fd = (int)RSCALL3(ctx, __NR_socket, AF_UNIX, SOCK_STREAM, 0);
 		if(remote_sock_fd < 0){
@@ -148,7 +160,7 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 			}
 
 			uintptr_t r_key = r_payload + offsetof(struct shmat_payload, key);
-			ret = (int) RSCALL4(ctx, __NR_send, remote_sock_fd, r_key, sizeof(payload.key), 0);
+			ret = (int) RSCALL6(ctx, __NR_sendto, remote_sock_fd, r_key, sizeof(payload.key), 0, NULL, 0);
 			DBG("remote send(): %d", ret);
 			if(ret != sizeof(payload.key)){
 				ERR("send() failed");
@@ -181,7 +193,7 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 				break;
 			}
 
-			uintptr_t r_mem = RSCALL6(ctx, __NR_mmap2,
+			uintptr_t r_mem = RSCALL6(ctx, __NR_mmap,
 				0, map_size,
 				PROT_READ|PROT_WRITE|PROT_EXEC,
 				MAP_SHARED,
@@ -200,7 +212,7 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 
 	INFO("restoring stack");
 	remote_write(ctx, remote_stack, backup, payload_size);
-	ptrace(PTRACE_SETREGS, ctx->target, 0, &orig_regs);
+	remote_setregs(ctx->target, &orig_regs);
 	free(backup);
 
 	return result;

@@ -17,4 +17,10 @@
 #define EMIT_SC() asm volatile("sysenter\n")
 #define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))
 
+#define POP_PARAMS(out_br, out_func) \
+	EMIT_POP(out_br); \
+	EMIT_POP(out_func)
+
+#define JMP_INSN "jmp"
+
 #endif

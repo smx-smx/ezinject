@@ -50,7 +50,7 @@ struct shmid_ds {
 #else
 #define BR_PARAM
 
-#ifndef HAVE_SYS_SHM_H
+#if defined(HAVE_SYS_SHM_H) || defined(EZ_TARGET_ANDROID)
 int shmget(BR_PARAM key_t key, size_t size, int shmflg);
 void *shmat(BR_PARAM int shmid, const void *shmaddr, int shmflg);
 int shmdt(BR_PARAM const void *shmaddr);

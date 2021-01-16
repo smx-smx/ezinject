@@ -24,4 +24,11 @@
 	"lw %0, 0($sp)\n" \
 	"addiu $sp, $sp, 4\n" \
 	: "=r"(var))
+
+#define POP_PARAMS(out_br, out_func) \
+	EMIT_POP(out_br); \
+	EMIT_POP(out_func)
+
+#define JMP_INSN "j"
+
 #endif

@@ -11,7 +11,7 @@
 #include "ezinject_compat.h"
 #include "ezinject_injcode.h"
 
-#ifdef EZ_ARCH_MIPS
+#if defined(EZ_ARCH_MIPS)
 // the bundled pt_regs definition is wrong (https://www.linux-mips.org/archives/linux-mips/2014-07/msg00443.html)
 // so we must provide our own
 
@@ -26,6 +26,8 @@ struct pt_regs2 {
 } __attribute__ ((aligned (8)));
 
 typedef struct pt_regs2 regs_t;
+#elif defined(EZ_ARCH_ARM64)
+typedef struct user_pt_regs regs_t;
 #else
 typedef struct user regs_t;
 #endif

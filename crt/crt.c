@@ -15,6 +15,7 @@
 #include <sys/mman.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
+#include <sys/syscall.h>
 #include <asm/unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>

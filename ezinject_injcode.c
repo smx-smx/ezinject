@@ -41,14 +41,20 @@ void injected_sc(){
 	EMIT_LABEL("injected_sc_end");
 }
 
+//#define PL_EARLYDEBUG
+
 void trampoline(){
 	EMIT_LABEL("trampoline_entry");
+	
+	#ifdef PL_EARLYDEBUG
+	EMIT_LABEL("inj_halt");
+	asm volatile(JMP_INSN" inj_halt");
+	#endif
 
 	register volatile struct injcode_bearing *br;
 	register void (*target)(volatile struct injcode_bearing *);
 
-	EMIT_POP(br);
-	EMIT_POP(target);
+	POP_PARAMS(br, target);
 	target(br);
 	while(1);
 }

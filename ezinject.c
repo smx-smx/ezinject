@@ -33,6 +33,7 @@
 
 #include "util.h"
 #include "ezinject.h"
+#include "ezinject_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
@@ -100,14 +101,38 @@ void setregs_syscall(
 
 }
 
+long remote_getregs(pid_t target, regs_t *regs){
+	#ifdef PTRACE_GETREGS
+	return ptrace(PTRACE_GETREGS, target, 0, regs);
+	#else
+	struct iovec iovec = {
+		.iov_base = regs,
+		.iov_len = sizeof(*regs)
+	};
+	return ptrace(PTRACE_GETREGSET, target, (void*)NT_PRSTATUS, &iovec);
+	#endif
+}
+
+long remote_setregs(pid_t target, regs_t *regs){
+	#ifdef PTRACE_SETREGS
+	return ptrace(PTRACE_SETREGS, target, 0, regs);
+	#else
+	struct iovec iovec = {
+		.iov_base = regs,
+		.iov_len = sizeof(*regs)
+	};
+	return ptrace(PTRACE_SETREGSET, target, (void*)NT_PRSTATUS, &iovec);
+	#endif
+}
+
 void remote_call_setup(pid_t target, struct call_req call, regs_t *orig_ctx, regs_t *new_ctx){
 	memset(orig_ctx, 0x00, sizeof(*orig_ctx));
 
-	ptrace(PTRACE_GETREGS, target, 0, orig_ctx);
+	remote_getregs(target, orig_ctx);
 	memcpy(new_ctx, orig_ctx, sizeof(*orig_ctx));
 
 	setregs_syscall(orig_ctx, new_ctx, call);
-	ptrace(PTRACE_SETREGS, target, 0, new_ctx);
+	remote_setregs(target, new_ctx);
 }
 
 size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
@@ -178,7 +203,7 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			}
 
 			// get syscall return value
-			if(ptrace(PTRACE_GETREGS, target, 0, &new_ctx) < 0){ /* Get return value */
+			if(remote_getregs(target, &new_ctx) < 0){ /* Get return value */
 				PERROR("ptrace");
 				return -1;
 			}
@@ -203,6 +228,16 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 				return -1;
 			}
 
+			if(ctx.pl_debug){
+				kill(target, SIGSTOP);
+			}
+
+			// wait for the children to stop
+			status = remote_wait(target);
+
+			stopsig = WSTOPSIG(status);
+			DBG("got signal: %d (%s)", stopsig, strsignal(stopsig));
+
 			/**
 			 * if we're debugging payload
 			 * we break early as the target should
@@ -211,15 +246,9 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			if(ctx.pl_debug){
 				return -1;
 			}
-
-			// wait for the children to stop
-			status = remote_wait(target);
-
-			stopsig = WSTOPSIG(status);
-			DBG("got signal: %d (%s)", stopsig, strsignal(stopsig));
 		} while(IS_IGNORED_SIG(stopsig));
 
-		if(ptrace(PTRACE_GETREGS, target, 0, &new_ctx) < 0){
+		if(remote_getregs(target, &new_ctx) < 0){
 			PERROR("ptrace");
 			return -1;
 		}
@@ -228,7 +257,7 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			ERR("Unexpected signal (expected SIGSTOP)");
 
 			regs_t tmp;
-			ptrace(PTRACE_GETREGS, target, 0, &tmp);
+			remote_getregs(target, &tmp);
 			DBG("CRASH @ %p (offset: %i)",
 				(void *)REG(tmp, REG_PC),
 				(signed int)(REG(tmp, REG_PC) - call.insn_addr)
@@ -245,7 +274,7 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 		}
 	}
 
-	ptrace(PTRACE_SETREGS, target, 0, &orig_ctx);
+	remote_setregs(target, &orig_ctx);
 
 #ifdef DEBUG
 	DBG("PC: %p => %p",
@@ -553,7 +582,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 
 	/** align stack **/
 
-	#ifdef EZ_ARCH_AMD64
+	#if defined(EZ_ARCH_AMD64) || defined(EZ_ARCH_ARM64)
 	// x64 requires a 16 bytes aligned stack for movaps
 	// force stack to snap to the lowest 16 bytes, or it will crash on x64
 	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(16));
@@ -874,6 +903,10 @@ int main(int argc, char *argv[]){
 	if(err != 0){
 		if(ctx.pl_debug){
 			INFO("You may now attach with gdb for payload debugging");
+			#ifdef USE_ANDROID_ASHMEM
+			INFO("Press Enter to quit");
+			getchar();
+			#endif
 		}
 		return err;
 	}
