@@ -87,8 +87,8 @@ get_filename_component(DL_LIBRARY_NAME "${DL_LIBRARY}" NAME)
 
 find_library(PTHREAD_LIBRARY
 	NAMES
-		libpthread.so
 		libpthread.so.0
+		libpthread.so
 	${REQUIRES_LIBPTHREAD}
 )
 
