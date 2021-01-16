@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <stdint.h>
+#include <stddef.h>
 #include <asm/ptrace.h>
 #include <sys/user.h>
 
