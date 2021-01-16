@@ -5,6 +5,7 @@
 #cmakedefine EZ_ARCH_MIPS
 #cmakedefine EZ_TARGET_ANDROID
 #cmakedefine HAVE_SHM_EXEC
+#cmakedefine HAVE_STRSIGNAL
 #cmakedefine HAVE_LIBC_DLOPEN_MODE
 #cmakedefine HAVE_DL_LOAD_SHARED_LIBRARY
 #cmakedefine HAVE_SHM_SYSCALLS
