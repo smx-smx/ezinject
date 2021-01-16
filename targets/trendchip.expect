@@ -1,0 +1,9 @@
+#!/usr/bin/env expect
+spawn ssh admin@192.168.0.2
+expect -- "# "
+send -- "kill -9 \$(pidof ezinject)\n"
+send -- "kill -9 \$(pidof target)\n"
+send -- "/tmp/target &\n"
+send -- "sleep 2\n"
+send -- "/tmp/ezinject \$(pidof target) /tmp/libdummy.so 1 2 3 4\n"
+interact
