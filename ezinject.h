@@ -72,10 +72,9 @@ struct ezinj_ctx {
 	ez_addr uclibc_mips_got_reloc;
 	ez_addr uclibc_dl_fixup;
 #endif
-	off_t dlopen_offset;
-	off_t dlclose_offset;
-	off_t dlsym_offset;
-	//off_t pthread_join_offset;
+	ptrdiff_t dlopen_offset;
+	ptrdiff_t dlclose_offset;
+	ptrdiff_t dlsym_offset;
 	ez_addr libc_clone;
 	int shm_id;
 	int sem_id;

@@ -25,9 +25,9 @@ struct gb_linker_ctx {
 	Elf32_Shdr *strtab;
 	Elf32_Shdr *symtab;
 
-	off_t dlopen_offset;
-	off_t dlclose_offset;
-	off_t dlsym_offset;
+	ptrdiff_t dlopen_offset;
+	ptrdiff_t dlclose_offset;
+	ptrdiff_t dlsym_offset;
 };
 
 int load_linker(struct gb_linker_ctx *ctx){
@@ -102,10 +102,10 @@ int linker_find_symbols(struct gb_linker_ctx *ctx){
 		Elf32_Sym *sym = &symtab[i];
 		if(sym->st_name != 0 && sym->st_value != 0 && sym->st_shndx != SHN_UNDEF){
 			char *name = strtab + sym->st_name;
-			off_t offset = ctx->sec[sym->st_shndx].sh_offset
+			unsigned offset = ctx->sec[sym->st_shndx].sh_offset
 				+ (sym->st_value - ctx->sec[sym->st_shndx].sh_addr);
 			
-			printf("[%d] %s 0x%x 0x%x\n", i, name, sym->st_value, offset);
+			DBG("[%d] %s 0x%x 0x%x\n", i, name, sym->st_value, offset);
 			if(!strcmp(name, "__loader_dlopen")){
 				ctx->dlopen_offset = offset;
 				DBG("__loader_dlopen: %zu", offset);
@@ -178,9 +178,9 @@ int resolve_libc_symbols_android10(struct ezinj_ctx *ctx){
 	ctx->dlclose_offset = linker_ctx.dlclose_offset;
 	ctx->dlsym_offset = linker_ctx.dlsym_offset;
 
-	DBG("dlopen_offset: 0x%0x", ctx->dlopen_offset);
-	DBG("dlclose_offset: 0x%0x", ctx->dlclose_offset);
-	DBG("dlsym_offset: 0x%0x", ctx->dlsym_offset);
+	DBG("dlopen_offset: 0x%x", ctx->dlopen_offset);
+	DBG("dlclose_offset: 0x%x", ctx->dlclose_offset);
+	DBG("dlsym_offset: 0x%x", ctx->dlsym_offset);
 	return 0;
 }
 
