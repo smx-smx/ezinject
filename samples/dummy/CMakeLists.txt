@@ -10,6 +10,13 @@ if(NOT ANDROID)
 	list(APPEND required_libs dl)
 endif()
 
+if(EZ_ARCH_MIPS AND UCLIBC_OLD)
+	message(WARNING
+		" uClibc old has a bug with GOT relocation handling.\n"
+		" Using global data in hooks might lead to segfaults.\n"
+	)
+endif()
+
 target_link_libraries(dummy ${required_libs})
 
 add_executable(target_dl target_dl.c)

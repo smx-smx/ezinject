@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 
+#include "config.h"
 #include "log.h"
 #include "util.h"
 #include "interface/if_hook.h"
@@ -52,6 +53,13 @@ typedef int(*testFunc_t)(int arg1, int arg2);
 static testFunc_t pfnOrigTestFunc = NULL;
 static testFunc_t sljitCode = NULL;
 
+#ifdef UCLIBC_OLD
+int myCustomFn(int arg1, int arg2){
+	UNUSED(arg1);
+	UNUSED(arg2);
+	return 1338;
+}
+#else
 int myCustomFn(int arg1, int arg2){
 	DBG("original arguments: %d, %d", arg1, arg2);
 
@@ -68,6 +76,7 @@ int myCustomFn(int arg1, int arg2){
 	DBG("return: %d, give %d", origRet, newReturn);
 	return newReturn;
 }
+#endif
 
 void installHooks(){
 	void *self = dlopen(NULL, RTLD_LAZY);
@@ -138,5 +147,5 @@ int lib_main(int argc, char *argv[]){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
 	installHooks();
-	return 0;
+return 0;
 }
