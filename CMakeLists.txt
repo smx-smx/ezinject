@@ -205,16 +205,11 @@ function(add_ezinject_library target)
 	set(sources "${LIB_SOURCES}")
 
 	list(APPEND sources
+		${CMAKE_SOURCE_DIR}/ezinject_compat.c
 		${CMAKE_SOURCE_DIR}/crt/crt.c
 		${CMAKE_SOURCE_DIR}/crt/crt_user.c
 		${CMAKE_SOURCE_DIR}/util.c
 	)
-
-	if(ANDROID AND NOT USE_ANDROID_ASHMEM)
-		list(APPEND sources
-			${CMAKE_SOURCE_DIR}/ezinject_compat.c
-		)
-	endif()
 
 	if(DEBUG)
 		list(APPEND sources ${CMAKE_SOURCE_DIR}/util.c)

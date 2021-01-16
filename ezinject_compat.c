@@ -7,7 +7,10 @@
 #include <sys/mman.h>
 
 #include "config.h"
+
 #include "ezinject_compat.h"
+
+#if !defined(USE_ANDROID_ASHMEM)
 
 #ifdef EZINJECT_INJCODE
 #include "ezinject_injcode.h"
@@ -18,24 +21,12 @@
 #define PL_DBG
 #endif
 
-#ifdef USE_ANDROID_ASHMEM
-#include "ashmem.h"
-#endif
-
-#ifndef EZINJECT_INJCODE
-int ashmem_create_region(key_t key, size_t size, int shmflg);
-#endif
-
 INLINE int shmget(BR_PARAM key_t key, size_t size, int shmflg){
-	#if !defined(EZINJECT_INJCODE) && defined(USE_ANDROID_ASHMEM)
-	 return ashmem_create_region(key, size, shmflg);
-	#else
-	 #if defined(HAVE_SHM_SYSCALLS)
-	 return SYSCALL(__NR_shmget, key, size, shmflg);
-	 #else
-	 return SYSCALL(__NR_ipc, IPCCALL(0, SHMGET), key, size, fhmflg)
-	 #endif
-	#endif
+#if defined(HAVE_SHM_SYSCALLS)
+	return SYSCALL(__NR_shmget, key, size, shmflg);
+#else
+	return SYSCALL(__NR_ipc, IPCCALL(0, SHMGET), key, size, fhmflg)
+#endif
 }
 
 INLINE void *shmat(BR_PARAM int shmid, const void *shmaddr, int shmflg){
@@ -179,4 +170,5 @@ int shmctl(int id, int cmd, struct shmid_ds *buf) {
 }
 
 
+#endif /* USE_ANDROID_ASHMEM */
 #endif
