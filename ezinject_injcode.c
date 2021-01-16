@@ -100,6 +100,7 @@ void injected_fn(struct injcode_bearing *br){
 	void *(*dlopen)(const char *filename, int flag) = NULL;
 	void *(*dlsym)(void *handle, const char *symbol) = NULL;
 	int (*dlclose)(void *handle) = NULL;
+	char *(*dlerror)(void) = NULL;
 
 	int (*pthread_mutex_init)(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr) = NULL;
 	int (*pthread_mutex_lock)(pthread_mutex_t *mutex) = NULL;
@@ -140,24 +141,15 @@ void injected_fn(struct injcode_bearing *br){
 		char *libpthread_name = NULL;
 		char *userlib_name = NULL;
 
-		char *sym_pthread_mutex_init = NULL;
-		char *sym_pthread_mutex_lock = NULL;
-		char *sym_pthread_mutex_unlock = NULL;
-		char *sym_pthread_cond_init = NULL;
-		char *sym_pthread_cond_wait = NULL;
-		char *sym_pthread_join = NULL;
-		do {
-			char *stbl = BR_STRTBL(br);
-			STRTBL_FETCH(stbl, libdl_name);
-			STRTBL_FETCH(stbl, libpthread_name);
-			STRTBL_FETCH(stbl, sym_pthread_mutex_init);
-			STRTBL_FETCH(stbl, sym_pthread_mutex_lock);
-			STRTBL_FETCH(stbl, sym_pthread_mutex_unlock);
-			STRTBL_FETCH(stbl, sym_pthread_cond_init);
-			STRTBL_FETCH(stbl, sym_pthread_cond_wait);
-			STRTBL_FETCH(stbl, sym_pthread_join);
-			STRTBL_FETCH(stbl, userlib_name); // argv[0]
-		} while(0);
+		#define FETCH_SYM(stbl, h_lib, sym) do { \
+			char *sym_name; \
+			STRTBL_FETCH(stbl, sym_name); \
+			sym = dlsym(h_lib, sym_name); \
+		} while(0)
+
+		char *stbl = BR_STRTBL(br);
+		STRTBL_FETCH(stbl, libdl_name);
+		STRTBL_FETCH(stbl, libpthread_name);
 
 		br_puts(br, libdl_name);
 		// just to make sure it's really loaded
@@ -180,23 +172,27 @@ void injected_fn(struct injcode_bearing *br){
 				PL_DBG('1');
 				break;
 			}
-
-			pthread_mutex_init = dlsym(h_pthread, sym_pthread_mutex_init);
-			pthread_mutex_lock = dlsym(h_pthread, sym_pthread_mutex_lock);
-			pthread_mutex_unlock = dlsym(h_pthread, sym_pthread_mutex_unlock);
-			pthread_cond_init = dlsym(h_pthread, sym_pthread_cond_init);
-			pthread_cond_wait = dlsym(h_pthread, sym_pthread_cond_wait);
-			pthread_join = dlsym(h_pthread, sym_pthread_join);
-
-			if(!pthread_mutex_init || !pthread_mutex_lock
-			|| !pthread_mutex_unlock || !pthread_cond_init
-			|| !pthread_cond_wait || !pthread_join
-			){
-				PL_DBG('!');
-				PL_DBG('2');
-				break;
-			}
 		}
+
+		FETCH_SYM(stbl, h_libdl, dlerror);
+		FETCH_SYM(stbl, h_pthread, pthread_mutex_init);
+		FETCH_SYM(stbl, h_pthread, pthread_mutex_lock);
+		FETCH_SYM(stbl, h_pthread, pthread_mutex_unlock);
+		FETCH_SYM(stbl, h_pthread, pthread_cond_init);
+		FETCH_SYM(stbl, h_pthread, pthread_cond_wait);
+		FETCH_SYM(stbl, h_pthread, pthread_join);
+
+		if(!pthread_mutex_init || !pthread_mutex_lock
+		|| !pthread_mutex_unlock || !pthread_cond_init
+		|| !pthread_cond_wait || !pthread_join
+		){
+			PL_DBG('!');
+			PL_DBG('2');
+			break;
+		}
+
+		stbl = BR_STRTBL(br) + br->argv_offset;
+		STRTBL_FETCH(stbl, userlib_name);
 
 		// initialize signal
 		PL_DBG('s');
@@ -208,6 +204,12 @@ void injected_fn(struct injcode_bearing *br){
 		{
 			br_puts(br, userlib_name);
 			br->userlib = dlopen(userlib_name, RTLD_NOW);
+			if(dlerror){
+				char *errstr = dlerror();
+				if(errstr != NULL){
+					br_puts(br, errstr);
+				}
+			}
 			if(br->userlib == NULL){
 				PL_DBG('!');
 				break;

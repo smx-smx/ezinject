@@ -409,7 +409,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	int num_strings;
 
 	// argc + extras
-	num_strings = argc + 8;
+	num_strings = argc + 9;
 
 	struct ezinj_str args[num_strings];
 	int argi = 0;
@@ -426,6 +426,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	// libpthread.so name (without path)
 	PUSH_STRING(PTHREAD_LIBRARY_NAME);
 
+	PUSH_STRING("dlerror");
 	PUSH_STRING("pthread_mutex_init");
 	PUSH_STRING("pthread_mutex_lock");
 	PUSH_STRING("pthread_mutex_unlock");

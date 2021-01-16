@@ -3,9 +3,11 @@ cmake_minimum_required(VERSION 3.14)
 project(ezpatch C ASM)
 enable_language(CXX OPTIONAL)
 
+include(CheckPIESupported)
+check_pie_supported()
+
 add_definitions(-fPIC)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export-dynamic")
-
 
 if(NOT ANDROID)
 	add_definitions(-Wl,--no-undefined)
@@ -173,11 +175,6 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	endif()
 endif()
 
-if(CMAKE_POSITION_INDEPENDENT_CODE)
-	include(CheckPIESupported)
-	check_pie_supported()
-endif()
-
 if(EZ_ARCH_I386 OR EZ_ARCH_AMD64)
 	set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")
 	if(NOT CAPSTONE_INCLUDE_DIRS AND NOT CAPSTONE_LIBRARIES)
@@ -285,6 +282,7 @@ target_link_libraries(ezinject dl)
 
 if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
 	add_subdirectory(android-shmem)
+	add_dependencies(ezinject ashmem)
 	target_link_options(ezinject PUBLIC
 		-Wl,--whole-archive $<TARGET_FILE:ashmem> -Wl,--no-whole-archive
 	)
