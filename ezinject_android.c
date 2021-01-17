@@ -116,15 +116,16 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 	#endif
 	DBG("stack payload_size: %zu", payload_size);
 
+	uintptr_t r_payload = remote_stack - payload_size;
+
 	uint8_t *backup = calloc(payload_size, 1);
 	do {
 		INFO("backing up stack...");
-		if(remote_read(ctx, backup, remote_stack, payload_size) != payload_size){
+		if(remote_read(ctx, backup, r_payload, payload_size) != payload_size){
 			ERR("stack backup failed");
 			break;
 		}
 
-		uintptr_t r_payload = remote_stack - payload_size;
 		DBG("remote stack: %p", (void *)remote_stack);
 		DBG("remote payload: %p", (void *)r_payload);
 
@@ -211,7 +212,7 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 	} while(0);
 
 	INFO("restoring stack");
-	remote_write(ctx, remote_stack, backup, payload_size);
+	remote_write(ctx, r_payload, backup, payload_size);
 	remote_setregs(ctx->target, &orig_regs);
 	free(backup);
 
