@@ -722,7 +722,9 @@ void remote_precache(struct ezinj_ctx *ctx, ez_addr shm_addr){
 			.local = shm_addr.local + (i * pageSize),
 			.remote = shm_addr.remote + (i * pageSize)
 		};
-		cacheflush((void *)page.local, pageSize, 3);
+		#ifdef __GNUC__
+		__builtin___clear_cache((void *)(page.local), (void *)(page.local + pageSize));
+		#endif
 		uintptr_t local_data = *(uintptr_t *)(page.local);
 		uintptr_t remote_data = 0;
 		do {
