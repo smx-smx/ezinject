@@ -32,33 +32,51 @@ struct elfparse_info
 
 static void elfparse_parse(struct elfparse_info *hndl);
 
-void *elfparse_createhandle(const char *procpath)
-{
-	struct elfparse_info *hndl = malloc(sizeof(struct elfparse_info));
-	if(!hndl) return 0;
-	memset(hndl, 0, sizeof(struct elfparse_info));
-	hndl->path = strdup(procpath);
-	if(!hndl->path)
-		goto free_mem;
-	hndl->fd = open(hndl->path, O_RDONLY);
-	if(hndl->fd < 0)
-		goto free_path;
-	hndl->len = lseek(hndl->fd, 0, SEEK_END);
-	lseek(hndl->fd, 0, SEEK_SET);
-	hndl->mapping = mmap(0, hndl->len, PROT_READ, MAP_SHARED, hndl->fd, 0);
-	if(hndl->mapping == MAP_FAILED)
-		goto free_path;
-	elfparse_parse(hndl);
+void *elfparse_createhandle(const char *procpath) {
+	struct elfparse_info *hndl = NULL;
+	int rc = -1;
+	do {
+		hndl = calloc(1, sizeof(struct elfparse_info));
+		if(hndl == NULL){
+			break;
+		}
+		hndl->path = strdup(procpath);
+		if(hndl->path == NULL){
+			break;
+		}
+		hndl->fd = open(hndl->path, O_RDONLY);
+		if(hndl->fd < 0){
+			break;
+		}
+
+		struct stat statBuf;
+		if(fstat(hndl->fd, &statBuf) < 0){
+			break;
+		}
+
+		hndl->len = statBuf.st_size;
+		hndl->mapping = mmap(0, hndl->len, PROT_READ, MAP_SHARED, hndl->fd, 0);
+		if(hndl->mapping == MAP_FAILED){
+			break;
+		}
+
+		elfparse_parse(hndl);
+		rc = 0;
+	} while(0);
+
+	if(rc != 0){
+		if(hndl->path != NULL){
+			free(hndl->path);
+		}
+		if(hndl != NULL){
+			free(hndl);
+			hndl = NULL;
+		}
+	}
 	return hndl;
-free_path:
-	free(hndl->path);
-free_mem:
-	free(hndl);
-	return 0;
 }
 
-static void elfparse_parse(struct elfparse_info *hndl)
-{
+static void elfparse_parse(struct elfparse_info *hndl) {
 	ElfW(Ehdr) *ehdr = hndl->mapping;
 	hndl->ehdr = ehdr;
 	ElfW(Shdr) *sec = (Elf32_Shdr *)((uint8_t *)ehdr + ehdr->e_shoff);
@@ -130,20 +148,20 @@ void *elfparse_getfuncaddr(void *handle, const char *funcname)
 {
 	struct elfparse_info *hndl = (struct elfparse_info*)handle;
 	uint8_t *fn = elfparse_findfunction(hndl, hndl->strtab, hndl->symtab, hndl->symtab_entries, funcname);
-	if(fn)
-		goto ret;
+	if(fn){
+		return fn;
+	}
 	DBG("Function %s not found in symtab, trying dynsym", funcname);
 	fn = elfparse_findfunction(hndl, hndl->dynstr, hndl->dynsym, hndl->dynsym_entries, funcname);
-	if(fn)
-		goto ret;
+	if(fn){
+		return fn;
+	}
 	WARN("Function %s not found in symtab or dynsym", funcname);
 	return 0;
-ret:
 #if 0
 	if(hndl->ehdr->e_machine == EM_ARM) /* apply fix for Thumb functions */
 		fn = (uint8_t *)((uintptr_t)fn & ~1);
 #endif
-	return fn;
 }
 
 void elfparse_destroyhandle(void *handle)
