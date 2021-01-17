@@ -25,7 +25,7 @@ int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *jump_opcod
 	return -1;
 }
 
-#define MOVZ_X16 0xd2900010
+#define MOVZ_X16 0xd2800010
 #define MOVK_X16 0xf2800010
 #define BR_X16 0xd61f0200
 
