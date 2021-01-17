@@ -36,7 +36,7 @@ struct shmat_payload {
 	struct sockaddr_un sock;
 	key_t key;
 
-	char nothing;
+	char body;
 	struct iovec msgdata;
 	struct msghdr msghdr;
 
@@ -51,8 +51,8 @@ uintptr_t prepare_socket_payload(ez_addr payload){
 	
 	// prepare message data (dummy, single char)
 	struct iovec iovec = {
-		.iov_len = 1,
-		.iov_base = (void *)EZ_REMOTE(payload, &pl->msgdata)
+		.iov_len = sizeof(pl->body),
+		.iov_base = (void *)EZ_REMOTE(payload, &pl->body)
 	};
 	pl->msgdata = iovec;
 
