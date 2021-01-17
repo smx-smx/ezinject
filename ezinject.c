@@ -701,6 +701,38 @@ void print_maps(){
 	free(path);
 }
 
+/**
+ * on some architectures and/or kernel versions
+ * doing memcpy to SHM doesn't make the memory immediately visible
+ * to the other process
+ * in those cases, calling the payload will result in Illegal Istruction segfaults
+ *
+ * we do a remote read, which typically forces Linux to read the updated memory
+ * normally just doing it once should be enough.
+ * we do a loop just to be safe
+ **/
+void remote_precache(struct ezinj_ctx *ctx, ez_addr shm_addr){
+	struct injcode_bearing *br = (struct injcode_bearing *)(shm_addr.local);
+
+	size_t pageSize = getpagesize();
+	unsigned numPages = br->mapping_size / pageSize;
+
+	for(unsigned i=0; i<numPages; i++){
+		ez_addr page = {
+			.local = shm_addr.local + (i * pageSize),
+			.remote = shm_addr.remote + (i * pageSize)
+		};
+		uintptr_t local_data = *(uintptr_t *)(page.local);
+		uintptr_t remote_data = 0;
+		do {
+			DBG("precaching page %u", i);
+			// do a single word read, for speed reason
+			// we expect the kernel to precache the whole page
+			remote_read(ctx, &remote_data, page.remote, sizeof(remote_data));
+		} while(local_data != remote_data);
+	}
+}
+
 int ezinject_main(
 	struct ezinj_ctx *ctx,
 	int argc, char *argv[]
@@ -799,31 +831,11 @@ int ezinject_main(
 
 		DBGPTR(remote_trampoline_entry);
 
-#ifndef EZ_TARGET_ANDROID
-		CHECK(RSCALL3(ctx, __NR_madvise, remote_shm_ptr, SIZEOF_BR(*br), MADV_SEQUENTIAL | MADV_WILLNEED));
-#endif
-
-		/**
-		 * on some architectures and/or kernel versions
-		 * doing memcpy to SHM doesn't make the memory immediately visible
-		 * to the other process
-		 * in those cases, calling the payload will result in Illegal Istruction segfaults
-		 *
-		 * we do a remote read, which typically forces Linux to read the updated memory
-		 * normally just doing it once should be enough.
-		 * we do a loop just to be safe
-		 **/
-		{
-			unsigned magic_offset = offsetof(struct injcode_bearing, magic);
-			uint32_t magic = 0;
-			do {
-				remote_read(ctx, &magic, remote_shm_ptr + magic_offset, sizeof(magic));
-				if(magic != EZPL_MAGIC){
-					INFO("waiting for flush");
-					usleep(50000);
-				}
-			} while(magic != EZPL_MAGIC);
-		}
+		ez_addr shm_addr = {
+			.local = UPTR(br),
+			.remote = remote_shm_ptr
+		};
+		remote_precache(ctx, shm_addr);
 
 		// switch to SIGSTOP wait mode
 		ctx->num_wait_calls = 0;
