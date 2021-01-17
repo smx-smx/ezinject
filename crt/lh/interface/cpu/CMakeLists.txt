@@ -6,6 +6,11 @@ if(EZ_ARCH_ARM)
 	target_link_libraries(lh_ifcpu libcpu_arm)
 endif()
 
+if(EZ_ARCH_ARM64)
+	add_subdirectory(arm64)
+	target_link_libraries(lh_ifcpu libcpu_arm64)
+endif()
+
 if(EZ_ARCH_MIPS)
 	add_subdirectory(mips)
 	target_link_libraries(lh_ifcpu libcpu_mips)

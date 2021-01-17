@@ -26,6 +26,7 @@ inline int inj_absjmp_opcode_bytes() {
 		1; //ret
 }
 
+/** $TODO: untested **/
 int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address) {
 	uintptr_t operand = PTRDIFF(jump_destination, jump_opcode_address) - 5;
 	LOG(4, "REL JUMP (X64) TO %p FROM %p IS: " LX, jump_destination, jump_opcode_address, operand);

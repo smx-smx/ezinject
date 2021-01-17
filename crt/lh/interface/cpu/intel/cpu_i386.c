@@ -17,6 +17,7 @@ inline int inj_absjmp_opcode_bytes() {
 	return 5 + 1;
 }
 
+/** $TODO: untested **/
 int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *source) {
 	uintptr_t operand = PTRDIFF(jump_destination, source) - 5;
 

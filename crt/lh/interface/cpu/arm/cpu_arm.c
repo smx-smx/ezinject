@@ -17,6 +17,7 @@ inline int inj_reljmp_opcode_bytes() {
 	return inj_opcode_bytes();
 }
 
+/** $TODO: untested **/
 int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address) {
 	if (UPTR(jump_destination) % 4 != 0) {
 		ERR("Destination address is not multiple of 4");
