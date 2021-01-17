@@ -490,6 +490,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 		PERROR("malloc");
 		return NULL;
 	}
+	br->magic = EZPL_MAGIC;
 	br->mapping_size = mapping_size;
 
 	br->pl_debug = ctx->pl_debug;
@@ -798,17 +799,31 @@ int ezinject_main(
 
 		DBGPTR(remote_trampoline_entry);
 
-		if(msync((void *)ctx->mapped_mem.local, SIZEOF_BR(*br), MS_SYNC|MS_INVALIDATE) < 0){
-			PERROR("msync");
-		}
-
 #ifndef EZ_TARGET_ANDROID
 		CHECK(RSCALL3(ctx, __NR_madvise, remote_shm_ptr, SIZEOF_BR(*br), MADV_SEQUENTIAL | MADV_WILLNEED));
 #endif
-		// some broken kernels don't actually do this immediately (cache issue?)
-#if defined(EZ_ARCH_ARM) || defined(EZ_ARCH_MIPS)
-		usleep(50000);
-#endif
+
+		/**
+		 * on some architectures and/or kernel versions
+		 * doing memcpy to SHM doesn't make the memory immediately visible
+		 * to the other process
+		 * in those cases, calling the payload will result in Illegal Istruction segfaults
+		 *
+		 * we do a remote read, which typically forces Linux to read the updated memory
+		 * normally just doing it once should be enough.
+		 * we do a loop just to be safe
+		 **/
+		{
+			unsigned magic_offset = offsetof(struct injcode_bearing, magic);
+			uint32_t magic = 0;
+			do {
+				remote_read(ctx, &magic, remote_shm_ptr + magic_offset, sizeof(magic));
+				if(magic != EZPL_MAGIC){
+					INFO("waiting for flush");
+					usleep(50000);
+				}
+			} while(magic != EZPL_MAGIC);
+		}
 
 		// switch to SIGSTOP wait mode
 		ctx->num_wait_calls = 0;
