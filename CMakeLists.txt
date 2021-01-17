@@ -266,7 +266,10 @@ if(HAVE_LIBC_DLOPEN_MODE)
 elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
 	list(APPEND ezinject_sources ezinject_libc_uclibc.c)
 elseif(EZ_TARGET_ANDROID)
-	list(APPEND ezinject_sources ezinject_libc_android.c)
+	list(APPEND ezinject_sources
+		elfparse.c
+		ezinject_libc_android.c
+	)
 endif()
 
 add_executable(ezinject ${ezinject_sources})

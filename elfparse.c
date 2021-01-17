@@ -19,6 +19,7 @@ struct elfparse_info
 	size_t len;
 
 	ElfW(Ehdr) *ehdr;
+	ElfW(Shdr) *sec;
 
 	char *strtab;
 	ElfW(Sym) *symtab;
@@ -60,6 +61,8 @@ static void elfparse_parse(struct elfparse_info *hndl)
 {
 	ElfW(Ehdr) *ehdr = hndl->mapping;
 	hndl->ehdr = ehdr;
+	ElfW(Shdr) *sec = (Elf32_Shdr *)((uint8_t *)ehdr + ehdr->e_shoff);
+	hndl->sec = sec;
 	DBG("e_ident=%s", ehdr->e_ident);
 	DBG("e_phoff=%zu", ehdr->e_phoff);
 	DBG("e_shoff=%zu", ehdr->e_shoff);
@@ -103,32 +106,43 @@ bool elfparse_needs_reloc(void *handle)
 	return hndl->ehdr->e_type != ET_EXEC;
 }
 
-static char *elfparse_findfunction(char *strtab, ElfW(Sym) *symtab, int symtab_entries, const char *funcname)
-{
-	for(int i = 0; i < symtab_entries; ++i)
-	{
-		char *curname = &strtab[symtab[i].st_name];
-		if(!strcmp(curname, funcname))
-			return (char *)symtab[i].st_value;
+static uint8_t *elfparse_findfunction(
+	struct elfparse_info *hndl,
+	char *strtab, ElfW(Sym) *symtab,
+	int symtab_entries,
+	const char *funcname
+){
+	for(int i = 0; i < symtab_entries; ++i) {
+		ElfW(Sym) *sym = &symtab[i];
+		char *curname = &strtab[sym->st_name];
+		if(!strcmp(curname, funcname)){
+			unsigned offset = (
+				hndl->sec[sym->st_shndx].sh_offset
+				+ sym->st_value - hndl->sec[sym->st_shndx].sh_addr
+			);
+			return (uint8_t *)offset;
+		}
 	}
 	return 0;
 }
 
-char *elfparse_getfuncaddr(void *handle, const char *funcname)
+void *elfparse_getfuncaddr(void *handle, const char *funcname)
 {
 	struct elfparse_info *hndl = (struct elfparse_info*)handle;
-	char *fn = elfparse_findfunction(hndl->strtab, hndl->symtab, hndl->symtab_entries, funcname);
+	uint8_t *fn = elfparse_findfunction(hndl, hndl->strtab, hndl->symtab, hndl->symtab_entries, funcname);
 	if(fn)
 		goto ret;
 	DBG("Function %s not found in symtab, trying dynsym", funcname);
-	fn = elfparse_findfunction(hndl->dynstr, hndl->dynsym, hndl->dynsym_entries, funcname);
+	fn = elfparse_findfunction(hndl, hndl->dynstr, hndl->dynsym, hndl->dynsym_entries, funcname);
 	if(fn)
 		goto ret;
 	WARN("Function %s not found in symtab or dynsym", funcname);
 	return 0;
 ret:
+#if 0
 	if(hndl->ehdr->e_machine == EM_ARM) /* apply fix for Thumb functions */
-		fn = (char *)((uintptr_t)fn & ~1);
+		fn = (uint8_t *)((uintptr_t)fn & ~1);
+#endif
 	return fn;
 }
 

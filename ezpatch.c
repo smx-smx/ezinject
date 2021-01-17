@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 		*(filename++) = 0;
 		char *funcname = cmd;
 
-		char *funcadr = elfparse_getfuncaddr(hndl, funcname);
+		char *funcadr = (char *)elfparse_getfuncaddr(hndl, funcname);
 		if(!funcadr)
 		{
 			WARN("Function %s not found!", funcname);
