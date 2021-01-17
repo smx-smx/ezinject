@@ -56,17 +56,6 @@ uintptr_t prepare_socket_payload(ez_addr payload){
 	};
 	pl->msgdata = iovec;
 
-	// prepare control header
-	struct cmsghdr chdr = {
-		.cmsg_len = pl->msghdr.msg_controllen,
-		.cmsg_level = SOL_SOCKET,
-		.cmsg_type = SCM_RIGHTS
-	};
-    pl->cmsg.h = chdr;
-	
-	// set initial control data
-	pl->cmsg.fd = -1; // set initial fd value
-	
 	// attach message data and control data to header
 	struct msghdr msghdr = {
 		.msg_name = NULL,
@@ -80,6 +69,17 @@ uintptr_t prepare_socket_payload(ez_addr payload){
 		.msg_controllen = sizeof(pl->cmsg)
 	};
 	pl->msghdr = msghdr;
+
+	// prepare control header
+	struct cmsghdr chdr = {
+		.cmsg_len = pl->msghdr.msg_controllen,
+		.cmsg_level = SOL_SOCKET,
+		.cmsg_type = SCM_RIGHTS
+	};
+	pl->cmsg.h = chdr;
+
+	// set initial control data
+	pl->cmsg.fd = -1; // set initial fd value
 
 	// return remote control data address
 	return UPTR(pl->msghdr.msg_control) + sizeof(struct cmsghdr);
