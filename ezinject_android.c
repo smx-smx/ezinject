@@ -207,6 +207,8 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 			}
 
 			result = r_mem;
+
+			RSCALL3(ctx, __ARM_NR_cacheflush, r_mem, r_mem + map_size, 0);
 		} while(0);
 		RSCALL1(ctx, __NR_close, remote_sock_fd);
 	} while(0);

@@ -92,6 +92,7 @@ struct injcode_bearing
 	size_t mapping_size;
 
 	int pl_debug;
+	off_t stack_offset;
 	pthread_t user_tid;
 	void *userlib;
 
@@ -135,8 +136,6 @@ enum userlib_return_action {
 	userlib_unload = 0,
 	userlib_persist = 1
 };
-
-#define PL_STACK(br) (uintptr_t *)((uintptr_t)((br) + MAPPINGSIZE))
 
 extern void injected_sc_start();
 extern void injected_sc_end();

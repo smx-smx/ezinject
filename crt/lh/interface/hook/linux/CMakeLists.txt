@@ -4,4 +4,3 @@ target_link_libraries(lh_hook_linux
 	lh_ifcpu
 	${CAPSTONE_LIBRARIES}
 )
-set_target_properties(lh_hook_linux PROPERTIES POSITION_INDEPENDENT_CODE ON)

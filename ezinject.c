@@ -88,6 +88,10 @@ void setregs_syscall(
 		DBG("remote_call(%u)", (unsigned int)sc.argv[0]);
 	}
 
+	#ifdef USE_ARM_THUMB
+	REG(*new_ctx, ARM_cpsr) = REG(*new_ctx, ARM_cpsr) | PSR_T_BIT;
+	#endif
+
 	if(call.stack_addr != 0){
 		REG(*new_ctx, REG_SP) = call.stack_addr;
 	}
@@ -545,6 +549,10 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	// size of code payload
 	size_t code_size = (size_t)WORDALIGN(REGION_LENGTH(region_pl_code));
 
+	#ifdef USE_ARM_THUMB
+	code_size |= 1;
+	#endif
+
 	size_t stack_offset = br_size + code_size;
 	size_t mapping_size = stack_offset + PL_STACK_SIZE;
 
@@ -575,6 +583,10 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	uint8_t *pMem = (uint8_t *)ctx->mapped_mem.local;
 	layout->br_start = pMem;
 	pMem += br_size;
+
+	#ifdef USE_ARM_THUMB
+	pMem = (void *)(UPTR(pMem) | 1);
+	#endif
 
 	layout->code_start = pMem;
 
@@ -735,6 +747,7 @@ int ezinject_main(
 	remote_read(ctx, &dataBak, codeBase, dataLength);
 	remote_write(ctx, codeBase, region_sc_insn.start, dataLength);
 	ctx->syscall_insn.remote = codeBase;
+
 #ifdef EZ_ARCH_MIPS
 	// skip syscall instruction and apply stack offset (see note about sys_ipc)
 	ctx->syscall_stack.remote = codeBase + 4 - 16;

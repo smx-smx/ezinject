@@ -113,6 +113,10 @@ check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
 check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
 check_symbol_exists("__ANDROID__" "" EZ_TARGET_ANDROID)
 
+if(EZ_ARCH_ARM AND USE_ARM_THUMB)
+	add_definitions(-mthumb)
+endif()
+
 if(NOT HAVE_SHM_SYSCALLS AND NOT HAVE_SC_IPC AND NOT USE_ANDROID_ASHMEM)
 	message(FATAL_ERROR "Unsupported system")
 endif()
@@ -180,12 +184,28 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	endif()
 endif()
 
-if(EZ_ARCH_I386 OR EZ_ARCH_AMD64)
-	set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")
-	if(NOT CAPSTONE_INCLUDE_DIRS AND NOT CAPSTONE_LIBRARIES)
-		find_package(CAPSTONE REQUIRED)
+if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR EZ_ARCH_ARM)
+	# for ARM, this is true only on Thumb
+	set(HAVE_CPU_VLE ON)
+endif()
+
+if(HAVE_CPU_VLE)
+	if(NOT CAPSTONE_PREFIX)
+		set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")
+		if(NOT CAPSTONE_INCLUDE_DIRS AND NOT CAPSTONE_LIBRARIES)
+			find_package(CAPSTONE REQUIRED)
+		endif()
+		include_directories(${CAPSTONE_INCLUDE_DIRS})
+	else()
+		find_library(
+				CAPSTONE_LIBRARIES REQUIRED
+				NO_DEFAULT_PATH
+				PATHS ${CAPSTONE_PREFIX}/lib
+				NAMES libcapstone.a capstone
+				CMAKE_FIND_ROOT_PATH_BOTH 
+		)
+		include_directories(${CAPSTONE_PREFIX}/include)
 	endif()
-include_directories(${CAPSTONE_INCLUDE_DIRS})
 endif()
 
 include(CheckIncludeFile)

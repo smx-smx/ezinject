@@ -78,6 +78,10 @@ INLINE uint64_t str64(uint64_t x){
 	br->libc_printf((char *)buf, ptr); \
 } while(0);
 INLINE void br_puts(struct injcode_bearing *br, char *str){
+	if(str == NULL){
+		return;
+	}
+
 	int l;
 	for(l=0; str[l] != 0x00; l++);
 	br->libc_syscall(__NR_write, STDOUT_FILENO, str, l);
@@ -97,6 +101,14 @@ INLINE void br_puts(struct injcode_bearing *br, char *str){}
 INLINE void *get_libdl(struct injcode_bearing *br){
 	return br->libdl_handle;
 }
+#endif
+
+#ifdef EZ_ARCH_ARM
+INLINE void br_cacheflush(struct injcode_bearing *br, void *from, void *to){
+	br->libc_syscall(__ARM_NR_cacheflush, from, to, 0);
+}
+#else
+INLINE void br_cacheflush(struct injcode_bearing *br, void *from, void *to){}
 #endif
 
 void injected_fn(struct injcode_bearing *br){
@@ -141,15 +153,21 @@ void injected_fn(struct injcode_bearing *br){
 		dlopen = (void *)PTRADD(libdl_handle, br->dlopen_offset);
 		dlclose = (void *)PTRADD(libdl_handle, br->dlclose_offset);
 		dlsym = (void *)PTRADD(libdl_handle, br->dlsym_offset);
+
+		PL_DBG('x');
 		DBGPTR(libdl_handle);
+		DBGPTR(dlopen);
 
 		char *libdl_name = NULL;
 		char *libpthread_name = NULL;
 		char *userlib_name = NULL;
 
+		//br->libc_syscall(__ARM_NR_cacheflush, sym_name, (void *)(UPTR(sym_name) + 256)); 
+
 		#define FETCH_SYM(stbl, h_lib, sym) do { \
 			char *sym_name; \
 			STRTBL_FETCH(stbl, sym_name); \
+			br_cacheflush(br, &sym_name, (void *)(UPTR(&sym_name) + sizeof(sym_name))); \
 			sym = dlsym(h_lib, sym_name); \
 		} while(0)
 
@@ -164,12 +182,12 @@ void injected_fn(struct injcode_bearing *br){
 		if(h_libdl == NULL){
 			h_libdl = dlopen(libdl_name, RTLD_NOW | RTLD_GLOBAL);
 		}
-		DBGPTR(h_libdl);
+		FETCH_SYM(stbl, h_libdl, dlerror);
 
 		// acquire libpthread
 		PL_DBG('p');
 		{
-			had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
+			//had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
 
 			br_puts(br, libpthread_name);
 			h_pthread = dlopen(libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
@@ -180,7 +198,7 @@ void injected_fn(struct injcode_bearing *br){
 			}
 		}
 
-		FETCH_SYM(stbl, h_libdl, dlerror);
+		DBGPTR(h_pthread);
 		FETCH_SYM(stbl, h_pthread, pthread_mutex_init);
 		FETCH_SYM(stbl, h_pthread, pthread_mutex_lock);
 		FETCH_SYM(stbl, h_pthread, pthread_mutex_unlock);

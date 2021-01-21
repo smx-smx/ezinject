@@ -12,6 +12,10 @@
 
 LOG_SETUP(V_DBG);
 
+#define USE_SLJIT
+#define USE_LH
+
+#ifdef USE_SLJIT
 /**
  * Sample function that demonstrates the use of sljit
  **/
@@ -47,6 +51,7 @@ void *sljit_build_sample(void **ppCodeMem){
 
 	return sljit_code;
 }
+#endif
 
 typedef int(*testFunc_t)(int arg1, int arg2);
 
@@ -63,8 +68,11 @@ int myCustomFn(int arg1, int arg2){
 int myCustomFn(int arg1, int arg2){
 	DBG("original arguments: %d, %d", arg1, arg2);
 
+	#ifdef USE_SLJIT
 	// call the sljit code sample
 	arg1 = sljitCode(arg1, arg2);
+	#endif
+
 	arg2 = 0;
 
 	DBG("calling original(%d,%d)", arg1, arg2);
@@ -78,6 +86,7 @@ int myCustomFn(int arg1, int arg2){
 }
 #endif
 
+#ifdef USE_LH
 void installHooks(){
 	void *self = dlopen(NULL, RTLD_LAZY);
 	if(self == NULL){
@@ -95,7 +104,9 @@ void installHooks(){
 			break;
 		}
 
+		#ifdef USE_SLJIT
 		sljitCode = sljit_build_sample(&codeMem);
+		#endif
 
 		/**
 		 * create a trampoline to call the original function once the hook is installed
@@ -121,14 +132,17 @@ void installHooks(){
 
 	if(error){
 		INFO("failed to install hooks");
+		#ifdef USE_SLJIT
 		if(codeMem != NULL){
 			sljit_free_exec(codeMem);
 		}
+		#endif
 		dlclose(self);
 	} else {
 		INFO("hooks installed succesfully");
 	}
 }
+#endif
 
 int lib_preinit(struct injcode_user *user){
 	/**
@@ -146,6 +160,8 @@ int lib_main(int argc, char *argv[]){
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
+	#ifdef USE_LH
 	installHooks();
+	#endif
 return 0;
 }

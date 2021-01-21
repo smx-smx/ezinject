@@ -3,9 +3,9 @@ set -m
 
 export PATH=/opt/android-ndk-r14b-android-9/bin:$PATH
 
-LIBC_VARIANT=android-2
+#LIBC_VARIANT=android-2
 #LIBC_VARIANT=android-5
-#LIBC_VARIANT=android-10
+LIBC_VARIANT=android-10
 
 ../build.sh $PWD/arm-android.cmake \
 	-DEZ_LIBC=bionic \
@@ -14,6 +14,8 @@ LIBC_VARIANT=android-2
 	-DANDROID_ABI=armeabi-v7a \
 	-DCMAKE_SYSTEM_VERSION=9 \
 	-DUSE_ANDROID_ASHMEM=ON \
+	-DUSE_ARM_THUMB=ON \
+	-DCAPSTONE_PREFIX=$(readlink -f $PWD/../staging/capstone/out/usr) \
 && \
 adb push \
 	../build/ezinject \
