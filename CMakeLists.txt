@@ -184,7 +184,7 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	endif()
 endif()
 
-if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR EZ_ARCH_ARM)
+if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR (EZ_ARCH_ARM AND USE_ARM_THUMB))
 	# for ARM, this is true only on Thumb
 	set(HAVE_CPU_VLE ON)
 endif()
