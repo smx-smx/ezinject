@@ -59,4 +59,13 @@ int shmctl(int id, int cmd, struct shmid_ds *buf);
 
 #endif /* EZINJECT_INJCODE */
 
+#if defined(EZ_TARGET_FREEBSD)
+#define __NR_getpid SYS_getpid
+#define __NR_shmget SYS_shmget
+#define __NR_shmat SYS_shmat
+#define __NR_shmdt SYS_shmdt
+#define __NR_write SYS_write
+#define __NR_kill SYS_kill
+#endif
+
 #endif

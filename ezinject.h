@@ -5,32 +5,16 @@
 
 #include <stdint.h>
 #include <stddef.h>
+
+#ifndef EZ_TARGET_FREEBSD
 #include <asm/ptrace.h>
+#endif
+
+#include <sys/types.h>
 #include <sys/user.h>
 
 #include "ezinject_compat.h"
 #include "ezinject_injcode.h"
-
-#if defined(EZ_ARCH_MIPS)
-// the bundled pt_regs definition is wrong (https://www.linux-mips.org/archives/linux-mips/2014-07/msg00443.html)
-// so we must provide our own
-
-struct pt_regs2 {
-	uint64_t regs[32];
-	uint64_t lo;
-	uint64_t hi;
-	uint64_t cp0_epc;
-	uint64_t cp0_badvaddr;
-	uint64_t cp0_status;
-	uint64_t cp0_cause;
-} __attribute__ ((aligned (8)));
-
-typedef struct pt_regs2 regs_t;
-#elif defined(EZ_ARCH_ARM64)
-typedef struct user_pt_regs regs_t;
-#else
-typedef struct user regs_t;
-#endif
 
 typedef struct {
 	uintptr_t remote;

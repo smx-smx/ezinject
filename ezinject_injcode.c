@@ -11,9 +11,12 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/syscall.h>
-#include <sys/prctl.h>
 
 #include "config.h"
+
+#if defined(EZ_TARGET_LINUX)
+#include <sys/prctl.h>
+#endif
 
 #include "ezinject_compat.c"
 
@@ -21,7 +24,7 @@
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
-#ifndef HAVE_SHM_SYSCALLS
+#if defined(EZ_TARGTE_LINUX) && !defined(HAVE_SHM_SYSCALLS)
 #include <asm-generic/ipc.h>
 #endif
 
@@ -86,6 +89,7 @@ INLINE void br_puts(struct injcode_bearing *br, char *str){
 	for(l=0; str[l] != 0x00; l++);
 	br->libc_syscall(__NR_write, STDOUT_FILENO, str, l);
 	char nl = '\n';
+	
 	br->libc_syscall(__NR_write, STDOUT_FILENO, &nl, 1);
 }
 #else

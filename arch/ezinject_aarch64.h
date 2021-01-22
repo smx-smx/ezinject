@@ -22,4 +22,6 @@
 
 #define JMP_INSN "b"
 
+typedef struct user_pt_regs regs_t;
+
 #endif

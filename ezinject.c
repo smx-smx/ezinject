@@ -27,8 +27,12 @@
 #include <sys/ipc.h>
 #include <sys/stat.h>
 
-#ifndef HAVE_SHM_SYSCALLS
+#if defined(EZ_TARGET_LINUX) && !defined(HAVE_SHM_SYSCALLS)
 #include <asm-generic/ipc.h>
+#endif
+
+#ifdef EZ_TARGET_FREEBSD
+#include <sys/sysproto.h>
 #endif
 
 #include "util.h"
@@ -105,27 +109,59 @@ void setregs_syscall(
 
 }
 
+int remote_attach(pid_t target){
+#if defined(EZ_TARGET_LINUX)
+	return ptrace(PTRACE_ATTACH, target, 0, 0);
+#elif defined(EZ_TARGET_FREEBSD)
+	return ptrace(PT_ATTACH, target, 0, 0);
+#endif
+}
+
+int remote_detach(pid_t target){
+#if defined(EZ_TARGET_LINUX)
+	return ptrace(PTRACE_DETACH, target, 0, 0);
+#elif defined(EZ_TARGET_FREEBSD)
+	return ptrace(PT_DETACH, target, 0, 0);
+#endif
+}
+
+int remote_continue(pid_t target, int signal){
+#if defined(EZ_TARGET_LINUX)
+	return ptrace(PTRACE_CONT, target, 0, signal);
+#elif defined(EZ_TARGET_FREEBSD)
+	return ptrace(PT_CONTINUE, target, (caddr_t)1, signal);
+#endif
+}
+
 long remote_getregs(pid_t target, regs_t *regs){
-	#ifdef PTRACE_GETREGS
-	return ptrace(PTRACE_GETREGS, target, 0, regs);
-	#else
-	struct iovec iovec = {
-		.iov_base = regs,
-		.iov_len = sizeof(*regs)
-	};
-	return ptrace(PTRACE_GETREGSET, target, (void*)NT_PRSTATUS, &iovec);
+	#if defined(EZ_TARGET_LINUX)
+		#ifdef PTRACE_GETREGS
+		return ptrace(PTRACE_GETREGS, target, 0, regs);
+		#else
+		struct iovec iovec = {
+			.iov_base = regs,
+			.iov_len = sizeof(*regs)
+		};
+		return ptrace(PTRACE_GETREGSET, target, (void*)NT_PRSTATUS, &iovec);
+		#endif
+	#elif defined(EZ_TARGET_FREEBSD)
+		return ptrace(PT_GETREGS, target, (caddr_t)regs, 0);
 	#endif
 }
 
 long remote_setregs(pid_t target, regs_t *regs){
-	#ifdef PTRACE_SETREGS
-	return ptrace(PTRACE_SETREGS, target, 0, regs);
-	#else
-	struct iovec iovec = {
-		.iov_base = regs,
-		.iov_len = sizeof(*regs)
-	};
-	return ptrace(PTRACE_SETREGSET, target, (void*)NT_PRSTATUS, &iovec);
+	#if defined(EZ_TARGET_LINUX)
+		#ifdef PTRACE_SETREGS
+		return ptrace(PTRACE_SETREGS, target, 0, regs);
+		#else
+		struct iovec iovec = {
+			.iov_base = regs,
+			.iov_len = sizeof(*regs)
+		};
+		return ptrace(PTRACE_SETREGSET, target, (void*)NT_PRSTATUS, &iovec);
+		#endif
+	#elif defined(EZ_TARGET_FREEBSD)
+		return ptrace(PT_SETREGS, target, (caddr_t)regs, 0);
 	#endif
 }
 
@@ -144,7 +180,11 @@ size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t s
 	
 	size_t read;
 	for(read=0; read < size; read+=sizeof(uintptr_t), destWords++){
+		#if defined(EZ_TARGET_LINUX)
 		*destWords = (uintptr_t)ptrace(PTRACE_PEEKTEXT, ctx->target, source + read, 0);
+		#elif defined(EZ_TARGET_FREEBSD)
+		*destWords = (uintptr_t)ptrace(PT_READ_D, ctx->target, (caddr_t)(source + read), 0);
+		#endif
 	}
 	return read;
 }
@@ -154,7 +194,11 @@ size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t 
 	
 	size_t written;
 	for(written=0; written < size; written+=sizeof(uintptr_t), sourceWords++){
+		#if defined(EZ_TARGET_LINUX)
 		ptrace(PTRACE_POKETEXT, ctx->target, dest + written, *sourceWords);
+		#elif defined(EZ_TARGET_FREEBSD)
+		ptrace(PT_WRITE_D, ctx->target, (caddr_t)(dest + written), *sourceWords);
+		#endif
 	}
 	return written;
 }
@@ -178,7 +222,11 @@ int remote_wait(pid_t target){
 	return status;
 }
 
+#if defined(EZ_TARGET_LINUX)
 #define SC_EVENT_STATUS (SIGTRAP | 0x80)
+#elif defined(EZ_TARGET_FREEBSD)
+#define SC_EVENT_STATUS SIGTRAP
+#endif
 
 uintptr_t remote_call_common(pid_t target, struct call_req call){
 	regs_t orig_ctx, new_ctx;
@@ -189,17 +237,30 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 		uintptr_t sc_ret;
 		int rc;
 		do {
+			#if defined(EZ_TARGET_LINUX)
 			if(ptrace(PTRACE_SYSCALL, target, 0, 0) < 0){ /* Run until syscall entry */
 				PERROR("ptrace");
 				return -1;
 			}
+			#elif defined(EZ_TARGET_FREEBSD)
+			if(ptrace(PT_SYSCALL, target, (caddr_t)1, 0) < 0){ /* Run until syscall entry */
+				PERROR("ptrace");
+				return -1;
+			}
+			#endif
 			status = remote_wait(target);
+			DBG("signal: %d (%s)", WSTOPSIG(status), strsignal(WSTOPSIG(status)));
 			if((rc=WSTOPSIG(status)) != SC_EVENT_STATUS){
 				ERR("remote_wait: %s", strsignal(rc));
 				return -1;
 			}
 
+			#if defined(EZ_TARGET_LINUX)
 			ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall return */
+			#elif defined(EZ_TARGET_FREEBSD)
+			ptrace(PT_SYSCALL, target, (caddr_t)1, 0);
+			#endif
+
 			status = remote_wait(target);
 			if((rc=WSTOPSIG(status)) != SC_EVENT_STATUS){
 				ERR("remote_wait: %s", strsignal(rc));
@@ -227,7 +288,7 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 
 			DBG("continuing...");
 			// pass signal to child
-			if(ptrace(PTRACE_CONT, target, 0, stopsig) < 0){
+			if(remote_continue(target, stopsig) < 0){
 				PERROR("ptrace");
 				return -1;
 			}
@@ -272,7 +333,7 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			// child raised a debug event
 			// this is a debug condition, so do a hard exit
 			// $TODO: do it nicer
-			ptrace(PTRACE_DETACH, target, 0, 0);
+			remote_detach(target);
 			exit(0);
 			return -1;
 		}
@@ -655,6 +716,7 @@ void sigint_handler(int signum){
 
 uintptr_t remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int shmflg){
 	uintptr_t remote_shm_ptr = 0;
+	#if defined(EZ_TARGET_LINUX)
 	#ifdef HAVE_SHM_SYSCALLS
 		remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, shm_id, shmaddr, shmflg));
 	#else
@@ -677,12 +739,16 @@ uintptr_t remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int s
 		DBGPTR(remote_shm_ptr);
 		CHECK(RSCALL3(ctx, __NR_mprotect, ctx->target_codebase, getpagesize(), PROT_READ | PROT_EXEC));
 	#endif
+	#elif defined(EZ_TARGET_FREEBSD)
+	remote_shm_ptr = CHECK(RSCALL3(ctx, SYS_shmat, shm_id, shmaddr, shmflg));
+	#endif
 	INFO("shmat => %p", (void *)remote_shm_ptr);
 	return remote_shm_ptr;
 }
 
 int remote_shmdt(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 	int result = -1;
+	#if defined(EZ_TARGET_LINUX)
 	#ifdef HAVE_SHM_SYSCALLS
 		result = (int) CHECK(RSCALL1(ctx, __NR_shmdt, remote_shmaddr));
 	#else
@@ -690,9 +756,13 @@ int remote_shmdt(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 		ctx->syscall_stack.remote = ctx->target_codebase + 4 - 16;
 		result = (int) CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, ctx->target_codebase + 4));
 	#endif
+	#elif defined(EZ_TARGET_FREEBSD)
+		result = (int) CHECK(RSCALL1(ctx, SYS_shmdt, remote_shmaddr));
+	#endif
 	return result;
 }
 
+#if defined(EZ_TARGET_LINUX)
 void print_maps(){
 	pid_t pid = syscall(__NR_getpid);
 	char *path;
@@ -712,6 +782,9 @@ void print_maps(){
 	} while(0);
 	free(path);
 }
+#else
+void print_maps(){}
+#endif
 
 int ezinject_main(
 	struct ezinj_ctx *ctx,
@@ -757,7 +830,11 @@ int ezinject_main(
 	ctx->num_wait_calls = 1;
 
 	/* Verify that remote_call works correctly */
+	#if defined(EZ_TARGET_LINUX)
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
+	#elif defined(EZ_TARGET_FREEBSD)
+	pid_t remote_pid = (pid_t)RSCALL0(ctx, SYS_getpid);
+	#endif
 	if(remote_pid != ctx->target)
 	{
 		ERR("Remote syscall returned incorrect result!");
@@ -872,7 +949,7 @@ int main(int argc, char *argv[]){
 	const char *argPid = argv[optind++];
 	pid_t target = atoi(argPid);
 
-	if(ptrace(PTRACE_ATTACH, target, 0, 0) < 0){
+	if(remote_attach(target) < 0){
 		PERROR("ptrace attach");
 		return 1;
 	}
@@ -889,15 +966,22 @@ int main(int argc, char *argv[]){
 					break;
 				}
 				INFO("Skipping signal %u", stopsig);
-				CHECK(ptrace(PTRACE_CONT, target, 0, stopsig));
+				CHECK(remote_continue(target, stopsig));
 			}
 		}
 	}
 
+#if defined(EZ_TARGET_LINUX)
 	if(ptrace(PTRACE_SETOPTIONS, target, 0, PTRACE_O_TRACESYSGOOD) < 0){
 		PERROR("ptrace setoptions");
 		return 1;
 	}
+#elif defined(EZ_TARGET_FREEBSD)
+	if (ptrace(PT_LWP_EVENTS, target, NULL, 1) < 0){
+		PERROR("ptrace setoptions");
+		return 1;
+	}
+#endif
 
 	ctx.target = target;
 	if(libc_init(&ctx) != 0){
@@ -906,7 +990,7 @@ int main(int argc, char *argv[]){
 
 	err = ezinject_main(&ctx, argc - optind, &argv[optind]);
 
-	CHECK(ptrace(PTRACE_DETACH, target, 0, 0));
+	CHECK(remote_detach(target));
 
 	/**
 	 * skip IPC cleanup if we encountered any error

@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
-#include <linux/limits.h>
 #include <pthread.h>
 
 
@@ -96,7 +95,7 @@ struct injcode_bearing
 	pthread_t user_tid;
 	void *userlib;
 
-#if defined(HAVE_LIBC_DLOPEN_MODE) || defined(EZ_TARGET_ANDROID)
+#if defined(HAVE_LIBDL_IN_LIBC) || defined(HAVE_LIBC_DLOPEN_MODE) || defined(EZ_TARGET_ANDROID)
 	void *(*libc_dlopen)(const char *name, int mode);
 #elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,

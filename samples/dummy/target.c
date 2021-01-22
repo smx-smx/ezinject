@@ -5,7 +5,10 @@
 #include <unistd.h>
 #include <signal.h>
 #include <sys/syscall.h>
+
+#ifdef __linux__
 #include <asm/unistd.h>
+#endif
 
 #define UNUSED(x) (void)x
 
@@ -25,7 +28,7 @@ void onSignal(int sigNum){
 }
 
 void print_maps(){
-	pid_t pid = syscall(__NR_getpid);
+	pid_t pid = getpid();
 	char *path;
 	asprintf(&path, "/proc/%u/maps", pid);
 	do {

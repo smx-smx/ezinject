@@ -1,5 +1,10 @@
-#ifndef __EZINJECT_AMD64_H
-#define __EZINJECT_AMD64_H
+#ifndef __EZINJECT_FREEBSD_AMD64_H
+#define __EZINJECT_FREEBSD_AMD64_H
+
+#include <machine/reg.h>
+
+#define _CONCAT(x,y) x##y
+#define CONCAT(x,y) _CONCAT(x,y)
 
 #define REG_PC rip
 #define REG_SP rsp
@@ -12,7 +17,7 @@
 #define REG_ARG5 r8
 #define REG_ARG6 r9
 
-#define REG(u, r) (u).regs.r
+#define REG(u, reg) (u).CONCAT(r_,reg)
 
 #define EMIT_SC() asm volatile("syscall\n")
 #define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))
@@ -23,6 +28,6 @@
 
 #define JMP_INSN "jmp"
 
-typedef struct user regs_t;
+typedef struct reg regs_t;
 
 #endif

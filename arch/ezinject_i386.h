@@ -23,4 +23,6 @@
 
 #define JMP_INSN "jmp"
 
+typedef struct user regs_t;
+
 #endif

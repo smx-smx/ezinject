@@ -13,10 +13,17 @@
 #include <sys/shm.h>
 #endif
 #include <sys/mman.h>
+#ifdef EZ_TARGET_LINUX
 #include <sys/prctl.h>
+#endif
 #include <sys/resource.h>
 #include <sys/syscall.h>
+#ifdef EZ_TARGET_FREEBSD
+#include <sys/sysproto.h>
+#endif
+#ifdef EZ_TARGET_LINUX
 #include <asm/unistd.h>
+#endif
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -104,7 +111,13 @@ __attribute__((constructor)) void ctor(void)
 	memset(params, 0x00, sizeof(*params));
 
 	// get pid (use syscall to avoid libc pid caching)
+	#if defined(EZ_TARGET_LINUX)
 	params->pid = syscall(__NR_getpid);
+	#elif defined(EZ_TARGET_FREEBSD)
+	params->pid = syscall(SYS_getpid);
+	#else
+	#error "Unsupported target"
+	#endif
 
 	INFO("pid: %u", params->pid);
 

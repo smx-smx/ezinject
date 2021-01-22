@@ -9,11 +9,21 @@ check_pie_supported()
 add_definitions(-fPIC)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export-dynamic")
 
-if(NOT ANDROID)
-	add_definitions(-Wl,--no-undefined)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+	set(EZ_TARGET_LINUX TRUE)
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
+	set(EZ_TARGET_FREEBSD TRUE)
 else()
-	if(NOT DEFINED USE_ANDROID_ASHMEM)
-		set(USE_ANDROID_ASHMEM ON)
+	message(FATAL_ERROR "Unsupported OS")
+endif()
+
+if(EZ_TARGET_LINUX)
+	if(NOT ANDROID)
+		add_definitions(-Wl,--no-undefined)
+	else()
+		if(NOT DEFINED USE_ANDROID_ASHMEM)
+			set(USE_ANDROID_ASHMEM ON)
+		endif()
 	endif()
 endif()
 
@@ -69,6 +79,7 @@ endif()
 
 find_library(C_LIBRARY
 	NAMES
+		libc.so.7
 		libc.so.6
 		libc.so.0
 		libc.so
@@ -117,10 +128,6 @@ if(EZ_ARCH_ARM AND USE_ARM_THUMB)
 	add_definitions(-mthumb)
 endif()
 
-if(NOT HAVE_SHM_SYSCALLS AND NOT HAVE_SC_IPC AND NOT USE_ANDROID_ASHMEM)
-	message(FATAL_ERROR "Unsupported system")
-endif()
-
 macro(find_uclibc)
 	find_library(DYN_LINKER
 		NAMES ld-uClibc.so.0
@@ -130,6 +137,10 @@ macro(find_uclibc)
 endmacro()
 
 macro(libc_autodetect)
+	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
+	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLSYM)
+	set(HAVE_LIBDL_IN_LIBC (HAVE_DLOPEN AND HAVE_DLSYM))
+
 	check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 	check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)
 	if(NOT HAVE_DLOPEN OR NOT HAVE_DLSYM)
@@ -138,7 +149,7 @@ macro(libc_autodetect)
 
 	check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
 
-	if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT ANDROID)
+	if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT ANDROID AND NOT HAVE_LIBDL_IN_LIBC)
 		find_uclibc()
 		check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
 	endif()
@@ -146,6 +157,7 @@ macro(libc_autodetect)
 	if(NOT ANDROID
 	AND NOT HAVE_LIBC_DLOPEN_MODE
 	AND NOT HAVE_DL_LOAD_SHARED_LIBRARY
+	AND NOT HAVE_LIBDL_IN_LIBC
 	)
 		message(FATAL_ERROR "Unsupported C library")
 	endif()
@@ -184,6 +196,10 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	endif()
 endif()
 
+if(NOT HAVE_SHM_SYSCALLS AND NOT HAVE_SC_IPC AND NOT USE_ANDROID_ASHMEM AND NOT HAVE_LIBDL_IN_LIBC)
+	message(FATAL_ERROR "Unsupported system")
+endif()
+
 if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR (EZ_ARCH_ARM AND USE_ARM_THUMB))
 	# for ARM, this is true only on Thumb
 	set(HAVE_CPU_VLE ON)
@@ -217,12 +233,15 @@ configure_file(
 	${CMAKE_BINARY_DIR}/config.h
 )
 
-add_executable(ezpatch
-	elfparse.c
-	ezpatch.c
-	util.c
-	elfparse.c
-)
+# TODO: fix for Freebsd
+if(NOT EZ_TARGET_FREEBSD)
+	add_executable(ezpatch
+		elfparse.c
+		ezpatch.c
+		util.c
+		elfparse.c
+	)
+endif()
 
 function(add_ezinject_library target)
 	cmake_parse_arguments(LIB "USE_LH;USE_LOG" "" "SOURCES" ${ARGN})
@@ -290,9 +309,15 @@ elseif(EZ_TARGET_ANDROID)
 		elfparse.c
 		ezinject_libc_android.c
 	)
+elseif(EZ_TARGET_FREEBSD)
+	list(APPEND ezinject_sources ezinject_libc_freebsd.c)
 endif()
 
 add_executable(ezinject ${ezinject_sources})
+
+if(EZ_TARGET_FREEBSD)
+	target_link_libraries(ezinject procstat)
+endif()
 
 if(ENABLE_STATIC)
 	target_link_options(ezinject PUBLIC -static)

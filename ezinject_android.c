@@ -110,7 +110,7 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 
 	size_t payload_size = 0;
 	#if defined(EZ_ARCH_ARM64) || defined(EZ_ARCH_AMD64)
-	payload_size = (size_t) ALIGN(sizeof(payload), 16);
+	payload_size = (size_t) EZ_ALIGN(sizeof(payload), 16);
 	#else
 	payload_size = (size_t) WORDALIGN(sizeof(payload));
 	#endif

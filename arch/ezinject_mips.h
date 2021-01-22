@@ -31,4 +31,18 @@
 
 #define JMP_INSN "j"
 
+// the bundled pt_regs definition is wrong (https://www.linux-mips.org/archives/linux-mips/2014-07/msg00443.html)
+// so we must provide our own
+
+struct pt_regs2 {
+	uint64_t regs[32];
+	uint64_t lo;
+	uint64_t hi;
+	uint64_t cp0_epc;
+	uint64_t cp0_badvaddr;
+	uint64_t cp0_status;
+	uint64_t cp0_cause;
+} __attribute__ ((aligned (8)));
+typedef struct pt_regs2 regs_t;
+
 #endif
