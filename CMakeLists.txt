@@ -237,9 +237,10 @@ configure_file(
 if(NOT EZ_TARGET_FREEBSD)
 	add_executable(ezpatch
 		elfparse.c
-		ezpatch.c
-		util.c
+		ezpatch.
 		elfparse.c
+		util.c
+		${os_sources}
 	)
 endif()
 
@@ -289,10 +290,23 @@ function(add_ezinject_library target)
 	endif()
 endfunction()
 
+if(EZ_TARGET_LINUX)
+	set(os_sources
+		linux/remote.c
+		linux/util.c
+	)
+elseif(EZ_TARGET_FREEBSD)
+	set(os_sources
+		freebsd/remote.c
+		freebsd/util.c
+	)
+endif()
+
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
 	util.c
+	${os_sources}
 )
 
 # not android, or android without ashmem

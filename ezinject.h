@@ -93,4 +93,15 @@ struct call_req {
 };
 
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
+
+/** remote API **/
+#include "ezinject_arch.h"
+int remote_attach(pid_t target);
+int remote_detach(pid_t target);
+int remote_continue(pid_t target, int signal);
+long remote_getregs(pid_t target, regs_t *regs);
+long remote_setregs(pid_t target, regs_t *regs);
+int remote_wait(pid_t target);
+size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size);
+size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
 #endif

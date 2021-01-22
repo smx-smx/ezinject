@@ -109,61 +109,6 @@ void setregs_syscall(
 
 }
 
-int remote_attach(pid_t target){
-#if defined(EZ_TARGET_LINUX)
-	return ptrace(PTRACE_ATTACH, target, 0, 0);
-#elif defined(EZ_TARGET_FREEBSD)
-	return ptrace(PT_ATTACH, target, 0, 0);
-#endif
-}
-
-int remote_detach(pid_t target){
-#if defined(EZ_TARGET_LINUX)
-	return ptrace(PTRACE_DETACH, target, 0, 0);
-#elif defined(EZ_TARGET_FREEBSD)
-	return ptrace(PT_DETACH, target, 0, 0);
-#endif
-}
-
-int remote_continue(pid_t target, int signal){
-#if defined(EZ_TARGET_LINUX)
-	return ptrace(PTRACE_CONT, target, 0, signal);
-#elif defined(EZ_TARGET_FREEBSD)
-	return ptrace(PT_CONTINUE, target, (caddr_t)1, signal);
-#endif
-}
-
-long remote_getregs(pid_t target, regs_t *regs){
-	#if defined(EZ_TARGET_LINUX)
-		#ifdef PTRACE_GETREGS
-		return ptrace(PTRACE_GETREGS, target, 0, regs);
-		#else
-		struct iovec iovec = {
-			.iov_base = regs,
-			.iov_len = sizeof(*regs)
-		};
-		return ptrace(PTRACE_GETREGSET, target, (void*)NT_PRSTATUS, &iovec);
-		#endif
-	#elif defined(EZ_TARGET_FREEBSD)
-		return ptrace(PT_GETREGS, target, (caddr_t)regs, 0);
-	#endif
-}
-
-long remote_setregs(pid_t target, regs_t *regs){
-	#if defined(EZ_TARGET_LINUX)
-		#ifdef PTRACE_SETREGS
-		return ptrace(PTRACE_SETREGS, target, 0, regs);
-		#else
-		struct iovec iovec = {
-			.iov_base = regs,
-			.iov_len = sizeof(*regs)
-		};
-		return ptrace(PTRACE_SETREGSET, target, (void*)NT_PRSTATUS, &iovec);
-		#endif
-	#elif defined(EZ_TARGET_FREEBSD)
-		return ptrace(PT_SETREGS, target, (caddr_t)regs, 0);
-	#endif
-}
 
 void remote_call_setup(pid_t target, struct call_req call, regs_t *orig_ctx, regs_t *new_ctx){
 	memset(orig_ctx, 0x00, sizeof(*orig_ctx));
@@ -173,53 +118,6 @@ void remote_call_setup(pid_t target, struct call_req call, regs_t *orig_ctx, reg
 
 	setregs_syscall(orig_ctx, new_ctx, call);
 	remote_setregs(target, new_ctx);
-}
-
-size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
-	uintptr_t *destWords = (uintptr_t *)dest;
-	
-	size_t read;
-	for(read=0; read < size; read+=sizeof(uintptr_t), destWords++){
-		#if defined(EZ_TARGET_LINUX)
-		*destWords = (uintptr_t)ptrace(PTRACE_PEEKTEXT, ctx->target, source + read, 0);
-		#elif defined(EZ_TARGET_FREEBSD)
-		*destWords = (uintptr_t)ptrace(PT_READ_D, ctx->target, (caddr_t)(source + read), 0);
-		#endif
-	}
-	return read;
-}
-
-size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
-	uintptr_t *sourceWords = (uintptr_t *)source;
-	
-	size_t written;
-	for(written=0; written < size; written+=sizeof(uintptr_t), sourceWords++){
-		#if defined(EZ_TARGET_LINUX)
-		ptrace(PTRACE_POKETEXT, ctx->target, dest + written, *sourceWords);
-		#elif defined(EZ_TARGET_FREEBSD)
-		ptrace(PT_WRITE_D, ctx->target, (caddr_t)(dest + written), *sourceWords);
-		#endif
-	}
-	return written;
-}
-
-int remote_wait(pid_t target){
-	int rc;
-	int status;
-	do {
-		rc = waitpid(target, &status, 0);
-		if(rc < 0){
-			PERROR("waitpid");
-			return rc;
-		}
-	} while(rc != target);
-
-	if(!WIFSTOPPED(status)){
-		ERR("remote did not stop");
-		return -1;
-	}
-
-	return status;
 }
 
 #if defined(EZ_TARGET_LINUX)

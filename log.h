@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include "config.h"
 
 extern enum verbosity_level
