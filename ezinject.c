@@ -78,6 +78,36 @@ void setregs_syscall(
 
 	if(SC_HAS_ARG(sc, 0)){
 		REG(*new_ctx, REG_NR)   = sc.argv[0];
+	#if defined(EZ_TARGET_FREEBSD) && defined(EZ_ARCH_I386)
+		uintptr_t stack[12];
+		int num_words = 0;
+		for(int i=1; i<=6; i++){
+			if(SC_HAS_ARG(sc, i)){
+				// push argument
+				stack[i] = sc.argv[i];
+				DBG("Push %d, %p", i, (void *)sc.argv[i]);
+				num_words++;
+			}
+		}
+		// if we have pushed any argument, account for the stack frame offsets
+		if(num_words > 0){
+			// dummy saved EIP
+			stack[0] = 0; num_words++;
+
+			// not sure why this is needed but it doesn't work without.
+			// padding?
+			stack[num_words++] = 0;
+		}
+
+		size_t frame_size = (sizeof(uintptr_t) * num_words);
+
+		uintptr_t frame_bottom = REG(*orig_ctx, REG_SP) - frame_size;
+		REG(*new_ctx, REG_SP) = frame_bottom;
+
+		// FIXME: global variable
+		size_t written = remote_write(&ctx, frame_bottom, &stack, frame_size);
+		DBG("written stack frame, %zu bytes", written);
+	#else
 		REG(*new_ctx, REG_ARG1) = sc.argv[1];
 		REG(*new_ctx, REG_ARG2) = sc.argv[2];
 		REG(*new_ctx, REG_ARG3) = sc.argv[3];
@@ -88,6 +118,7 @@ void setregs_syscall(
 		#ifdef REG_ARG6
 		REG(*new_ctx, REG_ARG6) = sc.argv[6];
 		#endif
+	#endif
 
 		DBG("remote_call(%u)", (unsigned int)sc.argv[0]);
 	}
@@ -97,10 +128,11 @@ void setregs_syscall(
 	#endif
 
 	if(call.stack_addr != 0){
+		DBGPTR(call.stack_addr);
 		REG(*new_ctx, REG_SP) = call.stack_addr;
 	}
 
-#ifdef EZ_ARCH_I386
+#if defined(EZ_ARCH_I386) && !defined(EZ_TARGET_FREEBSD)
 	//ebp must point to valid stack
 	REG(*new_ctx, REG_ARG6) = REG(*orig_ctx, REG_SP);
 #else

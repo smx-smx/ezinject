@@ -155,9 +155,16 @@ macro(libc_autodetect)
 	endif()
 
 	if(EZ_TARGET_FREEBSD)
+		if(EZ_ARCH_I386)
+			set(lib_name ld-elf32.so.1)
+		elseif(EZ_ARCH_AMD64)
+			set(lib_name ld-elf.so.1)
+		else()
+			message(FATAL_ERROR "Unsupported FreeBSD architecture")
+		endif()
 		find_library(DYN_LINKER
 			PATHS /libexec
-			NAMES ld-elf.so.1
+			NAMES ${lib_name}
 			REQUIRED
 		)	
 		set(DYN_LINKER_NAME "${DYN_LINKER}")
