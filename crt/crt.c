@@ -71,7 +71,7 @@ __attribute__((constructor)) void ctor(void)
 }
 
 int crt_init(struct injcode_bearing *br){
-	LOG_INIT("initializing";)
+	INFO("initializing");
 
 	struct crt_params *params = &gParams;
 	memset(params, 0x00, sizeof(*params));
