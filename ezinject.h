@@ -83,6 +83,11 @@ struct ezinj_str {
 struct sc_req {
 	unsigned int argmask;
 	uintptr_t argv[SC_MAX_ARGS];
+	#if defined(EZ_TARGET_FREEBSD) && defined(EZ_ARCH_I386)
+	uintptr_t frame_bottom;
+	size_t frame_size;
+	uintptr_t saved_stack[8];
+	#endif
 };
 
 struct call_req {

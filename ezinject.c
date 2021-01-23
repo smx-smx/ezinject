@@ -79,13 +79,13 @@ void setregs_syscall(
 	if(SC_HAS_ARG(sc, 0)){
 		REG(*new_ctx, REG_NR)   = sc.argv[0];
 	#if defined(EZ_TARGET_FREEBSD) && defined(EZ_ARCH_I386)
-		uintptr_t stack[12];
+		uintptr_t stack[8];
 		int num_words = 0;
 		for(int i=1; i<=6; i++){
 			if(SC_HAS_ARG(sc, i)){
 				// push argument
 				stack[i] = sc.argv[i];
-				DBG("Push %d, %p", i, (void *)sc.argv[i]);
+				DBG("push %d, %p", i, (void *)sc.argv[i]);
 				num_words++;
 			}
 		}
@@ -97,16 +97,17 @@ void setregs_syscall(
 			// not sure why this is needed but it doesn't work without.
 			// padding?
 			stack[num_words++] = 0;
+
+			sc.frame_size = (sizeof(uintptr_t) * num_words);
+			sc.frame_bottom = REG(*orig_ctx, REG_SP) - sc.frame_size;
+			REG(*new_ctx, REG_SP) = sc.frame_bottom;
+
+			// FIXME: global variable
+			// save stack for extra safety (we don't know what the process was doing when we interrupted it)
+			remote_read(&ctx, &sc.saved_stack, sc.frame_bottom, sizeof(sc.saved_stack));
+			size_t written = remote_write(&ctx, sc.frame_bottom, &stack, sc.frame_size);
+			DBG("written stack frame, %zu bytes", written);
 		}
-
-		size_t frame_size = (sizeof(uintptr_t) * num_words);
-
-		uintptr_t frame_bottom = REG(*orig_ctx, REG_SP) - frame_size;
-		REG(*new_ctx, REG_SP) = frame_bottom;
-
-		// FIXME: global variable
-		size_t written = remote_write(&ctx, frame_bottom, &stack, frame_size);
-		DBG("written stack frame, %zu bytes", written);
 	#else
 		REG(*new_ctx, REG_ARG1) = sc.argv[1];
 		REG(*new_ctx, REG_ARG2) = sc.argv[2];
@@ -171,6 +172,15 @@ static int lwp_ensure_state(pid_t target, unsigned int flags){
 	return -1;
 }
 #endif
+
+#define ARGMASK(x, i) (x | (1 << (i)))
+#define SC_0ARGS ARGMASK(0, 0)
+#define SC_1ARGS ARGMASK(SC_0ARGS, 1)
+#define SC_2ARGS ARGMASK(SC_1ARGS, 2)
+#define SC_3ARGS ARGMASK(SC_2ARGS, 3)
+#define SC_4ARGS ARGMASK(SC_3ARGS, 4)
+#define SC_5ARGS ARGMASK(SC_4ARGS, 5)
+#define SC_6ARGS ARGMASK(SC_5ARGS, 6)
 
 uintptr_t remote_call_common(pid_t target, struct call_req call){
 	regs_t orig_ctx, new_ctx;
@@ -298,6 +308,19 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			return -1;
 		}
 	}
+
+	#ifdef EZ_TARGET_FREEBSD
+	if(call.syscall.argmask > SC_0ARGS){
+		// FIXME: global variable
+		// restore overwritten stack
+		DBG("restoring stack frame");
+		remote_write(&ctx,
+			call.syscall.frame_bottom,
+			&call.syscall.saved_stack,
+			call.syscall.frame_size
+		);
+	}
+	#endif
 
 	remote_setregs(target, &orig_ctx);
 
@@ -633,15 +656,6 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 
 #define __RCALL(ctx, insn, argmask, ...) remote_call(ctx->target, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
 #define __RCALL_SC(ctx, nr, argmask, ...) __RCALL(ctx, ctx->syscall_insn.remote, argmask, nr, ##__VA_ARGS__)
-
-#define ARGMASK(x, i) (x | (1 << (i)))
-#define SC_0ARGS ARGMASK(0, 0)
-#define SC_1ARGS ARGMASK(SC_0ARGS, 1)
-#define SC_2ARGS ARGMASK(SC_1ARGS, 2)
-#define SC_3ARGS ARGMASK(SC_2ARGS, 3)
-#define SC_4ARGS ARGMASK(SC_3ARGS, 4)
-#define SC_5ARGS ARGMASK(SC_4ARGS, 5)
-#define SC_6ARGS ARGMASK(SC_5ARGS, 6)
 
 // Remote System Call
 #define FAILED(result) ((signed int)(result) < 0)
