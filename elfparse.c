@@ -99,9 +99,9 @@ void *elfparse_createhandle(const char *procpath) {
 }
 
 static void elfparse_parse(struct elfparse_info *hndl) {
-	ElfW(Ehdr) *ehdr = hndl->mapping;
+	ElfEhdr *ehdr = hndl->mapping;
 	hndl->ehdr = ehdr;
-	ElfW(Shdr) *sec = (Elf32_Shdr *)((uint8_t *)ehdr + ehdr->e_shoff);
+	ElfShdr *sec = (Elf32_Shdr *)((uint8_t *)ehdr + ehdr->e_shoff);
 	hndl->sec = sec;
 	DBG("e_ident=%s", ehdr->e_ident);
 	DBG("e_phoff=%zu", ehdr->e_phoff);

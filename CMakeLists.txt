@@ -104,7 +104,7 @@ find_library(PTHREAD_LIBRARY
 )
 
 if(ANDROID)
-	# android implements pthreads in libc
+	# these platforms implement pthreads in libc
 	set(PTHREAD_LIBRARY_NAME ${C_LIBRARY_NAME})
 else()
 	get_filename_component(PTHREAD_LIBRARY_NAME "${PTHREAD_LIBRARY}" NAME)
@@ -152,6 +152,15 @@ macro(libc_autodetect)
 	if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT ANDROID AND NOT HAVE_LIBDL_IN_LIBC)
 		find_uclibc()
 		check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
+	endif()
+
+	if(EZ_TARGET_FREEBSD)
+		find_library(DYN_LINKER
+			PATHS /libexec
+			NAMES ld-elf.so.1
+			REQUIRED
+		)	
+		set(DYN_LINKER_NAME "${DYN_LINKER}")
 	endif()
 
 	if(NOT ANDROID
@@ -324,7 +333,10 @@ elseif(EZ_TARGET_ANDROID)
 		ezinject_libc_android.c
 	)
 elseif(EZ_TARGET_FREEBSD)
-	list(APPEND ezinject_sources ezinject_libc_freebsd.c)
+	list(APPEND ezinject_sources
+		elfparse.c
+		ezinject_libc_freebsd.c
+	)
 endif()
 
 add_executable(ezinject ${ezinject_sources})

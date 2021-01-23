@@ -126,13 +126,28 @@ void remote_call_setup(pid_t target, struct call_req call, regs_t *orig_ctx, reg
 #define SC_EVENT_STATUS SIGTRAP
 #endif
 
+#ifdef EZ_TARGET_FREEBSD
+static int lwp_ensure_state(pid_t target, unsigned int flags){
+	struct ptrace_lwpinfo info;
+	if (ptrace(PT_LWPINFO, target, (caddr_t)&info, sizeof(info)) < 0){
+		return -1;
+	}
+
+	if((info.pl_flags & flags) != 0){
+		return 0; //good state
+	}
+	return -1;
+}
+#endif
+
 uintptr_t remote_call_common(pid_t target, struct call_req call){
 	regs_t orig_ctx, new_ctx;
 	remote_call_setup(target, call, &orig_ctx, &new_ctx);
 
+	uintptr_t sc_ret;
+
 	int status;
 	for(int i=0; i<call.num_wait_calls; i++){
-		uintptr_t sc_ret;
 		int rc;
 		do {
 			#if defined(EZ_TARGET_LINUX)
@@ -147,7 +162,6 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			}
 			#endif
 			status = remote_wait(target);
-			DBG("signal: %d (%s)", WSTOPSIG(status), strsignal(WSTOPSIG(status)));
 			if((rc=WSTOPSIG(status)) != SC_EVENT_STATUS){
 				ERR("remote_wait: %s", strsignal(rc));
 				return -1;
@@ -156,6 +170,10 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			#if defined(EZ_TARGET_LINUX)
 			ptrace(PTRACE_SYSCALL, target, 0, 0); /* Run until syscall return */
 			#elif defined(EZ_TARGET_FREEBSD)
+			if(lwp_ensure_state(target, PL_FLAG_SCE) != 0){
+				ERR("Not in syscall entry");
+				return -1;
+			}
 			ptrace(PT_SYSCALL, target, (caddr_t)1, 0);
 			#endif
 
@@ -165,13 +183,32 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 				return -1;
 			}
 
+			#ifdef EZ_TARGET_FREEBSD
+			if(lwp_ensure_state(target, PL_FLAG_SCX) != 0){
+				ERR("Not in syscall exit");
+				return -1;
+			}
+			#endif
+
+			#if 0//def EZ_TARGET_FREEBSD
+			struct ptrace_sc_ret fbsd_sc_ret;
+			if(ptrace(PT_GET_SC_RET, target, (caddr_t)&fbsd_sc_ret, sizeof(fbsd_sc_ret)) < 0){
+				PERROR("ptrace");
+				return -1;
+			}
+			DBGPTR(fbsd_sc_ret.sr_retval[0]);
+			DBGPTR(fbsd_sc_ret.sr_retval[1]);
+			DBGPTR(fbsd_sc_ret.sr_error);
+			sc_ret = fbsd_sc_ret.sr_retval[0];
+			#else
 			// get syscall return value
 			if(remote_getregs(target, &new_ctx) < 0){ /* Get return value */
 				PERROR("ptrace");
 				return -1;
 			}
-
 			sc_ret = REG(new_ctx, REG_RET);
+			#endif
+
 			DBG("[RET] = %zu", sc_ret);
 
 			if((signed int)sc_ret == -EINTR){
@@ -181,6 +218,21 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 	}
 
 	if(call.num_wait_calls == 0){
+		#ifdef EZ_TARGET_FREEBSD
+		{
+			// disable syscall tracing
+			unsigned int mask = 0;
+			if(ptrace(PT_GET_EVENT_MASK, target, (caddr_t)&mask, sizeof(mask)) < 0){
+				PERROR("ptrace");
+				return -1;
+			}
+			mask = mask & ~PTRACE_SYSCALL;
+			if(ptrace(PT_SET_EVENT_MASK, target, (caddr_t)&mask, sizeof(mask)) < 0){
+				PERROR("ptrace");
+				return -1;
+			}
+		}
+		#endif
 		int stopsig = 0;
 		do {
 
@@ -245,7 +297,7 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
 #endif
 
-	return REG(new_ctx, REG_RET);
+	return sc_ret;
 }
 
 uintptr_t remote_call(
@@ -396,7 +448,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	int num_strings;
 
 	// argc + extras
-	num_strings = argc + 9;
+	num_strings = argc + 10;
 
 	struct ezinj_str args[num_strings];
 	int argi = 0;
@@ -420,6 +472,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	PUSH_STRING("pthread_cond_init");
 	PUSH_STRING("pthread_cond_wait");
 	PUSH_STRING("pthread_join");
+	PUSH_STRING("crt_init");
 
 	// library to load
 	char libName[PATH_MAX];
@@ -453,7 +506,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 		PERROR("malloc");
 		return NULL;
 	}
-	br->magic = EZPL_MAGIC;
 	br->mapping_size = mapping_size;
 
 	br->pl_debug = ctx->pl_debug;
@@ -521,7 +573,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	DBG("mapping_size=%zu", mapping_size);
 
 	int shm_id;
-	if((shm_id = shmget(ctx->target, mapping_size, IPC_CREAT | IPC_EXCL | S_IRWXO)) < 0){
+	if((shm_id = shmget(ctx->target, mapping_size, IPC_CREAT | IPC_EXCL | S_IRWXU | S_IRWXG | S_IRWXO)) < 0){
 		PERROR("shmget");
 		return 1;
 	}
@@ -533,6 +585,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 		PERROR("shmat");
 		return 1;
 	}
+
 	ctx->mapped_mem.local = (uintptr_t)mapped_mem;
 
 	*allocated_size = mapping_size;
@@ -745,14 +798,19 @@ int ezinject_main(
 		uintptr_t remote_shm_ptr = 0;
 		#if defined(EZ_TARGET_ANDROID) && defined(USE_ANDROID_ASHMEM)
 		remote_shm_ptr = remote_shmat_android(ctx, br->mapping_size);
-		#else
+		#elif defined(EZ_TARGET_LINUX)
 		remote_shm_ptr = remote_shmat(ctx, ctx->shm_id, NULL, SHM_EXEC);
+		#elif defined(EZ_TARGET_FREEBSD)
+		remote_shm_ptr = RSCALL6(ctx, SYS_mmap,
+			NULL, br->mapping_size,
+			PROT_READ | PROT_WRITE | PROT_EXEC,
+			MAP_ANONYMOUS, -1, 0
+		);
 		#endif
 		if(remote_shm_ptr == (uintptr_t)MAP_FAILED || remote_shm_ptr == 0){
 			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
 			break;
 		}
-
 
 		ctx->mapped_mem.remote = remote_shm_ptr;
 
@@ -795,6 +853,11 @@ int ezinject_main(
 		}
 		#else
 		usleep(50000);
+		#endif
+
+		
+		#ifdef EZ_TARGET_FREEBSD
+		remote_write(ctx, ctx->mapped_mem.remote, ctx->mapped_mem.local, br->mapping_size);
 		#endif
 
 		// switch to SIGSTOP wait mode
@@ -871,11 +934,6 @@ int main(int argc, char *argv[]){
 
 #if defined(EZ_TARGET_LINUX)
 	if(ptrace(PTRACE_SETOPTIONS, target, 0, PTRACE_O_TRACESYSGOOD) < 0){
-		PERROR("ptrace setoptions");
-		return 1;
-	}
-#elif defined(EZ_TARGET_FREEBSD)
-	if (ptrace(PT_LWP_EVENTS, target, NULL, 1) < 0){
 		PERROR("ptrace setoptions");
 		return 1;
 	}

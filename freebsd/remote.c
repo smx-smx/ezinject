@@ -48,19 +48,26 @@ int remote_wait(pid_t target){
 size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
 	
-	size_t read;
-	for(read=0; read < size; read+=sizeof(uintptr_t), destWords++){
-		*destWords = (uintptr_t)ptrace(PT_READ_D, ctx->target, (caddr_t)(source + read), 0);
-	}
-	return read;
+	struct ptrace_io_desc iov = {
+		.piod_op = PIOD_READ_D,
+		.piod_offs = (void *)source,
+		.piod_addr = dest,
+		.piod_len = size
+	};
+	ptrace(PT_IO, ctx->target, (caddr_t)&iov, 0);
+	return iov.piod_len;
 }
 
 size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	uintptr_t *sourceWords = (uintptr_t *)source;
 	
-	size_t written;
-	for(written=0; written < size; written+=sizeof(uintptr_t), sourceWords++){
-		ptrace(PT_WRITE_D, ctx->target, (caddr_t)(dest + written), *sourceWords);
-	}
-	return written;
+	struct ptrace_io_desc iov = {
+		.piod_op = PIOD_WRITE_D,
+		.piod_offs = (void *)dest,
+		.piod_addr = source,
+		.piod_len = size
+	};
+
+	ptrace(PT_IO, ctx->target, (caddr_t)&iov, 0);
+	return iov.piod_len;
 }

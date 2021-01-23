@@ -1,8 +1,12 @@
 #ifndef __EZINJECT_SHARED_H
 #define __EZINJECT_SHARED_H
 
-#ifndef HAVE_SHM_EXEC
-#define	SHM_EXEC	0100000	/* execution access */
+#if !defined(HAVE_SHM_EXEC)
+	#if defined(EZ_TARGET_LINUX)
+	#define	SHM_EXEC	0100000	/* execution access */
+	#else
+	#define SHM_EXEC 0 // dummy
+	#endif
 #endif
 
 #ifndef HAVE_RTLD_NOLOAD

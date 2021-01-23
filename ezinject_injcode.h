@@ -83,11 +83,8 @@ struct injcode_user {
 	uint8_t persist;
 };
 
-#define EZPL_MAGIC 0x455A504C //EZPL
-
 struct injcode_bearing
 {
-	uint32_t magic; //EZPL_MAGIC
 	size_t mapping_size;
 
 	int pl_debug;

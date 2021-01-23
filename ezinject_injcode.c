@@ -148,6 +148,7 @@ void injected_fn(struct injcode_bearing *br){
 			PL_DBG('l');
 			{
 				libdl_handle = get_libdl(br);
+				DBGPTR(libdl_handle);
 				if(libdl_handle == NULL){
 					PL_DBG('!');
 					break;
@@ -198,6 +199,12 @@ void injected_fn(struct injcode_bearing *br){
 			if(!h_pthread){
 				PL_DBG('!');
 				PL_DBG('1');
+				if(dlerror){
+					char *errstr = dlerror();
+					if(errstr != NULL){
+						br_puts(br, errstr);
+					}
+				}
 				break;
 			}
 		}
@@ -219,6 +226,10 @@ void injected_fn(struct injcode_bearing *br){
 			break;
 		}
 
+		int (*crt_init)(struct injcode_bearing *br);
+		char *sym_crt_init = NULL;
+		STRTBL_FETCH(stbl, sym_crt_init);
+
 		stbl = BR_STRTBL(br) + br->argv_offset;
 		STRTBL_FETCH(stbl, userlib_name);
 
@@ -232,18 +243,21 @@ void injected_fn(struct injcode_bearing *br){
 		{
 			br_puts(br, userlib_name);
 			br->userlib = dlopen(userlib_name, RTLD_NOW);
-			if(dlerror){
-				char *errstr = dlerror();
-				if(errstr != NULL){
-					br_puts(br, errstr);
-				}
-			}
+			DBGPTR(br->userlib);
 			if(br->userlib == NULL){
 				PL_DBG('!');
 				break;
 			}
-
-			DBGPTR(br->userlib);
+			crt_init = dlsym(br->userlib, sym_crt_init);
+			DBGPTR(crt_init);
+			if(crt_init == NULL){
+				PL_DBG('!');
+				break;
+			}
+			if(crt_init(br) != 0){
+				PL_DBG('!');
+				break;
+			}
 		}
 
 		// wait for the thread to notify us

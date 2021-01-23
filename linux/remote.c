@@ -76,7 +76,9 @@ size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t 
 	
 	size_t written;
 	for(written=0; written < size; written+=sizeof(uintptr_t), sourceWords++){
-		ptrace(PTRACE_POKETEXT, ctx->target, dest + written, *sourceWords);
+		if(ptrace(PTRACE_POKETEXT, ctx->target, dest + written, *sourceWords) < 0){
+			PERROR("ptrace");
+		}
 	}
 	return written;
 }
