@@ -61,6 +61,14 @@ int remote_wait(pid_t target){
 	return status;
 }
 
+int remote_syscall_step(pid_t target){
+	return ptrace(PTRACE_SYSCALL, target, 0, 0);
+}
+
+int remote_syscall_trace_enable(pid_t target, int enable){
+	return 0;
+}
+
 size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
 	

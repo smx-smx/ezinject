@@ -45,6 +45,28 @@ int remote_wait(pid_t target){
 	return status;
 }
 
+int remote_syscall_step(pid_t target){
+	return ptrace(PT_SYSCALL, target, (caddr_t)1, 0);
+}
+
+int remote_syscall_trace_enable(pid_t target, int enable){
+	unsigned int mask = 0;
+	if(ptrace(PT_GET_EVENT_MASK, target, (caddr_t)&mask, sizeof(mask)) < 0){
+		PERROR("ptrace");
+		return -1;
+	}
+	if(enable){
+		mask = mask | PTRACE_SYSCALL;
+	} else {
+		mask = mask & ~PTRACE_SYSCALL;
+	}
+	if(ptrace(PT_SET_EVENT_MASK, target, (caddr_t)&mask, sizeof(mask)) < 0){
+		PERROR("ptrace");
+		return -1;
+	}
+	return 0;
+}
+
 size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
 	

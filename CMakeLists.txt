@@ -236,6 +236,11 @@ endif()
 include(CheckIncludeFile)
 check_include_file(sys/shm.h HAVE_SYS_SHM_H)
 
+if(EZ_TARGET_FREEBSD)
+	set(USE_SHM FALSE)
+else()
+	set(USE_SHM TRUE)
+endif()
 
 configure_file(
 	config.h.in
@@ -334,7 +339,6 @@ elseif(EZ_TARGET_ANDROID)
 	)
 elseif(EZ_TARGET_FREEBSD)
 	list(APPEND ezinject_sources
-		elfparse.c
 		ezinject_libc_freebsd.c
 	)
 endif()

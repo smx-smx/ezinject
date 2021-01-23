@@ -104,4 +104,6 @@ long remote_setregs(pid_t target, regs_t *regs);
 int remote_wait(pid_t target);
 size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size);
 size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
+int remote_syscall_step(pid_t target);
+int remote_syscall_trace_enable(pid_t target, int enable);
 #endif
