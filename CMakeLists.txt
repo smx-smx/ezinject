@@ -139,7 +139,12 @@ endmacro()
 macro(libc_autodetect)
 	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLSYM)
-	set(HAVE_LIBDL_IN_LIBC (HAVE_DLOPEN AND HAVE_DLSYM))
+	if(HAVE_DLOPEN AND HAVE_DLSYM)
+		set(HAVE_LIBDL_IN_LIBC TRUE)
+	else()
+		unset(HAVE_DLOPEN CACHE)
+		unset(HAVE_DLSYM CACHE)
+	endif()
 
 	check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 	check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)
@@ -254,17 +259,6 @@ configure_file(
 	${CMAKE_BINARY_DIR}/config.h
 )
 
-# TODO: fix for Freebsd
-if(NOT EZ_TARGET_FREEBSD)
-	add_executable(ezpatch
-		elfparse.c
-		ezpatch.
-		elfparse.c
-		util.c
-		${os_sources}
-	)
-endif()
-
 function(add_ezinject_library target)
 	cmake_parse_arguments(LIB "USE_LH;USE_LOG" "" "SOURCES" ${ARGN})
 
@@ -323,6 +317,17 @@ elseif(EZ_TARGET_FREEBSD)
 	)
 endif()
 
+# TODO: fix for Freebsd
+if(NOT EZ_TARGET_FREEBSD)
+	add_executable(ezpatch
+		elfparse.c
+		ezpatch.c
+		elfparse.c
+		util.c
+		${os_sources}
+	)
+endif()
+
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
@@ -351,6 +356,7 @@ elseif(EZ_TARGET_FREEBSD)
 endif()
 
 add_executable(ezinject ${ezinject_sources})
+
 
 if(EZ_TARGET_FREEBSD)
 	target_link_libraries(ezinject procstat)

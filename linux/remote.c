@@ -1,5 +1,5 @@
 #include <sys/types.h>
-#include <asm/ptrace.h>
+#include <sys/ptrace.h>
 #include <sys/wait.h>
 
 #include "ezinject.h"
