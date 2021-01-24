@@ -1,8 +1,12 @@
 #ifndef __EZINJECT_SHARED_H
 #define __EZINJECT_SHARED_H
 
-#ifndef HAVE_SHM_EXEC
-#define	SHM_EXEC	0100000	/* execution access */
+#if !defined(HAVE_SHM_EXEC)
+	#if defined(EZ_TARGET_LINUX)
+	#define	SHM_EXEC	0100000	/* execution access */
+	#else
+	#define SHM_EXEC 0 // dummy
+	#endif
 #endif
 
 #ifndef HAVE_RTLD_NOLOAD
@@ -58,5 +62,14 @@ int shmctl(int id, int cmd, struct shmid_ds *buf);
 #endif
 
 #endif /* EZINJECT_INJCODE */
+
+#if defined(EZ_TARGET_FREEBSD)
+#define __NR_getpid SYS_getpid
+#define __NR_shmget SYS_shmget
+#define __NR_shmat SYS_shmat
+#define __NR_shmdt SYS_shmdt
+#define __NR_write SYS_write
+#define __NR_kill SYS_kill
+#endif
 
 #endif

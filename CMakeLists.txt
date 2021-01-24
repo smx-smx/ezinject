@@ -9,11 +9,21 @@ check_pie_supported()
 add_definitions(-fPIC)
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export-dynamic")
 
-if(NOT ANDROID)
-	add_definitions(-Wl,--no-undefined)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+	set(EZ_TARGET_LINUX TRUE)
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
+	set(EZ_TARGET_FREEBSD TRUE)
 else()
-	if(NOT DEFINED USE_ANDROID_ASHMEM)
-		set(USE_ANDROID_ASHMEM ON)
+	message(FATAL_ERROR "Unsupported OS")
+endif()
+
+if(EZ_TARGET_LINUX)
+	if(NOT ANDROID)
+		add_definitions(-Wl,--no-undefined)
+	else()
+		if(NOT DEFINED USE_ANDROID_ASHMEM)
+			set(USE_ANDROID_ASHMEM ON)
+		endif()
 	endif()
 endif()
 
@@ -69,6 +79,7 @@ endif()
 
 find_library(C_LIBRARY
 	NAMES
+		libc.so.7
 		libc.so.6
 		libc.so.0
 		libc.so
@@ -93,7 +104,7 @@ find_library(PTHREAD_LIBRARY
 )
 
 if(ANDROID)
-	# android implements pthreads in libc
+	# these platforms implement pthreads in libc
 	set(PTHREAD_LIBRARY_NAME ${C_LIBRARY_NAME})
 else()
 	get_filename_component(PTHREAD_LIBRARY_NAME "${PTHREAD_LIBRARY}" NAME)
@@ -117,10 +128,6 @@ if(EZ_ARCH_ARM AND USE_ARM_THUMB)
 	add_definitions(-mthumb)
 endif()
 
-if(NOT HAVE_SHM_SYSCALLS AND NOT HAVE_SC_IPC AND NOT USE_ANDROID_ASHMEM)
-	message(FATAL_ERROR "Unsupported system")
-endif()
-
 macro(find_uclibc)
 	find_library(DYN_LINKER
 		NAMES ld-uClibc.so.0
@@ -130,6 +137,15 @@ macro(find_uclibc)
 endmacro()
 
 macro(libc_autodetect)
+	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
+	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLSYM)
+	if(HAVE_DLOPEN AND HAVE_DLSYM)
+		set(HAVE_LIBDL_IN_LIBC TRUE)
+	else()
+		unset(HAVE_DLOPEN CACHE)
+		unset(HAVE_DLSYM CACHE)
+	endif()
+
 	check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 	check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)
 	if(NOT HAVE_DLOPEN OR NOT HAVE_DLSYM)
@@ -138,14 +154,31 @@ macro(libc_autodetect)
 
 	check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
 
-	if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT ANDROID)
+	if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT ANDROID AND NOT HAVE_LIBDL_IN_LIBC)
 		find_uclibc()
 		check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
+	endif()
+
+	if(EZ_TARGET_FREEBSD)
+		if(EZ_ARCH_I386)
+			set(lib_name ld-elf32.so.1)
+		elseif(EZ_ARCH_AMD64)
+			set(lib_name ld-elf.so.1)
+		else()
+			message(FATAL_ERROR "Unsupported FreeBSD architecture")
+		endif()
+		find_library(DYN_LINKER
+			PATHS /libexec
+			NAMES ${lib_name}
+			REQUIRED
+		)	
+		set(DYN_LINKER_NAME "${DYN_LINKER}")
 	endif()
 
 	if(NOT ANDROID
 	AND NOT HAVE_LIBC_DLOPEN_MODE
 	AND NOT HAVE_DL_LOAD_SHARED_LIBRARY
+	AND NOT HAVE_LIBDL_IN_LIBC
 	)
 		message(FATAL_ERROR "Unsupported C library")
 	endif()
@@ -184,6 +217,10 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	endif()
 endif()
 
+if(NOT HAVE_SHM_SYSCALLS AND NOT HAVE_SC_IPC AND NOT USE_ANDROID_ASHMEM AND NOT HAVE_LIBDL_IN_LIBC)
+	message(FATAL_ERROR "Unsupported system")
+endif()
+
 if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR (EZ_ARCH_ARM AND USE_ARM_THUMB))
 	# for ARM, this is true only on Thumb
 	set(HAVE_CPU_VLE ON)
@@ -211,17 +248,15 @@ endif()
 include(CheckIncludeFile)
 check_include_file(sys/shm.h HAVE_SYS_SHM_H)
 
+if(EZ_TARGET_FREEBSD)
+	set(USE_SHM FALSE)
+else()
+	set(USE_SHM TRUE)
+endif()
 
 configure_file(
 	config.h.in
 	${CMAKE_BINARY_DIR}/config.h
-)
-
-add_executable(ezpatch
-	elfparse.c
-	ezpatch.c
-	util.c
-	elfparse.c
 )
 
 function(add_ezinject_library target)
@@ -270,10 +305,34 @@ function(add_ezinject_library target)
 	endif()
 endfunction()
 
+if(EZ_TARGET_LINUX)
+	set(os_sources
+		linux/remote.c
+		linux/util.c
+	)
+elseif(EZ_TARGET_FREEBSD)
+	set(os_sources
+		freebsd/remote.c
+		freebsd/util.c
+	)
+endif()
+
+# TODO: fix for Freebsd
+if(NOT EZ_TARGET_FREEBSD)
+	add_executable(ezpatch
+		elfparse.c
+		ezpatch.c
+		elfparse.c
+		util.c
+		${os_sources}
+	)
+endif()
+
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
 	util.c
+	${os_sources}
 )
 
 # not android, or android without ashmem
@@ -290,9 +349,18 @@ elseif(EZ_TARGET_ANDROID)
 		elfparse.c
 		ezinject_libc_android.c
 	)
+elseif(EZ_TARGET_FREEBSD)
+	list(APPEND ezinject_sources
+		ezinject_libc_freebsd.c
+	)
 endif()
 
 add_executable(ezinject ${ezinject_sources})
+
+
+if(EZ_TARGET_FREEBSD)
+	target_link_libraries(ezinject procstat)
+endif()
 
 if(ENABLE_STATIC)
 	target_link_options(ezinject PUBLIC -static)

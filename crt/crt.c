@@ -13,10 +13,17 @@
 #include <sys/shm.h>
 #endif
 #include <sys/mman.h>
+#ifdef EZ_TARGET_LINUX
 #include <sys/prctl.h>
+#endif
 #include <sys/resource.h>
 #include <sys/syscall.h>
+#ifdef EZ_TARGET_FREEBSD
+#include <sys/sysproto.h>
+#endif
+#ifdef EZ_TARGET_LINUX
 #include <asm/unistd.h>
+#endif
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -57,69 +64,35 @@ static struct crt_params gParams;
 
 void* real_entry(void *arg);
 
-int acquire_shm(key_t key, size_t size, void **ppMem){
-	int is_initial_attach = (size == 0);
-	if(is_initial_attach){
-		size = sizeof(struct injcode_bearing);
-	}
-
-	int shm_id = shmget(key, size, 0);
-	if(shm_id < 0){
-		perror("shmget");
-		return 1;
-	}
-
-	void *mem = shmat(shm_id, NULL, 0);
-	if(mem == MAP_FAILED){
-		perror("shmat");
-		return 1;
-	}
-	*ppMem = mem;
-
-	if(is_initial_attach){
-		size_t mapping_size = ((struct injcode_bearing *)mem)->mapping_size;
-		if(mapping_size == 0){
-			ERR("mapping_size is 0");
-			return 1;
-		}
-		DBG("mapping_size=%zu", mapping_size);
-		if(shmdt(mem) < 0){
-			PERROR("initial shmdt");
-			return 1;
-		}
-		return acquire_shm(key, mapping_size, ppMem);
-	}
-
-	return 0;
-}
-
-/**
- * Entry point: runs on SHM stack
- **/
 __attribute__((constructor)) void ctor(void)
 {
 	LOG_INIT("/tmp/"MODULE_NAME".log");
+	INFO("library loaded!");
+}
+
+int crt_init(struct injcode_bearing *br){
+	INFO("initializing");
 
 	struct crt_params *params = &gParams;
 	memset(params, 0x00, sizeof(*params));
 
 	// get pid (use syscall to avoid libc pid caching)
+	#if defined(EZ_TARGET_LINUX)
 	params->pid = syscall(__NR_getpid);
+	#elif defined(EZ_TARGET_FREEBSD)
+	params->pid = syscall(SYS_getpid);
+	#else
+	#error "Unsupported target"
+	#endif
 
 	INFO("pid: %u", params->pid);
-
-	struct injcode_bearing *br;
-	if(acquire_shm(params->pid, 0, (void **)&br) != 0){
-		ERR("acquire_shm failed");
-		return;
-	}
 
 	// copy local br (excluding code and stack)
 	size_t br_size = SIZEOF_BR(*br);
 	void *localBr = malloc(br_size);
 	if(!localBr){
 		PERROR("malloc");
-		return;
+		return -2;
 	}
 	memcpy(localBr, br, br_size);
 	params->br = (struct injcode_bearing *)localBr;
@@ -134,7 +107,7 @@ __attribute__((constructor)) void ctor(void)
 	DBG("pthread_create");
 	if(pthread_create(&br->user_tid, NULL, real_entry, params) < 0){
 		PERROR("pthread_create");
-		return;
+		return -3;
 	}
 
 	DBG("sending pthread signal");
@@ -144,12 +117,7 @@ __attribute__((constructor)) void ctor(void)
 		pthread_cond_signal(&br->cond);
 	}
 	pthread_mutex_unlock(&br->mutex);
-
-	DBG("detaching shm");
-	if(shmdt(br) < 0){
-		PERROR("shmdt");
-		return;
-	}
+	return 0;
 }
 
 

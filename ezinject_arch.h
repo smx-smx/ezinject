@@ -1,5 +1,7 @@
 #include "config.h"
 
+#if defined(EZ_TARGET_LINUX)
+
 #if defined(EZ_ARCH_ARM64)
 #include "arch/ezinject_aarch64.h"
 #elif defined(EZ_ARCH_ARM)
@@ -12,4 +14,15 @@
 #include "arch/ezinject_mips.h"
 #else
 #error "Unsupported architecture"
+
+#endif
+
+#elif defined(EZ_TARGET_FREEBSD)
+#if defined(EZ_ARCH_AMD64)
+#include "arch/ezinject_freebsd_amd64.h"
+#elif defined(EZ_ARCH_I386)
+#include "arch/ezinject_freebsd_i386.h"
+#else
+#error "Unsupported architecture"
+#endif
 #endif

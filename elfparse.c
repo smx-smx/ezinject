@@ -9,8 +9,30 @@
 #include <elf.h>
 #include <link.h>
 
+#include "config.h"
 #include "util.h"
 
+#if defined(EZ_TARGET_LINUX)
+#define ElfAddr ElfW(Addr)
+#define ElfAddr ElfW(Addr)
+#define ElfEhdr ElfW(Ehdr)
+#define ElfEhdr ElfW(Ehdr)
+#define ElfOff ElfW(Off)
+#define ElfOff ElfW(Off)
+#define ElfPhdr ElfW(Phdr)
+#define ElfPhdr ElfW(Phdr)
+#define ElfShdr ElfW(Shdr)
+#define ElfShdr ElfW(Shdr)
+#define ElfSym ElfW(Sym)
+#define ElfSym ElfW(Sym)
+#elif defined(EZ_TARGET_FREEBSD)
+#define ElfAddr Elf_Addr
+#define ElfEhdr Elf_Ehdr
+#define ElfOff Elf_Off
+#define ElfPhdr Elf_Phdr
+#define ElfShdr Elf_Shdr
+#define ElfSym Elf_Sym
+#endif
 struct elfparse_info
 {
 	char *path;
@@ -18,15 +40,15 @@ struct elfparse_info
 	void *mapping;
 	size_t len;
 
-	ElfW(Ehdr) *ehdr;
-	ElfW(Shdr) *sec;
+	ElfEhdr *ehdr;
+	ElfShdr *sec;
 
 	char *strtab;
-	ElfW(Sym) *symtab;
+	ElfSym *symtab;
 	int symtab_entries;
 
 	char *dynstr;
-	ElfW(Sym) *dynsym;
+	ElfSym *dynsym;
 	int dynsym_entries;
 };
 
@@ -77,9 +99,9 @@ void *elfparse_createhandle(const char *procpath) {
 }
 
 static void elfparse_parse(struct elfparse_info *hndl) {
-	ElfW(Ehdr) *ehdr = hndl->mapping;
+	ElfEhdr *ehdr = hndl->mapping;
 	hndl->ehdr = ehdr;
-	ElfW(Shdr) *sec = (Elf32_Shdr *)((uint8_t *)ehdr + ehdr->e_shoff);
+	ElfShdr *sec = (Elf32_Shdr *)((uint8_t *)ehdr + ehdr->e_shoff);
 	hndl->sec = sec;
 	DBG("e_ident=%s", ehdr->e_ident);
 	DBG("e_phoff=%zu", ehdr->e_phoff);
@@ -87,11 +109,11 @@ static void elfparse_parse(struct elfparse_info *hndl) {
 	DBG("e_shentsize=%u", ehdr->e_shentsize);
 	DBG("e_shnum=%u", ehdr->e_shnum);
 
-	ElfW(Shdr) *shdr = hndl->mapping + ehdr->e_shoff;
+	ElfShdr *shdr = hndl->mapping + ehdr->e_shoff;
 	char *strtab = hndl->mapping + shdr[ehdr->e_shstrndx].sh_offset;
 	for(int i = 0; i < ehdr->e_shnum; ++i)
 	{
-		ElfW(Shdr) *cur_shdr = &shdr[i];
+		ElfShdr *cur_shdr = &shdr[i];
 		char *name = &strtab[cur_shdr->sh_name];
 		if(!strcmp(name, ".symtab"))
 		{
@@ -126,12 +148,12 @@ bool elfparse_needs_reloc(void *handle)
 
 static uint8_t *elfparse_findfunction(
 	struct elfparse_info *hndl,
-	char *strtab, ElfW(Sym) *symtab,
+	char *strtab, ElfSym *symtab,
 	int symtab_entries,
 	const char *funcname
 ){
 	for(int i = 0; i < symtab_entries; ++i) {
-		ElfW(Sym) *sym = &symtab[i];
+		ElfSym *sym = &symtab[i];
 		char *curname = &strtab[sym->st_name];
 		if(!strcmp(curname, funcname)){
 			unsigned offset = (
