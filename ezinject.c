@@ -324,7 +324,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 	#endif
 	}
 
-	#ifdef EZ_TARGET_FREEBSD
+	#if defined(EZ_TARGET_FREEBSD) && defined(EZ_ARCH_I386)
 	if(call.syscall.argmask > SC_0ARGS){
 		// FIXME: global variable
 		// restore overwritten stack
