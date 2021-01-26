@@ -52,14 +52,14 @@ int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *
 						if(!strcmp(reg_name, (char *)&pcRegName)){
 							//apparently works for cmp, lea, anything mem relative hopefully
 							//if(!strcmp(insn->mnemonic, "cmp")){
-								uint displacement = (sourcePC + insn->size) - destPC;
+								unsigned displacement = (sourcePC + insn->size) - destPC;
 								if(verbosity >= 3){
 									LOG(3, ">> New Displacement: %u", displacement);
 									DBG("instruction before");
 									hexdump(insn->bytes, insn->size);
 								}
 								printf(">> Relocating RELATIVE CMP MEM ACCESS...\n");
-								*(uint *)(codePtr + curPos + 3) = displacement & 0xFFFFFFFFFF;
+								*(unsigned *)(codePtr + curPos + 3) = displacement & 0xFFFFFFFFFF;
 								if(verbosity >= 3){
 									DBG("instruction after");
 									hexdump(codePtr + curPos, insn->size);

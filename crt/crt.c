@@ -12,19 +12,25 @@
 #ifdef HAVE_SYS_SHM_H
 #include <sys/shm.h>
 #endif
-#include <sys/mman.h>
 #ifdef EZ_TARGET_LINUX
 #include <sys/prctl.h>
 #endif
+#ifdef EZ_TARGET_POSIX
 #include <sys/resource.h>
 #include <sys/syscall.h>
+#include <sys/wait.h>
+#endif
 #ifdef EZ_TARGET_FREEBSD
 #include <sys/sysproto.h>
 #endif
 #ifdef EZ_TARGET_LINUX
 #include <asm/unistd.h>
 #endif
-#include <sys/wait.h>
+
+#ifdef EZ_TARGET_WINDOWS
+#include <windows.h>
+#endif
+
 #include <sys/stat.h>
 #include <fcntl.h>
 
@@ -70,6 +76,7 @@ __attribute__((constructor)) void ctor(void)
 	INFO("library loaded!");
 }
 
+
 int crt_init(struct injcode_bearing *br){
 	INFO("initializing");
 
@@ -81,6 +88,8 @@ int crt_init(struct injcode_bearing *br){
 	params->pid = syscall(__NR_getpid);
 	#elif defined(EZ_TARGET_FREEBSD)
 	params->pid = syscall(SYS_getpid);
+	#elif defined(EZ_TARGET_WINDOWS)
+	params->pid = GetCurrentProcessId();
 	#else
 	#error "Unsupported target"
 	#endif
@@ -104,6 +113,7 @@ int crt_init(struct injcode_bearing *br){
 	#endif
 
 
+#if defined(EZ_TARGET_POSIX)
 	DBG("pthread_create");
 	if(pthread_create(&br->user_tid, NULL, real_entry, params) < 0){
 		PERROR("pthread_create");
@@ -117,6 +127,24 @@ int crt_init(struct injcode_bearing *br){
 		pthread_cond_signal(&br->cond);
 	}
 	pthread_mutex_unlock(&br->mutex);
+#elif defined(EZ_TARGET_WINDOWS)
+	br->hThread = CreateThread(
+		NULL,
+		0,
+		real_entry,
+		params,
+		0,
+		&br->user_tid
+	);
+	if(br->hThread == INVALID_HANDLE_VALUE){
+		PERROR("CreateThread");
+		return -3;
+	}
+	if(SetEvent(br->hEvent) == FALSE){
+		PERROR("SetEvent");
+		return -4;
+	}
+#endif
 	return 0;
 }
 

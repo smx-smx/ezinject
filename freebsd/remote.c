@@ -6,36 +6,36 @@
 #include "ezinject_arch.h"
 #include "log.h"
 
-int remote_attach(pid_t target){
-	return ptrace(PT_ATTACH, target, 0, 0);
+EZAPI remote_attach(struct ezinj_ctx *ctx){
+	return ptrace(PT_ATTACH, ctx->target, 0, 0);
 }
 
-int remote_detach(pid_t target){
-	return ptrace(PT_DETACH, target, 0, 0);
+EZAPI remote_detach(struct ezinj_ctx *ctx){
+	return ptrace(PT_DETACH, ctx->target, 0, 0);
 }
 
-int remote_continue(pid_t target, int signal){
-	return ptrace(PT_CONTINUE, target, (caddr_t)1, signal);
+EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
+	return ptrace(PT_CONTINUE, ctx->target, (caddr_t)1, signal);
 }
 
-long remote_getregs(pid_t target, regs_t *regs){
-	return ptrace(PT_GETREGS, target, (caddr_t)regs, 0);
+EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
+	return ptrace(PT_GETREGS, ctx->target, (caddr_t)regs, 0);
 }
 
-long remote_setregs(pid_t target, regs_t *regs){
-	return ptrace(PT_SETREGS, target, (caddr_t)regs, 0);
+EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
+	return ptrace(PT_SETREGS, ctx->target, (caddr_t)regs, 0);
 }
 
-int remote_wait(pid_t target){
+EZAPI remote_wait(struct ezinj_ctx *ctx){
 	int rc;
 	int status;
 	do {
-		rc = waitpid(target, &status, 0);
+		rc = waitpid(ctx->target, &status, 0);
 		if(rc < 0){
 			PERROR("waitpid");
 			return rc;
 		}
-	} while(rc != target);
+	} while(rc != ctx->target);
 
 	if(!WIFSTOPPED(status)){
 		ERR("remote did not stop");
@@ -45,13 +45,13 @@ int remote_wait(pid_t target){
 	return status;
 }
 
-int remote_syscall_step(pid_t target){
-	return ptrace(PT_SYSCALL, target, (caddr_t)1, 0);
+EZAPI remote_syscall_step(struct ezinj_ctx *ctx){
+	return ptrace(PT_SYSCALL, ctx->target, (caddr_t)1, 0);
 }
 
-int remote_syscall_trace_enable(pid_t target, int enable){
+EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable){
 	unsigned int mask = 0;
-	if(ptrace(PT_GET_EVENT_MASK, target, (caddr_t)&mask, sizeof(mask)) < 0){
+	if(ptrace(PT_GET_EVENT_MASK, ctx->target, (caddr_t)&mask, sizeof(mask)) < 0){
 		PERROR("ptrace");
 		return -1;
 	}
@@ -60,14 +60,14 @@ int remote_syscall_trace_enable(pid_t target, int enable){
 	} else {
 		mask = mask & ~PTRACE_SYSCALL;
 	}
-	if(ptrace(PT_SET_EVENT_MASK, target, (caddr_t)&mask, sizeof(mask)) < 0){
+	if(ptrace(PT_SET_EVENT_MASK, ctx->target, (caddr_t)&mask, sizeof(mask)) < 0){
 		PERROR("ptrace");
 		return -1;
 	}
 	return 0;
 }
 
-size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
+EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
 	
 	struct ptrace_io_desc iov = {
@@ -80,7 +80,7 @@ size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t s
 	return iov.piod_len;
 }
 
-size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
+EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	uintptr_t *sourceWords = (uintptr_t *)source;
 	
 	struct ptrace_io_desc iov = {

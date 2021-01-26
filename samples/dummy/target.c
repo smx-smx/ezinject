@@ -3,10 +3,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sys/syscall.h>
 
-#ifdef __linux__
+#include "config.h"
+
+#ifdef EZ_TARGET_POSIX
+#include <signal.h>
+#endif
+
+#ifdef EZ_TARGET_LINUX
 #include <asm/unistd.h>
 #endif
 
@@ -21,11 +25,13 @@ void func2(void) {
 	puts("Func2 called!");
 }
 
+#ifdef EZ_TARGET_POSIX
 void onSignal(int sigNum){
 	UNUSED(sigNum);
 	printf("Error: got signal %d (%s)\n", sigNum, strsignal(sigNum));
 	raise(SIGSTOP);
 }
+#endif
 
 void print_maps(){
 	pid_t pid = getpid();
@@ -50,7 +56,10 @@ void print_maps(){
 int main(int argc, char *argv[])
 {
 	UNUSED(argv);
+
+	#ifdef EZ_TARGET_POSIX
 	signal(SIGSEGV, onSignal);
+	#endif
 
 	//signal(SIGTRAP, onSignal);
 

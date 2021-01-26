@@ -7,18 +7,42 @@ include(CheckPIESupported)
 check_pie_supported()
 
 add_definitions(-fPIC)
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export-dynamic")
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 	set(EZ_TARGET_LINUX TRUE)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
 	set(EZ_TARGET_FREEBSD TRUE)
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
+	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll")
+	set(EZ_TARGET_WINDOWS TRUE)
 else()
-	message(FATAL_ERROR "Unsupported OS")
+	message(FATAL_ERROR "Unsupported OS ${CMAKE_SYSTEM_NAME}")
+endif()
+
+if(NOT EZ_TARGET_WINDOWS)
+	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export-dynamic")
+endif()
+
+include(CheckSymbolExists)
+check_symbol_exists("__NR_shmget" "asm/unistd.h" HAVE_SHM_SYSCALLS)
+check_symbol_exists("__NR_ipc" "asm/unistd.h" HAVE_SC_IPC)
+check_symbol_exists("SHM_EXEC" "sys/shm.h" HAVE_SHM_EXEC)
+check_symbol_exists("strsignal" "string.h" HAVE_STRSIGNAL)
+check_symbol_exists("RTLD_NOLOAD" "dlfcn.h" HAVE_RTLD_NOLOAD)
+check_symbol_exists("__arm__" "" EZ_ARCH_ARM)
+check_symbol_exists("__aarch64__" "" EZ_ARCH_ARM64)
+check_symbol_exists("__i386__" "" EZ_ARCH_I386)
+check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
+check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
+check_symbol_exists("__ANDROID__" "" EZ_TARGET_ANDROID)
+
+if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD)
+	set(EZ_TARGET_POSIX TRUE)
 endif()
 
 if(EZ_TARGET_LINUX)
-	if(NOT ANDROID)
+	if(NOT EZ_TARGET_ANDROID)
 		add_definitions(-Wl,--no-undefined)
 	else()
 		if(NOT DEFINED USE_ANDROID_ASHMEM)
@@ -64,7 +88,7 @@ include(CheckLibraryExists)
 
 set(REQUIRES_LIBPTHREAD REQUIRED)
 
-if(ANDROID)
+if(EZ_TARGET_ANDROID)
 	set(prefix ${CMAKE_SYSROOT}/usr/lib/${ANDROID_TOOLCHAIN_NAME})
 	# remove last dash
 	string(FIND "${prefix}" "-" index REVERSE)
@@ -73,25 +97,62 @@ if(ANDROID)
 	set(libs_path ${prefix}/${ANDROID_NATIVE_API_LEVEL})
 	list(APPEND CMAKE_LIBRARY_PATH ${libs_path})
 	set(CMAKE_FIND_USE_CMAKE_PATH TRUE)
+endif()
 
+if(EZ_TARGET_ANDROID OR EZ_TARGET_WINDOWS)
 	set(REQUIRES_LIBPTHREAD "")
 endif()
 
-find_library(C_LIBRARY
-	NAMES
-		libc.so.7
+set(EXTRA_SEARCH_PATHS "")
+set(C_LIBRARY_NAMES "")
+
+if(EZ_TARGET_LINUX)
+	list(APPEND C_LIBRARY_NAMES
+		# glibc
 		libc.so.6
+		# uClibc
 		libc.so.0
+		# fallback
 		libc.so
+	)
+elseif(EZ_TARGET_FREEBSD)
+	list(APPEND C_LIBRARY_NAMES
+		libc.so.7
+	)
+elseif(EZ_TARGET_WINDOWS)
+	list(APPEND C_LIBRARY_NAMES
+		ntdll.dll
+	)
+	list(APPEND EXTRA_SEARCH_PATHS "$ENV{SystemRoot}\\System32")
+endif()
+
+find_library(C_LIBRARY
+	NAMES ${C_LIBRARY_NAMES}
+	PATHS ${EXTRA_SEARCH_PATHS}
 	REQUIRED
 )
 get_filename_component(C_LIBRARY_NAME "${C_LIBRARY}" NAME)
 
-find_library(DL_LIBRARY
-	NAMES
+set(DL_LIBRARY_NAMES "")
+if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD)
+	list(APPEND DL_LIBRARY_NAMES
+		# glibc
 		libdl.so.2
+		# uClibc
 		libdl.so.0
+		# fallback
 		libdl.so
+	)
+elseif(EZ_TARGET_WINDOWS)
+	list(APPEND DL_LIBRARY_NAMES
+		# implements LoadLibraryA
+		Kernel32.dll
+	)
+endif()
+
+find_library(DL_LIBRARY
+	NAMES ${DL_LIBRARY_NAMES}
+	PATHS ${EXTRA_SEARCH_PATHS}
 	REQUIRED
 )
 get_filename_component(DL_LIBRARY_NAME "${DL_LIBRARY}" NAME)
@@ -103,26 +164,15 @@ find_library(PTHREAD_LIBRARY
 	${REQUIRES_LIBPTHREAD}
 )
 
-if(ANDROID)
+if(EZ_TARGET_ANDROID)
 	# these platforms implement pthreads in libc
 	set(PTHREAD_LIBRARY_NAME ${C_LIBRARY_NAME})
+elseif(EZ_TARGET_WINDOWS)
+	# this is actually kernel32.dll
+	set(PTHREAD_LIBRARY_NAME ${DL_LIBRARY_NAME})
 else()
 	get_filename_component(PTHREAD_LIBRARY_NAME "${PTHREAD_LIBRARY}" NAME)
 endif()
-
-
-include(CheckSymbolExists)
-check_symbol_exists("__NR_shmget" "asm/unistd.h" HAVE_SHM_SYSCALLS)
-check_symbol_exists("__NR_ipc" "asm/unistd.h" HAVE_SC_IPC)
-check_symbol_exists("SHM_EXEC" "sys/shm.h" HAVE_SHM_EXEC)
-check_symbol_exists("strsignal" "string.h" HAVE_STRSIGNAL)
-check_symbol_exists("RTLD_NOLOAD" "dlfcn.h" HAVE_RTLD_NOLOAD)
-check_symbol_exists("__arm__" "" EZ_ARCH_ARM)
-check_symbol_exists("__aarch64__" "" EZ_ARCH_ARM64)
-check_symbol_exists("__i386__" "" EZ_ARCH_I386)
-check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
-check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
-check_symbol_exists("__ANDROID__" "" EZ_TARGET_ANDROID)
 
 if(EZ_ARCH_ARM AND USE_ARM_THUMB)
 	add_definitions(-mthumb)
@@ -136,11 +186,33 @@ macro(find_uclibc)
 	get_filename_component(DYN_LINKER_NAME "${DYN_LINKER}" NAME)
 endmacro()
 
-macro(libc_autodetect)
+macro(export_var var)
+	if(DEFINED ${var})
+		set(${var} "${${var}}" PARENT_SCOPE)
+	endif()
+endmacro()
+
+function(libc_autodetect)
+	if(EZ_TARGET_WINDOWS)
+		check_library_exists("${C_LIBRARY}" "LdrLoadDll" "" HAVE_LDR_LOAD_DLL)
+		check_library_exists("${DL_LIBRARY}" "LoadLibraryA" "" HAVE_LOADLIBRARY)
+		if(NOT HAVE_LDR_LOAD_DLL)
+			message(FATAL_ERROR "Invalid or unsupported ntdll.dll")
+		endif()
+		if(NOT HAVE_LOADLIBRARY)
+			message(FATAL_ERROR "Invalid or unsupported kernel32.dll")
+		endif()
+
+		export_var(HAVE_LDR_LOAD_DLL)
+		export_var(HAVE_LOADLIBRARY)
+		return()
+	endif()
+
 	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLSYM)
 	if(HAVE_DLOPEN AND HAVE_DLSYM)
 		set(HAVE_LIBDL_IN_LIBC TRUE)
+		export_var(HAVE_LIBDL_IN_LIBC)
 	else()
 		unset(HAVE_DLOPEN CACHE)
 		unset(HAVE_DLSYM CACHE)
@@ -148,13 +220,18 @@ macro(libc_autodetect)
 
 	check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 	check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)
+
 	if(NOT HAVE_DLOPEN OR NOT HAVE_DLSYM)
 		message(FATAL_ERROR "Invalid libdl.so library")
 	endif()
 
-	check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
+	export_var(HAVE_DLOPEN)
+	export_var(HAVE_DLSYM)
 
-	if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT ANDROID AND NOT HAVE_LIBDL_IN_LIBC)
+	check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
+	export_var(HAVE_LIBC_DLOPEN_MODE)
+
+	if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT EZ_TARGET_ANDROID AND NOT HAVE_LIBDL_IN_LIBC)
 		find_uclibc()
 		check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
 	endif()
@@ -173,9 +250,10 @@ macro(libc_autodetect)
 			REQUIRED
 		)	
 		set(DYN_LINKER_NAME "${DYN_LINKER}")
+		export_var(DYN_LINKER_NAME)
 	endif()
 
-	if(NOT ANDROID
+	if(NOT EZ_TARGET_ANDROID
 	AND NOT HAVE_LIBC_DLOPEN_MODE
 	AND NOT HAVE_DL_LOAD_SHARED_LIBRARY
 	AND NOT HAVE_LIBDL_IN_LIBC
@@ -186,8 +264,9 @@ macro(libc_autodetect)
 	if(EZ_ARCH_MIPS)
 		# TODO: check headers?
 		set(UCLIBC_OLD TRUE)
+		export_var(UCLIBC_OLD)
 	endif()
-endmacro()
+endfunction()
 
 if(NOT DEFINED EZ_LIBC)
 	libc_autodetect()
@@ -217,7 +296,12 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	endif()
 endif()
 
-if(NOT HAVE_SHM_SYSCALLS AND NOT HAVE_SC_IPC AND NOT USE_ANDROID_ASHMEM AND NOT HAVE_LIBDL_IN_LIBC)
+if( NOT EZ_TARGET_WINDOWS
+	AND NOT HAVE_SHM_SYSCALLS
+	AND NOT HAVE_SC_IPC
+	AND NOT USE_ANDROID_ASHMEM
+	AND NOT HAVE_LIBDL_IN_LIBC
+)
 	message(FATAL_ERROR "Unsupported system")
 endif()
 
@@ -248,7 +332,7 @@ endif()
 include(CheckIncludeFile)
 check_include_file(sys/shm.h HAVE_SYS_SHM_H)
 
-if(EZ_TARGET_FREEBSD)
+if(EZ_TARGET_FREEBSD OR EZ_TARGET_WINDOWS)
 	set(USE_SHM FALSE)
 else()
 	set(USE_SHM TRUE)
@@ -264,12 +348,23 @@ function(add_ezinject_library target)
 
 	set(sources "${LIB_SOURCES}")
 
+	if(NOT EZ_TARGET_WINDOWS)
+		list(APPEND sources
+			${CMAKE_SOURCE_DIR}/ezinject_compat.c
+		)
+	endif()
+
 	list(APPEND sources
-		${CMAKE_SOURCE_DIR}/ezinject_compat.c
 		${CMAKE_SOURCE_DIR}/crt/crt.c
 		${CMAKE_SOURCE_DIR}/crt/crt_user.c
 		${CMAKE_SOURCE_DIR}/util.c
 	)
+
+	if(EZ_TARGET_WINDOWS)
+		list(APPEND sources
+			${CMAKE_SOURCE_DIR}/windows/util.c
+		)
+	endif()
 
 	if(DEBUG)
 		list(APPEND sources ${CMAKE_SOURCE_DIR}/util.c)
@@ -305,20 +400,33 @@ function(add_ezinject_library target)
 	endif()
 endfunction()
 
+set(os_sources "")
+if(EZ_TARGET_POSIX)
+	list(APPEND os_sources
+		posix/remote.c
+		)
+
+elseif(EZ_TARGET_WINDOWS)
+	list(APPEND os_sources
+		windows/remote.c
+		windows/util.c
+	)
+endif()
+
 if(EZ_TARGET_LINUX)
-	set(os_sources
+	list(APPEND os_sources
 		linux/remote.c
 		linux/util.c
 	)
 elseif(EZ_TARGET_FREEBSD)
-	set(os_sources
+	list(APPEND os_sources
 		freebsd/remote.c
 		freebsd/util.c
 	)
 endif()
 
 # TODO: fix for Freebsd
-if(NOT EZ_TARGET_FREEBSD)
+if(NOT EZ_TARGET_FREEBSD AND NOT EZ_TARGET_WINDOWS)
 	add_executable(ezpatch
 		elfparse.c
 		ezpatch.c
@@ -336,7 +444,7 @@ set(ezinject_sources
 )
 
 # not android, or android without ashmem
-if((EZ_TARGET_ANDROID AND NOT USE_ANDROID_ASHMEM) OR NOT HAVE_SYS_SHM_H)
+if((EZ_TARGET_ANDROID AND NOT USE_ANDROID_ASHMEM) OR NOT HAVE_SYS_SHM_H AND NOT EZ_TARGET_WINDOWS)
 	list(APPEND ezinject_sources ezinject_compat.c)
 endif()
 
@@ -344,14 +452,34 @@ if(HAVE_LIBC_DLOPEN_MODE)
 	list(APPEND ezinject_sources ezinject_libc_glibc.c)
 elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
 	list(APPEND ezinject_sources ezinject_libc_uclibc.c)
-elseif(EZ_TARGET_ANDROID)
+endif()
+
+if(EZ_TARGET_LINUX)
+	if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
+		list(APPEND ezinject_sources
+			ezinject_android.c
+		)
+	else()
+		list(APPEND ezinject_sources
+			ezinject_linux.c
+		)
+	endif()
+endif()
+
+if(EZ_TARGET_ANDROID)
 	list(APPEND ezinject_sources
 		elfparse.c
 		ezinject_libc_android.c
 	)
 elseif(EZ_TARGET_FREEBSD)
 	list(APPEND ezinject_sources
+		ezinject_freebsd.c
 		ezinject_libc_freebsd.c
+	)
+elseif(EZ_TARGET_WINDOWS)
+	list(APPEND ezinject_sources
+		ezinject_windows.c
+		ezinject_libc_windows.c
 	)
 endif()
 
@@ -372,7 +500,9 @@ endif()
 # -nostdlib: this code doesn't use any library
 # -fomit-frame-pointer: don't save stack frames
 # -ffreestanding: don't assume libc functions exist
-set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-Os -fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
+# -fno-stack-check,-mno-stack-arg-probe: don't emit ___chkstk_ms calls
+#set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-Os -fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
+set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-O0 -fno-toplevel-reorder -fno-stack-check -fno-stack-protector -mno-stack-arg-probe -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 target_link_libraries(ezinject dl)
 
 if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)

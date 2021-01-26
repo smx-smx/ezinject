@@ -85,8 +85,8 @@ uintptr_t prepare_socket_payload(ez_addr payload){
 	return UPTR(pl->msghdr.msg_control) + sizeof(struct cmsghdr);
 }
 
-uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
-	uintptr_t result = (uintptr_t)MAP_FAILED;
+uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t map_size){
+	uintptr_t result = (uintptr_t)NULL;
 
 	key_t shm_key = (key_t)ctx->target;
 
@@ -103,7 +103,7 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 
 	regs_t orig_regs;
 	regs_t regs;
-	remote_getregs(ctx->target, &regs);
+	remote_getregs(ctx, &regs);
 	memcpy(&orig_regs, &regs, sizeof(regs));
 
 	uintptr_t remote_stack = REG(regs, REG_SP);
@@ -141,7 +141,7 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 		remote_write(ctx, r_payload, &payload, payload_size);
 
 		REG(regs, REG_SP) = r_payload;
-		remote_setregs(ctx->target, &regs);
+		remote_setregs(ctx, &regs);
 
 		int remote_sock_fd = (int)RSCALL3(ctx, __NR_socket, AF_UNIX, SOCK_STREAM, 0);
 		if(remote_sock_fd < 0){
@@ -215,7 +215,7 @@ uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
 
 	INFO("restoring stack");
 	remote_write(ctx, r_payload, backup, payload_size);
-	remote_setregs(ctx->target, &orig_regs);
+	remote_setregs(ctx, &orig_regs);
 	free(backup);
 
 	return result;

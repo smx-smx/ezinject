@@ -1,5 +1,7 @@
-#ifndef __EZINJECT_SHARED_H
-#define __EZINJECT_SHARED_H
+#ifndef __EZINJECT_COMPAT_H
+#define __EZINJECT_COMPAT_H
+
+#include "config.h"
 
 #if !defined(HAVE_SHM_EXEC)
 	#if defined(EZ_TARGET_LINUX)
@@ -7,6 +9,10 @@
 	#else
 	#define SHM_EXEC 0 // dummy
 	#endif
+#endif
+
+#ifndef MAP_FAILED
+#define MAP_FAILED (void *)-1
 #endif
 
 #ifndef HAVE_RTLD_NOLOAD
@@ -25,7 +31,10 @@
 #endif
 
 #include "config.h"
+
+#ifndef EZ_TARGET_WINDOWS
 #include <sys/ipc.h>
+
 
 #ifndef HAVE_SYS_SHM_H
 struct sembuf {
@@ -71,5 +80,7 @@ int shmctl(int id, int cmd, struct shmid_ds *buf);
 #define __NR_write SYS_write
 #define __NR_kill SYS_kill
 #endif
+
+#endif /* EZ_TARGET_WINDOWS */
 
 #endif
