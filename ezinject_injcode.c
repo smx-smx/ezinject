@@ -349,7 +349,7 @@ void PLAPI injected_fn(struct injcode_bearing *br){
 	struct injcode_ctx *ctx = &stack_ctx;
 
 	if(br->pl_debug){
-		inj_thread_stop(ctx, EXIT_FAILURE);
+		inj_thread_stop(ctx, EXIT_SUCCESS);
 	}
 
 	int signal = EXIT_FAILURE;
