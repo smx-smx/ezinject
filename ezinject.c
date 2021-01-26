@@ -48,8 +48,8 @@ enum verbosity_level verbosity = V_DBG;
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
 static ez_region region_pl_code = {
-	.start = (void *)&injected_code_start,
-	.end = (void *)&injected_code_end
+	.start = (void *)&__start_payload,
+	.end = (void *)&__stop_payload
 };
 
 static ez_region region_sc_insn = {
@@ -821,7 +821,7 @@ int ezinject_main(
 			UPTR(remote_shm_ptr + PTRDIFF(pl_addr, ctx->mapped_mem.local))
 
 		#define PL_REMOTE_CODE(addr) \
-			PL_REMOTE(pl->code_start) + PTRDIFF(addr, &injected_code_start)
+			PL_REMOTE(pl->code_start) + PTRDIFF(addr, region_pl_code.start)
 
 
 		// trampoline entry

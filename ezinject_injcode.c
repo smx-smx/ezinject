@@ -43,9 +43,7 @@
 
 #define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
 
-void injected_code_start(void){}
-
-void injected_sc(){
+void PLAPI injected_sc(){
 	EMIT_LABEL("injected_sc_start");
 	EMIT_SC();
 	EMIT_LABEL("injected_sc_end");
@@ -53,7 +51,7 @@ void injected_sc(){
 
 //#define PL_EARLYDEBUG
 
-void trampoline(){
+void PLAPI trampoline(){
 	EMIT_LABEL("trampoline_entry");
 	
 	#ifdef PL_EARLYDEBUG
@@ -343,7 +341,7 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	return 0;
 }
 
-void injected_fn(struct injcode_bearing *br){
+void PLAPI injected_fn(struct injcode_bearing *br){
 	struct injcode_ctx stack_ctx = {
 		.br = br,
 		.stbl = BR_STRTBL(br)
@@ -446,5 +444,3 @@ void injected_fn(struct injcode_bearing *br){
 
 	inj_thread_stop(ctx, signal);
 }
-
-void injected_code_end(void){}

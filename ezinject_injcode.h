@@ -17,6 +17,7 @@
 #include "ezinject_common.h"
 
 #define EZAPI intptr_t
+#define PLAPI __attribute__((section("payload")))
 
 #define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
 
@@ -228,7 +229,7 @@ extern void injected_fn(struct injcode_bearing *br);
 
 extern void injected_clone();
 
-extern void injected_code_start();
-extern void injected_code_end();
+extern uint8_t __start_payload;
+extern uint8_t __stop_payload;
 
 #endif
