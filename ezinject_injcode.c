@@ -312,7 +312,7 @@ INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	return 0;
 }
 
-INLINE intptr_t inj_load_library(struct injcode_ctx *ctx, char *libpath){
+INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
 	int (*crt_init)(struct injcode_bearing *br);
@@ -408,7 +408,7 @@ void injected_fn(struct injcode_bearing *br){
 
 		// dlopen
 		PL_DBG(br, 'd');
-		if(inj_load_library(ctx, ctx->userlib_name) != 0){
+		if(inj_load_library(ctx) != 0){
 			PL_DBG(br, '!');
 			break;
 		}

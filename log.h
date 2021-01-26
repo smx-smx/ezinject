@@ -89,7 +89,7 @@ extern FILE *LOG_RESERVED_HANDLE;
     char buf[256]; \
     DWORD errCode = GetLastError(); \
     if(win32_errstr(errCode, buf, sizeof(buf))) \
-        ERR("%s: %s (0x%08X)", str, buf, errCode); \
+        ERR("%s: %s (0x%08lX)", str, buf, errCode); \
 } while(0);
 #endif
 #define CHECK(x) ({\

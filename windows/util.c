@@ -6,6 +6,7 @@
 #include <psapi.h>
 #include <shlwapi.h>
 
+#include "ezinject_common.h"
 #include "log.h"
 
 BOOL win32_errstr(DWORD dwErrorCode, LPTSTR pBuffer, DWORD cchBufferLength){
@@ -37,22 +38,6 @@ BOOL win32_errstr(DWORD dwErrorCode, LPTSTR pBuffer, DWORD cchBufferLength){
 	return FALSE;
 }
 
-int strncasecmp(const char *s1, const char *s2, size_t n) {
-	if (n != 0) {
-		const unsigned char
-				*us1 = (const unsigned char *)s1,
-				*us2 = (const unsigned char *)s2;
-
-		do {
-			if (tolower(*us1) != tolower(*us2++))
-				return (tolower(*us1) - tolower(*--us2));
-			if (*us1++ == '\0')
-				break;
-		} while (--n != 0);
-	}
-	return (0);
-}
-
 char *strcasestr(const char *s, const char *find) {
 	char c, sc;
 	size_t len;
@@ -72,6 +57,8 @@ char *strcasestr(const char *s, const char *find) {
 }
 
 void *get_base(pid_t pid, char *substr, char **ignores) {
+	UNUSED(ignores);
+
 	HANDLE hProcess;
 
 	hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
@@ -82,13 +69,11 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 		return NULL;
 	}					
 
-	bool found = false;
 	void *base = NULL;
-
 	do {
 		HMODULE *modules = NULL;
 		TCHAR imageFileName[MAX_PATH];
-		unsigned pathSize = _countof(imageFileName);
+		DWORD pathSize = _countof(imageFileName);
 		if(!QueryFullProcessImageNameA(hProcess, 0, imageFileName, &pathSize)){
 			DBG("QueryFullProcessImageNameA failed");
 			break;
@@ -96,9 +81,9 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 
 		DBG("imageFileName: %s", imageFileName);
 
-		int numModules = 0;
+		DWORD numModules = 0;
 		{
-			uint32_t bytesNeeded = 0;
+			DWORD bytesNeeded = 0;
 			EnumProcessModules(hProcess, NULL, 0, &bytesNeeded);
 			
 			modules = calloc(1, bytesNeeded);
@@ -107,7 +92,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 			numModules = bytesNeeded / sizeof(HMODULE);
 		}
 
-		for(int i=0; i<numModules; i++){
+		for(DWORD i=0; i<numModules; i++){
 			TCHAR modName[MAX_PATH];
 			if(!GetModuleFileNameEx(hProcess, modules[i], modName, _countof(modName))){
 				continue;
