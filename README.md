@@ -20,3 +20,61 @@ The stack of the cloned process will contain a pointer to the payload, and a poi
 - The crt signals ezinject that shared memory can be freed, by decrementing the semaphore.
 - The crt prepares argv, then calls the main function
 - The user library is invoked. It can call any function inside the target, replace or hook functions (with libhooker in userland)
+
+## Build
+
+The following is an example on Debian and derivates, needs to be adjusted for each platform.
+
+1. Install dependencies
+- build-essential
+- cmake
+- libcapstone-dev
+- pkg-config
+
+2. Build the project
+```sh
+./build.sh
+```
+
+## Sample usage
+
+### Linux .so injection
+
+On Terminal 1
+```sh
+$ cd build/samples/dummy
+$ ./target
+```
+
+On Terminal 2
+```sh
+$ cd build
+$ sudo ./ezinject `pidof target` samples/dummy/libdummy.so
+```
+
+Expected output
+```text
+return1() = 1
+```
+changes to
+```
+return1() = 13370
+```
+
+### Python injection
+
+```
+echo "print('hello ' * 3 + 'from python');" > hello.py
+export EZPY=`python -c "import sys; print(':'.join(sys.path))"`
+echo "python path: $EZPY"
+```
+
+Find libpython:
+```
+find /usr/lib -name "libpython*"
+```
+
+Put correct libpython and paths in example below:
+```
+sudo ./ezinject `pidof target` samples/pyloader/libpyloader.so /usr/lib/x86_64-linux-gnu/libpython2.7.so.1 /usr/lib/python2.7 $EZPY hello.py
+```
