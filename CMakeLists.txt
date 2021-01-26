@@ -452,17 +452,33 @@ if(HAVE_LIBC_DLOPEN_MODE)
 	list(APPEND ezinject_sources ezinject_libc_glibc.c)
 elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
 	list(APPEND ezinject_sources ezinject_libc_uclibc.c)
-elseif(EZ_TARGET_ANDROID)
+endif()
+
+if(EZ_TARGET_LINUX)
+	if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
+		list(APPEND ezinject_sources
+			ezinject_android.c
+		)
+	else()
+		list(APPEND ezinject_sources
+			ezinject_linux.c
+		)
+	endif()
+endif()
+
+if(EZ_TARGET_ANDROID)
 	list(APPEND ezinject_sources
 		elfparse.c
 		ezinject_libc_android.c
 	)
 elseif(EZ_TARGET_FREEBSD)
 	list(APPEND ezinject_sources
+		ezinject_freebsd.c
 		ezinject_libc_freebsd.c
 	)
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND ezinject_sources
+		ezinject_windows.c
 		ezinject_libc_windows.c
 	)
 endif()

@@ -85,8 +85,8 @@ uintptr_t prepare_socket_payload(ez_addr payload){
 	return UPTR(pl->msghdr.msg_control) + sizeof(struct cmsghdr);
 }
 
-uintptr_t remote_shmat_android(struct ezinj_ctx *ctx, size_t map_size){
-	uintptr_t result = (uintptr_t)MAP_FAILED;
+uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t map_size){
+	uintptr_t result = (uintptr_t)NULL;
 
 	key_t shm_key = (key_t)ctx->target;
 

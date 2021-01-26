@@ -750,56 +750,6 @@ void sigint_handler(int signum){
 #include "ezinject_android.c"
 #endif
 
-#ifdef EZ_TARGET_POSIX
-uintptr_t remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int shmflg){
-	uintptr_t remote_shm_ptr = 0;
-	#if defined(EZ_TARGET_LINUX)
-	#ifdef HAVE_SHM_SYSCALLS
-		remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, shm_id, shmaddr, shmflg));
-	#else
-		CHECK(RSCALL3(ctx, __NR_mprotect, ctx->target_codebase, getpagesize(), PROT_READ | PROT_WRITE | PROT_EXEC));
-		/**
-		 * Calling convention for shmat in sys_ipc()
-		 * arg0 - IPCCALL(0, SHMAT)    specifies version 0 of the call format (1 is apparently "iBCS2 emulator")
-		 * arg1 - shmat: id
-		 * arg2 - shmat: flags
-		 * arg3 - pointer to memory that will hold the resulting shmaddr
-		 * arg4 [VIA STACK] - shmat: shmaddr (we want this to be 0 to let the kernel pick a free region)
-		 *
-		 * Return: 0 on success, nonzero on error
-		 * Stack layout: arguments start from offset 16 on Mips O32
-		 *
-		 * We pass shmaddr as arg3 aswell, so that 0 is used as shmaddr and is replaced with the new addr
-		 **/
-		CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, shmflg, ctx->target_codebase + 4));
-		remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, ctx->target, ctx->target_codebase + 4);
-		DBGPTR(remote_shm_ptr);
-		CHECK(RSCALL3(ctx, __NR_mprotect, ctx->target_codebase, getpagesize(), PROT_READ | PROT_EXEC));
-	#endif
-	#elif defined(EZ_TARGET_FREEBSD)
-	remote_shm_ptr = CHECK(RSCALL3(ctx, SYS_shmat, shm_id, shmaddr, shmflg));
-	#endif
-	INFO("shmat => %p", (void *)remote_shm_ptr);
-	return remote_shm_ptr;
-}
-#endif
-
-int remote_shmdt(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
-	int result = -1;
-	#if defined(EZ_TARGET_LINUX)
-	#ifdef HAVE_SHM_SYSCALLS
-		result = (int) CHECK(RSCALL1(ctx, __NR_shmdt, remote_shmaddr));
-	#else
-		// skip syscall instruction and apply stack offset (see note about sys_ipc)
-		ctx->syscall_stack.remote = ctx->target_codebase + 4 - 16;
-		result = (int) CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, ctx->target_codebase + 4));
-	#endif
-	#elif defined(EZ_TARGET_FREEBSD)
-		result = (int) CHECK(RSCALL1(ctx, SYS_shmdt, remote_shmaddr));
-	#endif
-	return result;
-}
-
 #if defined(EZ_TARGET_LINUX)
 void print_maps(){
 	pid_t pid = syscall(__NR_getpid);
@@ -883,7 +833,7 @@ int ezinject_main(
 
 	int err = 1;
 	do {
-		uintptr_t remote_shm_ptr = 0;
+		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
 		#if defined(EZ_TARGET_ANDROID) && defined(USE_ANDROID_ASHMEM)
 		remote_shm_ptr = remote_shmat_android(ctx, br->mapping_size);
 		#elif defined(EZ_TARGET_LINUX)
@@ -903,10 +853,11 @@ int ezinject_main(
 				PAGE_EXECUTE_READWRITE
 		);
 		#endif
-		if(remote_shm_ptr == (uintptr_t)MAP_FAILED || remote_shm_ptr == 0){
-			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
+		if(remote_shm_ptr == 0){
 		#ifdef EZ_TARGET_WINDOWS
-			ERR("GetLastError() => 0x%08x", GetLastError());
+			PERROR("VirtualAllocEx failed");
+		#else
+			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
 		#endif
 			break;
 		}
@@ -975,9 +926,7 @@ int ezinject_main(
 		ctx->num_wait_calls = 1;
 		ctx->syscall_stack.remote = 0;
 
-	#ifdef EZ_TARGET_POSIX
-		remote_shmdt(ctx, remote_shm_ptr);
-	#endif
+		remote_pl_free(ctx, remote_shm_ptr);
 
 		//restore ELF header
 		remote_write(ctx, codeBase, &dataBak, dataLength);

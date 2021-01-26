@@ -76,10 +76,13 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 }
 
 EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable){
+	UNUSED(ctx);
+	UNUSED(enable);
 	return 0;
 }
 
 EZAPI remote_syscall_step(struct ezinj_ctx *ctx){
+	UNUSED(ctx);
 	return 0;
 }
 

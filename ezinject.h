@@ -113,6 +113,9 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 #define EZAPI intptr_t
 
 #include "ezinject_arch.h"
+
+/** attach api **/
+
 EZAPI remote_attach(struct ezinj_ctx *ctx);
 EZAPI remote_detach(struct ezinj_ctx *ctx);
 EZAPI remote_suspend(struct ezinj_ctx *ctx);
@@ -124,4 +127,8 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
 EZAPI remote_syscall_step(struct ezinj_ctx *ctx);
 EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable);
+
+/** injection api **/ 
+uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);
+int remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
 #endif
