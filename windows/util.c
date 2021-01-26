@@ -71,36 +71,6 @@ char *strcasestr(const char *s, const char *find) {
 	return ((char *)s);
 }
 
-static bool is_same_file(const char *pathA, const char *pathB){
-	HANDLE fileA = CreateFileA(pathA, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if(fileA == INVALID_HANDLE_VALUE){
-		ERR("CreateFileA failed");
-		return false;
-	}
-
-	HANDLE fileB = CreateFileA(pathB, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if(fileB == INVALID_HANDLE_VALUE){
-		CloseHandle(fileA);
-		ERR("CreateFileA failed");
-		return false;
-	}
-
-	BY_HANDLE_FILE_INFORMATION infoA, infoB;
-	GetFileInformationByHandle(fileA, &infoA);
-	GetFileInformationByHandle(fileB, &infoB);
-
-	bool identical = (
-		infoA.dwVolumeSerialNumber == infoB.dwVolumeSerialNumber &&
-		infoA.nFileIndexLow == infoB.nFileIndexLow &&
-		infoA.nFileIndexHigh == infoB.nFileIndexHigh
-	);
-
-	CloseHandle(fileA);
-	CloseHandle(fileB);
-
-	return identical;
-}
-
 void *get_base(pid_t pid, char *substr, char **ignores) {
 	HANDLE hProcess;
 
