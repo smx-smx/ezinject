@@ -36,10 +36,6 @@
 #include <asm-generic/ipc.h>
 #endif
 
-#ifdef EZ_TARGET_FREEBSD
-#include <sys/sysproto.h>
-#endif
-
 #include "util.h"
 #include "ezinject.h"
 #include "ezinject_compat.h"

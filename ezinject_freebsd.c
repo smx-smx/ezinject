@@ -1,4 +1,9 @@
+#include <sys/syscall.h>
+#include <sys/sysproto.h>
+#include <sys/mman.h>
+
 #include "ezinject.h"
+#include "log.h"
 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 	uintptr_t result = RSCALL6(ctx, SYS_mmap,

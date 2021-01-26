@@ -232,8 +232,11 @@ INLINE intptr_t fetch_sym(
 
 #include "ezinject_injcode_util.c"
 
-#if defined(EZ_TARGET_POSIX)
-	#include "ezinject_injcode_posix.c"
+#ifdef EZ_TARGET_POSIX
+#include "ezinject_injcode_posix.c"
+#endif
+
+#if defined(EZ_TARGET_LINUX)
 	#if defined(HAVE_LIBC_DLOPEN_MODE)
 		#include "ezinject_injcode_glibc.c"
 	#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
