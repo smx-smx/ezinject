@@ -362,7 +362,7 @@ function(add_ezinject_library target)
 
 	if(EZ_TARGET_WINDOWS)
 		list(APPEND sources
-			${CMAKE_SOURCE_DIR}/windows/util.c
+			${CMAKE_SOURCE_DIR}/os/windows/util.c
 		)
 	endif()
 
@@ -403,25 +403,25 @@ endfunction()
 set(os_sources "")
 if(EZ_TARGET_POSIX)
 	list(APPEND os_sources
-		posix/remote.c
-		)
+		os/posix/remote.c
+	)
 
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND os_sources
-		windows/remote.c
-		windows/util.c
+		os/windows/remote.c
+		os/windows/util.c
 	)
 endif()
 
 if(EZ_TARGET_LINUX)
 	list(APPEND os_sources
-		linux/remote.c
-		linux/util.c
+		os/linux/remote.c
+		os/linux/util.c
 	)
 elseif(EZ_TARGET_FREEBSD)
 	list(APPEND os_sources
-		freebsd/remote.c
-		freebsd/util.c
+		os/freebsd/remote.c
+		os/freebsd/util.c
 	)
 endif()
 

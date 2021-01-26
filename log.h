@@ -84,7 +84,7 @@ extern FILE *LOG_RESERVED_HANDLE;
 #if defined(EZ_TARGET_POSIX)
 #define PERROR(str) ERR("%s: %s", str, strerror(errno));
 #elif defined(EZ_TARGET_WINDOWS)
-#include "windows/util.h"
+#include "os/windows/util.h"
 #define PERROR(str) do { \
     char buf[256]; \
     DWORD errCode = GetLastError(); \
