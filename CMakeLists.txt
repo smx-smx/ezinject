@@ -494,6 +494,14 @@ if(ENABLE_STATIC)
 	target_link_options(ezinject PUBLIC -static)
 endif()
 
+include(CheckCCompilerFlag)
+check_c_compiler_flag("-mno-stack-arg-probe" HAVE_STACK_ARG_PROBE)
+set(CFLAG_STACK_ARG_PROBE "")
+
+if(HAVE_STACK_ARG_PROBE)
+	set(CFLAG_STACK_ARG_PROBE "-mno-stack-arg-probe")
+endif()
+
 # -fno-toplevel-reorder: keep order of code as it was written
 # -fno-stack-protector: remove stack cookie checks
 # -fno-pic: remove calls to __x86_get_pc_thunk_ax
@@ -501,8 +509,7 @@ endif()
 # -fomit-frame-pointer: don't save stack frames
 # -ffreestanding: don't assume libc functions exist
 # -fno-stack-check,-mno-stack-arg-probe: don't emit ___chkstk_ms calls
-#set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-Os -fno-toplevel-reorder -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
-set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-O0 -fno-toplevel-reorder -fno-stack-check -fno-stack-protector -mno-stack-arg-probe -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
+set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-Os -fno-toplevel-reorder -fno-stack-check -fno-stack-protector ${CFLAG_STACK_ARG_PROBE} -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 target_link_libraries(ezinject dl)
 
 if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)

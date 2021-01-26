@@ -236,7 +236,7 @@ INLINE intptr_t fetch_sym(
 #include "ezinject_injcode_posix.c"
 #endif
 
-#if defined(EZ_TARGET_LINUX)
+#if defined(EZ_TARGET_LINUX) && !defined(EZ_TARGET_ANDROID)
 	#if defined(HAVE_LIBC_DLOPEN_MODE)
 		#include "ezinject_injcode_glibc.c"
 	#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
@@ -244,7 +244,7 @@ INLINE intptr_t fetch_sym(
 	#endif
 #elif defined(EZ_TARGET_WINDOWS)
 	#include "ezinject_injcode_windows.c"
-#else
+#else // FreeBSD || Android
 INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	return ctx->br->libdl_handle;
 }

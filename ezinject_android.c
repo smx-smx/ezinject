@@ -1,7 +1,14 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <sys/syscall.h>
 
 #include "ezinject.h"
+#include "log.h"
 
 #define SOCKNAME "/dev/shm/%08x"
 #define SUN_PATH_ABSTRACT(ptr) ((char *)(ptr) + offsetof(struct sockaddr_un, sun_path) + 1)
@@ -219,4 +226,10 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t map_size){
 	free(backup);
 
 	return result;
+}
+
+int remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
+	UNUSED(ctx);
+	UNUSED(remote_shmaddr);
+	return 0;
 }

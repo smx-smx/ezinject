@@ -720,10 +720,6 @@ void sigint_handler(int signum){
 	cleanup_mem(&ctx);
 }
 
-#ifdef EZ_TARGET_ANDROID
-#include "ezinject_android.c"
-#endif
-
 #if defined(EZ_TARGET_LINUX)
 void print_maps(){
 	pid_t pid = syscall(__NR_getpid);
