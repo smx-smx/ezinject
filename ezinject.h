@@ -44,10 +44,9 @@ struct ezinj_ctx {
 	int num_wait_calls;
 	pid_t target;
 #ifdef EZ_TARGET_WINDOWS
-	HANDLE hProc;
-	HANDLE hPrimaryThread;
-	HANDLE hSecondaryThread;
 	DEBUG_EVENT ev;
+	HANDLE hProc;
+	HANDLE hThread;
 #endif
 	uintptr_t target_codebase;
 	ez_addr libc;
