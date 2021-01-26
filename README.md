@@ -1,6 +1,26 @@
 # ezinject
 Modular binary injection framework
 
+## Supported Architectures:
+- Linux:
+  - arm (arm+thumb)
+  - aarch64
+  - mips
+  - x86
+  - amd64
+  
+- Windows: x64
+- FreeBSD: x86, amd64
+
+## Supported C Libraries:
+- Linux
+  - glibc
+  - uClibc (tested on ARM, MIPS)
+  - Android (tested on Android 2.x - 10.x)
+- FreeBSD (tested on FreeBSD 12)
+- Windows
+  - NT 6 (tested on Windows 10)
+
 ## How does it work
 
 ezinject implements a single instrumentation primitive: remote syscalls
