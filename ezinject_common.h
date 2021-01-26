@@ -33,5 +33,4 @@
 	STRTBL_SKIP(stbl); \
 } while(0)
 
-
 #endif

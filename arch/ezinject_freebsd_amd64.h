@@ -5,6 +5,7 @@
 
 #define _CONCAT(x,y) x##y
 #define CONCAT(x,y) _CONCAT(x,y)
+#define REG(u, reg) (u).CONCAT(r_,reg)
 
 #define REG_PC rip
 #define REG_SP rsp
@@ -16,8 +17,6 @@
 #define REG_ARG4 r10
 #define REG_ARG5 r8
 #define REG_ARG6 r9
-
-#define REG(u, reg) (u).CONCAT(r_,reg)
 
 #define EMIT_SC() asm volatile("syscall\n")
 #define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))

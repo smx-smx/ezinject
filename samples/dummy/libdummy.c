@@ -12,8 +12,8 @@
 
 LOG_SETUP(V_DBG);
 
-#define USE_SLJIT
-#define USE_LH
+//#define USE_SLJIT
+//#define USE_LH
 
 #ifdef USE_SLJIT
 /**

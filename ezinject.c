@@ -8,23 +8,28 @@
 #include <stdint.h>
 #include <limits.h>
 #include <unistd.h>
-#include <link.h>
+
+#include "config.h"
+
 #include <fcntl.h>
 #include <dlfcn.h>
 #include <sched.h>
-#include <sys/mman.h>
-#include <sys/ptrace.h>
-#include <sys/syscall.h>
-#include <sys/uio.h>
-#include <sys/wait.h>
 
-#include "config.h"
 
 #ifdef HAVE_SYS_SHM_H
 #include <sys/shm.h>
 #endif
 
+#ifndef EZ_TARGET_WINDOWS
+#include <link.h>
+#include <sys/mman.h>
+#include <sys/ptrace.h>
+#include <sys/syscall.h>
+#include <sys/uio.h>
+#include <sys/wait.h>
 #include <sys/ipc.h>
+#endif
+
 #include <sys/stat.h>
 
 #if defined(EZ_TARGET_LINUX) && !defined(HAVE_SHM_SYSCALLS)
@@ -72,10 +77,10 @@ void setregs_syscall(
 	regs_t *new_ctx,
 	struct call_req call
 ){
-	struct sc_req sc = call.syscall;
-
 	REG(*new_ctx, REG_PC) = call.insn_addr;
 
+#if defined(EZ_TARGET_POSIX)
+	struct sc_req sc = call.syscall;
 	if(SC_HAS_ARG(sc, 0)){
 		REG(*new_ctx, REG_NR)   = sc.argv[0];
 	#if defined(EZ_TARGET_FREEBSD) && defined(EZ_ARCH_I386)
@@ -120,20 +125,21 @@ void setregs_syscall(
 		REG(*new_ctx, REG_ARG6) = sc.argv[6];
 		#endif
 	#endif
-
 		DBG("remote_call(%u)", (unsigned int)sc.argv[0]);
 	}
-
+	
 	#ifdef USE_ARM_THUMB
 	REG(*new_ctx, ARM_cpsr) = REG(*new_ctx, ARM_cpsr) | PSR_T_BIT;
 	#endif
+
+#endif /* EZ_TARGET_POSIX */
 
 	if(call.stack_addr != 0){
 		DBGPTR(call.stack_addr);
 		REG(*new_ctx, REG_SP) = call.stack_addr;
 	}
 
-#if defined(EZ_ARCH_I386) && !defined(EZ_TARGET_FREEBSD)
+#if defined(EZ_TARGET_LINUX) && defined(EZ_ARCH_I386)
 	//ebp must point to valid stack
 	REG(*new_ctx, REG_ARG6) = REG(*orig_ctx, REG_SP);
 #else
@@ -143,14 +149,18 @@ void setregs_syscall(
 }
 
 
-void remote_call_setup(pid_t target, struct call_req call, regs_t *orig_ctx, regs_t *new_ctx){
+void remote_call_setup(struct ezinj_ctx *ctx, struct call_req call, regs_t *orig_ctx, regs_t *new_ctx){
 	memset(orig_ctx, 0x00, sizeof(*orig_ctx));
 
-	remote_getregs(target, orig_ctx);
+	if(remote_getregs(ctx, orig_ctx) < 0){
+		PERROR("remote_getregs failed");
+	}
 	memcpy(new_ctx, orig_ctx, sizeof(*orig_ctx));
 
 	setregs_syscall(orig_ctx, new_ctx, call);
-	remote_setregs(target, new_ctx);
+	if(remote_setregs(ctx, new_ctx) < 0){
+		PERROR("remote_setregs failed");
+	}
 }
 
 #if defined(EZ_TARGET_LINUX)
@@ -182,9 +192,9 @@ static int lwp_ensure_state(pid_t target, unsigned int flags){
 #define SC_5ARGS ARGMASK(SC_4ARGS, 5)
 #define SC_6ARGS ARGMASK(SC_5ARGS, 6)
 
-uintptr_t remote_call_common(pid_t target, struct call_req call){
+uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 	regs_t orig_ctx, new_ctx;
-	remote_call_setup(target, call, &orig_ctx, &new_ctx);
+	remote_call_setup(ctx, call, &orig_ctx, &new_ctx);
 
 	uintptr_t sc_ret;
 
@@ -192,32 +202,36 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 	for(int i=0; i<call.num_wait_calls; i++){
 		int rc;
 		do {
-			if(remote_syscall_step(target) < 0){
+			if(remote_syscall_step(ctx) < 0){
 				PERROR("ptrace");
 				return -1;
 			}
-			status = remote_wait(target);
+			status = remote_wait(ctx);
+		#ifdef EZ_TARGET_POSIX
 			if((rc=WSTOPSIG(status)) != SC_EVENT_STATUS){
 				ERR("remote_wait: %s", strsignal(rc));
 				return -1;
 			}
+		#endif
 
 			#if defined(EZ_TARGET_FREEBSD)
-			if(lwp_ensure_state(target, PL_FLAG_SCE) != 0){
+			if(lwp_ensure_state(ctx->target, PL_FLAG_SCE) != 0){
 				ERR("Not in syscall entry");
 				return -1;
 			}
 			#endif
-			remote_syscall_step(target);
+			remote_syscall_step(ctx);
 
-			status = remote_wait(target);
+			status = remote_wait(ctx);
+		#ifdef EZ_TARGET_POSIX
 			if((rc=WSTOPSIG(status)) != SC_EVENT_STATUS){
 				ERR("remote_wait: %s", strsignal(rc));
 				return -1;
 			}
+		#endif
 
 			#ifdef EZ_TARGET_FREEBSD
-			if(lwp_ensure_state(target, PL_FLAG_SCX) != 0){
+			if(lwp_ensure_state(ctx->target, PL_FLAG_SCX) != 0){
 				ERR("Not in syscall exit");
 				return -1;
 			}
@@ -235,7 +249,7 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			sc_ret = fbsd_sc_ret.sr_retval[0];
 			#else
 			// get syscall return value
-			if(remote_getregs(target, &new_ctx) < 0){ /* Get return value */
+			if(remote_getregs(ctx, &new_ctx) < 0){ /* Get return value */
 				PERROR("ptrace");
 				return -1;
 			}
@@ -245,54 +259,63 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			DBG("[RET] = %zu", sc_ret);
 
 			if((signed int)sc_ret == -EINTR){
-				remote_call_setup(target, call, &orig_ctx, &new_ctx);
+				remote_call_setup(ctx, call, &orig_ctx, &new_ctx);
 			}
 		} while((signed int)sc_ret == -EINTR);
 	}
 
 	if(call.num_wait_calls == 0){
 		// disable syscall tracing
-		remote_syscall_trace_enable(target, 0);
+		remote_syscall_trace_enable(ctx, 0);
 		int stopsig = 0;
 		do {
 
 			DBG("continuing...");
 			// pass signal to child
-			if(remote_continue(target, stopsig) < 0){
+			if(remote_continue(ctx, stopsig) < 0){
 				PERROR("ptrace");
 				return -1;
 			}
 
-			if(ctx.pl_debug){
-				kill(target, SIGSTOP);
+		#ifndef EZ_TARGET_WINDOWS
+			if(ctx->pl_debug){
+				remote_suspend(ctx);
 			}
+		#endif
 
 			// wait for the children to stop
-			status = remote_wait(target);
+			status = remote_wait(ctx);
 
+		#ifdef EZ_TARGET_POSIX
 			stopsig = WSTOPSIG(status);
 			DBG("got signal: %d (%s)", stopsig, strsignal(stopsig));
+		#endif
 
 			/**
 			 * if we're debugging payload
 			 * we break early as the target should
 			 * now be in an endless loop
 			 **/
-			if(ctx.pl_debug){
+			if(ctx->pl_debug){
 				return -1;
 			}
+	#ifdef EZ_TARGET_POSIX
 		} while(IS_IGNORED_SIG(stopsig));
+	#else
+		} while(0);
+	#endif
 
-		if(remote_getregs(target, &new_ctx) < 0){
+		if(remote_getregs(ctx, &new_ctx) < 0){
 			PERROR("ptrace");
 			return -1;
 		}
 
+	#ifdef EZ_TARGET_POSIX
 		if(stopsig != SIGSTOP){
 			ERR("Unexpected signal (expected SIGSTOP)");
 
 			regs_t tmp;
-			remote_getregs(target, &tmp);
+			remote_getregs(ctx, &tmp);
 			DBG("CRASH @ %p (offset: %i)",
 				(void *)REG(tmp, REG_PC),
 				(signed int)(REG(tmp, REG_PC) - call.insn_addr)
@@ -303,10 +326,11 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 			// child raised a debug event
 			// this is a debug condition, so do a hard exit
 			// $TODO: do it nicer
-			remote_detach(target);
+			remote_detach(ctx->target);
 			exit(0);
 			return -1;
 		}
+	#endif
 	}
 
 	#ifdef EZ_TARGET_FREEBSD
@@ -322,7 +346,9 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 	}
 	#endif
 
-	remote_setregs(target, &orig_ctx);
+	if(remote_setregs(ctx, &orig_ctx)){
+		PERROR("remote_setregs failed");
+	}
 
 #ifdef DEBUG
 	DBG("PC: %p => %p",
@@ -334,7 +360,7 @@ uintptr_t remote_call_common(pid_t target, struct call_req call){
 }
 
 uintptr_t remote_call(
-	pid_t target,
+	struct ezinj_ctx *ctx,
 	uintptr_t stack_addr,
 	uintptr_t insn_addr,
 	int num_wait_calls,
@@ -357,7 +383,7 @@ uintptr_t remote_call(
 	}
 	req.syscall = sc;
 
-	return remote_call_common(target, req);
+	return remote_call_common(ctx, req);
 }
 
 struct ezinj_str ezstr_new(char *str){
@@ -377,11 +403,18 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
 	return sym;
 }
 
+#ifdef EZ_TARGET_WINDOWS
+#define LIBC_SEARCH "ntdll.dll"
+#else
+#define LIBC_SEARCH "libc"
+#endif
+
 int libc_init(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
+
 	ez_addr libc = {
-		.local  = (uintptr_t) get_base(getpid(), "libc", ignores),
-		.remote = (uintptr_t) get_base(ctx->target, "libc", ignores)
+		.local  = (uintptr_t) get_base(getpid(), LIBC_SEARCH, ignores),
+		.remote = (uintptr_t) get_base(ctx->target, LIBC_SEARCH, ignores)
 	};
 
 	DBGPTR(libc.remote);
@@ -478,12 +511,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	size_t dyn_ptr_size = argc * sizeof(char *);
 	size_t dyn_str_size = 0;
 
-	int num_strings;
-
-	// argc + extras
-	num_strings = argc + 10;
-
-	struct ezinj_str args[num_strings];
+	struct ezinj_str args[32];
+	
+	int num_strings = 0;
 	int argi = 0;
 	off_t argv_offset = 0;
 
@@ -491,6 +521,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	args[argi] = ezstr_new(str); \
 	dyn_str_size += args[argi].len + sizeof(unsigned int); \
 	argi++; \
+	num_strings++; \
 } while(0)
 
 	// libdl.so name (without path)
@@ -498,6 +529,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	// libpthread.so name (without path)
 	PUSH_STRING(PTHREAD_LIBRARY_NAME);
 
+#if defined(EZ_TARGET_POSIX)
 	PUSH_STRING("dlerror");
 	PUSH_STRING("pthread_mutex_init");
 	PUSH_STRING("pthread_mutex_lock");
@@ -505,15 +537,30 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	PUSH_STRING("pthread_cond_init");
 	PUSH_STRING("pthread_cond_wait");
 	PUSH_STRING("pthread_join");
+#elif defined(EZ_TARGET_WINDOWS)
+	PUSH_STRING("CreateEventA");
+	PUSH_STRING("CreateThread");
+	PUSH_STRING("CloseHandle");
+	PUSH_STRING("WaitForSingleObject");
+	PUSH_STRING("GetExitCodeThread");
+#endif
+
 	PUSH_STRING("crt_init");
 
 	// library to load
 	char libName[PATH_MAX];
+#if defined(EZ_TARGET_POSIX)
 	if(!realpath(argv[0], libName)) {
 		ERR("realpath: %s", libName);
 		PERROR("realpath");
 		return NULL;
 	}
+#elif defined(EZ_TARGET_WINDOWS)
+	{
+		int size = GetFullPathNameA(argv[0], 0, NULL, NULL);
+		GetFullPathNameA(argv[0], sizeof(libName), libName, NULL);
+	}
+#endif
 
 	argv_offset = dyn_str_size;
 	PUSH_STRING(libName);
@@ -551,6 +598,12 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #ifdef EZ_ARCH_MIPS
 	br->uclibc_mips_got_reloc = (void *)ctx->uclibc_mips_got_reloc.remote;
 #endif
+#endif
+
+#ifdef EZ_TARGET_WINDOWS
+	br->RtlGetCurrentPeb = (void *)ctx->nt_get_peb.remote;
+	br->NtQueryInformationProcess = (void *)ctx->nt_query_proc.remote;
+	br->NtWriteFile = (void *)ctx->nt_write_file.remote;
 #endif
 
 	br->dlopen_offset = ctx->dlopen_offset;
@@ -654,7 +707,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	return 0;
 }
 
-#define __RCALL(ctx, insn, argmask, ...) remote_call(ctx->target, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
+#define __RCALL(ctx, insn, argmask, ...) remote_call(ctx, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
 #define __RCALL_SC(ctx, nr, argmask, ...) __RCALL(ctx, ctx->syscall_insn.remote, argmask, nr, ##__VA_ARGS__)
 
 // Remote System Call
@@ -697,6 +750,7 @@ void sigint_handler(int signum){
 #include "ezinject_android.c"
 #endif
 
+#ifdef EZ_TARGET_POSIX
 uintptr_t remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int shmflg){
 	uintptr_t remote_shm_ptr = 0;
 	#if defined(EZ_TARGET_LINUX)
@@ -728,6 +782,7 @@ uintptr_t remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int s
 	INFO("shmat => %p", (void *)remote_shm_ptr);
 	return remote_shm_ptr;
 }
+#endif
 
 int remote_shmdt(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 	int result = -1;
@@ -774,7 +829,6 @@ int ezinject_main(
 	int argc, char *argv[]
 ){
 	print_maps();
-	fflush(stdout);
 
 	uintptr_t codeBase = (uintptr_t) get_base(ctx->target, NULL, NULL);
 	if(codeBase == 0){
@@ -817,6 +871,8 @@ int ezinject_main(
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
 	#elif defined(EZ_TARGET_FREEBSD)
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, SYS_getpid);
+	#elif defined(EZ_TARGET_WINDOWS)
+	pid_t remote_pid = ctx->target;
 	#endif
 	if(remote_pid != ctx->target)
 	{
@@ -839,9 +895,19 @@ int ezinject_main(
 			PROT_READ | PROT_WRITE | PROT_EXEC,
 			MAP_ANONYMOUS, -1, 0
 		);
+		#elif defined(EZ_TARGET_WINDOWS)
+		remote_shm_ptr = VirtualAllocEx(
+				ctx->hProc, NULL,
+				br->mapping_size,
+				MEM_COMMIT | MEM_RESERVE,
+				PAGE_EXECUTE_READWRITE
+		);
 		#endif
 		if(remote_shm_ptr == (uintptr_t)MAP_FAILED || remote_shm_ptr == 0){
 			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
+		#ifdef EZ_TARGET_WINDOWS
+			ERR("GetLastError() => 0x%08x", GetLastError());
+		#endif
 			break;
 		}
 
@@ -889,7 +955,7 @@ int ezinject_main(
 		#endif
 
 		
-		#ifdef EZ_TARGET_FREEBSD
+		#if defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
 		remote_write(ctx, ctx->mapped_mem.remote, ctx->mapped_mem.local, br->mapping_size);
 		#endif
 
@@ -909,7 +975,9 @@ int ezinject_main(
 		ctx->num_wait_calls = 1;
 		ctx->syscall_stack.remote = 0;
 
+	#ifdef EZ_TARGET_POSIX
 		remote_shmdt(ctx, remote_shm_ptr);
+	#endif
 
 		//restore ELF header
 		remote_write(ctx, codeBase, &dataBak, dataLength);
@@ -926,6 +994,11 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 
+#ifdef DEBUG
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+#endif
+
 	memset(&ctx, 0x00, sizeof(ctx));
 
 	{
@@ -941,15 +1014,19 @@ int main(int argc, char *argv[]){
 	}
 
 	const char *argPid = argv[optind++];
-	pid_t target = atoi(argPid);
+	ctx.target = strtoul(argPid, NULL, 10);
+	INFO("Attaching to %u", ctx.target);
 
-	if(remote_attach(target) < 0){
-		PERROR("ptrace attach");
+	if(remote_attach(&ctx) < 0){
+		PERROR("remote_attach failed");
 		return 1;
 	}
 
+	INFO("waiting for target to stop...");
+
 	int err = 0;
 	/* Wait for attached process to stop */
+#if defined(EZ_TARGET_POSIX)
 	{
 		int status = 0;
 		for(;;){
@@ -960,10 +1037,16 @@ int main(int argc, char *argv[]){
 					break;
 				}
 				INFO("Skipping signal %u", stopsig);
-				CHECK(remote_continue(target, stopsig));
+				CHECK(remote_continue(ctx, stopsig));
 			}
 		}
 	}
+#elif defined(EZ_TARGET_WINDOWS)
+	if(remote_wait(&ctx) < 0){
+		PERROR("remote_wait");
+		return 1;
+	}
+#endif
 
 #if defined(EZ_TARGET_LINUX)
 	if(ptrace(PTRACE_SETOPTIONS, target, 0, PTRACE_O_TRACESYSGOOD) < 0){
@@ -972,14 +1055,21 @@ int main(int argc, char *argv[]){
 	}
 #endif
 
-	ctx.target = target;
 	if(libc_init(&ctx) != 0){
 		return 1;
 	}
 
 	err = ezinject_main(&ctx, argc - optind, &argv[optind]);
 
-	CHECK(remote_detach(target));
+	INFO("detaching...");
+	#ifdef EZ_TARGET_WINDOWS
+	// on windows, we need to dispatch the last debug event first
+	remote_continue(&ctx, 0);
+	#endif
+
+	if(remote_detach(&ctx) < 0){
+		PERROR("remote_detach failed");
+	}
 
 	/**
 	 * skip IPC cleanup if we encountered any error

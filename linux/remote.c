@@ -6,19 +6,19 @@
 #include "ezinject_arch.h"
 #include "log.h"
 
-int remote_attach(pid_t target){
+EZAPI remote_attach(pid_t target){
 	return ptrace(PTRACE_ATTACH, target, 0, 0);
 }
 
-int remote_detach(pid_t target){
+EZAPI remote_detach(pid_t target){
 	return ptrace(PTRACE_DETACH, target, 0, 0);
 }
 
-int remote_continue(pid_t target, int signal){
+EZAPI remote_continue(pid_t target, int signal){
 	return ptrace(PTRACE_CONT, target, 0, signal);
 }
 
-long remote_getregs(pid_t target, regs_t *regs){
+EZAPI remote_getregs(pid_t target, regs_t *regs){
 #ifdef PTRACE_GETREGS
 	return ptrace(PTRACE_GETREGS, target, 0, regs);
 #else
@@ -30,7 +30,7 @@ long remote_getregs(pid_t target, regs_t *regs){
 #endif
 }
 
-long remote_setregs(pid_t target, regs_t *regs){
+EZAPI remote_setregs(pid_t target, regs_t *regs){
 #ifdef PTRACE_SETREGS
 	return ptrace(PTRACE_SETREGS, target, 0, regs);
 #else
@@ -42,7 +42,7 @@ long remote_setregs(pid_t target, regs_t *regs){
 #endif
 }
 
-int remote_wait(pid_t target){
+EZAPI remote_wait(pid_t target){
 	int rc;
 	int status;
 	do {
@@ -61,15 +61,15 @@ int remote_wait(pid_t target){
 	return status;
 }
 
-int remote_syscall_step(pid_t target){
+EZAPI remote_syscall_step(pid_t target){
 	return ptrace(PTRACE_SYSCALL, target, 0, 0);
 }
 
-int remote_syscall_trace_enable(pid_t target, int enable){
+EZAPI remote_syscall_trace_enable(pid_t target, int enable){
 	return 0;
 }
 
-size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
+EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
 	
 	size_t read;
@@ -79,7 +79,7 @@ size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t s
 	return read;
 }
 
-size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
+EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	uintptr_t *sourceWords = (uintptr_t *)source;
 	
 	size_t written;

@@ -6,12 +6,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#ifndef EZ_TARGET_FREEBSD
-#include <asm/ptrace.h>
-#endif
-
 #include <sys/types.h>
+
+#ifdef EZ_TARGET_LINUX
+#include <asm/ptrace.h>
 #include <sys/user.h>
+#endif
 
 #include "ezinject_compat.h"
 #include "ezinject_injcode.h"
@@ -43,6 +43,12 @@ struct ezinj_ctx {
 	int pl_debug;
 	int num_wait_calls;
 	pid_t target;
+#ifdef EZ_TARGET_WINDOWS
+	HANDLE hProc;
+	HANDLE hPrimaryThread;
+	HANDLE hSecondaryThread;
+	DEBUG_EVENT ev;
+#endif
 	uintptr_t target_codebase;
 	ez_addr libc;
 	ez_addr libdl;
@@ -58,6 +64,11 @@ struct ezinj_ctx {
 	ez_addr uclibc_loaded_modules;
 	ez_addr uclibc_mips_got_reloc;
 	ez_addr uclibc_dl_fixup;
+#endif
+#ifdef EZ_TARGET_WINDOWS
+	ez_addr nt_get_peb;
+	ez_addr nt_query_proc;
+	ez_addr nt_write_file;
 #endif
 	ptrdiff_t dlopen_offset;
 	ptrdiff_t dlclose_offset;
@@ -100,15 +111,18 @@ struct call_req {
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 
 /** remote API **/
+#define EZAPI intptr_t
+
 #include "ezinject_arch.h"
-int remote_attach(pid_t target);
-int remote_detach(pid_t target);
-int remote_continue(pid_t target, int signal);
-long remote_getregs(pid_t target, regs_t *regs);
-long remote_setregs(pid_t target, regs_t *regs);
-int remote_wait(pid_t target);
-size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size);
-size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
-int remote_syscall_step(pid_t target);
-int remote_syscall_trace_enable(pid_t target, int enable);
+EZAPI remote_attach(struct ezinj_ctx *ctx);
+EZAPI remote_detach(struct ezinj_ctx *ctx);
+EZAPI remote_suspend(struct ezinj_ctx *ctx);
+EZAPI remote_continue(struct ezinj_ctx *ctx, int signal);
+EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs);
+EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs);
+EZAPI remote_wait(struct ezinj_ctx *ctx);
+EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size);
+EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
+EZAPI remote_syscall_step(struct ezinj_ctx *ctx);
+EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable);
 #endif

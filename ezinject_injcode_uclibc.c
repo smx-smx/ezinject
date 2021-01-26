@@ -1,13 +1,5 @@
 #include "ezinject_injcode.h"
 
-INLINE void *memset(void *s, int c, unsigned int n){
-    unsigned char* p=s;
-    while(n--){
-        *p++ = (unsigned char)c;
-	}
-    return s;
-}
-
 INLINE void *get_libdl(struct injcode_bearing *br){
     char *libdl_name = STR_DATA(BR_STRTBL(br));
 
@@ -38,7 +30,7 @@ INLINE void *get_libdl(struct injcode_bearing *br){
 #endif
 
 	struct dyn_elf dyn;
-	memset(&dyn, 0x00, sizeof(dyn));
+	inj_memset(&dyn, 0x00, sizeof(dyn));
 	dyn.dyn = tpnt;
 
 	/**

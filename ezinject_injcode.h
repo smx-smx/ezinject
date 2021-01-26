@@ -6,16 +6,22 @@
 #include <sys/types.h>
 #include <pthread.h>
 
-
 #include "config.h"
+
+#ifdef EZ_TARGET_WINDOWS
+#include <windows.h>
+#include <ntdef.h>
+#include <winternl.h>
+#endif
+
 #include "ezinject_common.h"
 
-#define EZ_SEM_LIBCTL 0
+#define EZAPI intptr_t
 
 #define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
 
 // temporary stack size
-#define PL_STACK_SIZE 64 * 1024
+#define PL_STACK_SIZE 1024 * 1024 * 4
 
 #define EMIT_LABEL(name) \
 	asm volatile( \
@@ -27,14 +33,17 @@
 #define INLINE static inline __attribute__((always_inline))
 
 //pl:x\n\0
-#if defined(DEBUG)
-#define PL_DBG(ch) do { \
+#if defined(DEBUG) && defined(EZ_TARGET_POSIX)
+#define PL_DBG(br, ch) do { \
 	const uint64_t str = str64(0x706C3A000A000000 | (((uint64_t)ch << 32) & 0xFF00000000)); \
 	br->libc_syscall(__NR_write, STDOUT_FILENO, &str, 5); \
 } while(0)
 
 #else
-#define PL_DBG(ch)
+#define PL_DBG(br, ch) do { \
+	const uint64_t str = str64(0x706C3A0000000000 | (((uint64_t)ch << 32) & 0xFF00000000)); \
+	br_puts(br, (char *)&str); \
+} while(0)
 #endif
 
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
@@ -90,6 +99,10 @@ struct injcode_bearing
 	int pl_debug;
 	off_t stack_offset;
 	pthread_t user_tid;
+#ifdef EZ_TARGET_WINDOWS
+	HANDLE hThread;
+	HANDLE hEvent;
+#endif
 	void *userlib;
 
 #if defined(HAVE_LIBDL_IN_LIBC) || defined(HAVE_LIBC_DLOPEN_MODE) || defined(EZ_TARGET_ANDROID)
@@ -107,6 +120,33 @@ struct injcode_bearing
 	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
 #endif
 	struct elf_resolve_hdr **uclibc_loaded_modules;
+#elif defined(EZ_TARGET_WINDOWS)
+	// LdrLoadDll
+	NTSTATUS NTAPI (*libc_dlopen)(
+		PWSTR SearchPath,
+		PULONG DllCharacteristics,
+		PUNICODE_STRING DllName,
+		PVOID *BaseAddress
+	);
+	NTSTATUS NTAPI (*NtQueryInformationProcess)(
+		HANDLE           ProcessHandle,
+		PROCESSINFOCLASS ProcessInformationClass,
+		PVOID            ProcessInformation,
+		ULONG            ProcessInformationLength,
+		PULONG           ReturnLength
+	);
+	PPEB NTAPI (*RtlGetCurrentPeb)();
+	NTSTATUS NTAPI (*NtWriteFile)(
+		HANDLE           FileHandle,
+		HANDLE           Event,
+		PIO_APC_ROUTINE  ApcRoutine,
+		PVOID            ApcContext,
+		PIO_STATUS_BLOCK IoStatusBlock,
+		PVOID            Buffer,
+		ULONG            Length,
+		PLARGE_INTEGER   ByteOffset,
+		PULONG           Key
+	);
 #endif
 	off_t dlopen_offset;
 	off_t dlclose_offset;
@@ -132,6 +172,53 @@ enum userlib_return_action {
 	userlib_unload = 0,
 	userlib_persist = 1
 };
+
+
+#ifdef EZ_TARGET_WINDOWS
+typedef struct _CURDIR {
+     UNICODE_STRING DosPath;
+     PVOID Handle;
+} CURDIR, *PCURDIR;
+
+typedef struct _RTL_DRIVE_LETTER_CURDIR {
+     WORD Flags;
+     WORD Length;
+     ULONG TimeStamp;
+     STRING DosPath;
+} RTL_DRIVE_LETTER_CURDIR, *PRTL_DRIVE_LETTER_CURDIR;
+
+typedef struct {
+     ULONG MaximumLength;
+     ULONG Length;
+     ULONG Flags;
+     ULONG DebugFlags;
+     PVOID ConsoleHandle;
+     ULONG ConsoleFlags;
+     PVOID StandardInput;
+     PVOID StandardOutput;
+     PVOID StandardError;
+     CURDIR CurrentDirectory;
+     UNICODE_STRING DllPath;
+     UNICODE_STRING ImagePathName;
+     UNICODE_STRING CommandLine;
+     PVOID Environment;
+     ULONG StartingX;
+     ULONG StartingY;
+     ULONG CountX;
+     ULONG CountY;
+     ULONG CountCharsX;
+     ULONG CountCharsY;
+     ULONG FillAttribute;
+     ULONG WindowFlags;
+     ULONG ShowWindowFlags;
+     UNICODE_STRING WindowTitle;
+     UNICODE_STRING DesktopInfo;
+     UNICODE_STRING ShellInfo;
+     UNICODE_STRING RuntimeData;
+     RTL_DRIVE_LETTER_CURDIR CurrentDirectores[32];
+     ULONG EnvironmentSize;
+} INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
+#endif
 
 extern void injected_sc_start();
 extern void injected_sc_end();

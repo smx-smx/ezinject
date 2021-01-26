@@ -6,27 +6,27 @@
 #include "ezinject_arch.h"
 #include "log.h"
 
-int remote_attach(pid_t target){
+EZAPI remote_attach(pid_t target){
 	return ptrace(PT_ATTACH, target, 0, 0);
 }
 
-int remote_detach(pid_t target){
+EZAPI remote_detach(pid_t target){
 	return ptrace(PT_DETACH, target, 0, 0);
 }
 
-int remote_continue(pid_t target, int signal){
+EZAPI remote_continue(pid_t target, int signal){
 	return ptrace(PT_CONTINUE, target, (caddr_t)1, signal);
 }
 
-long remote_getregs(pid_t target, regs_t *regs){
+EZAPI remote_getregs(pid_t target, regs_t *regs){
 	return ptrace(PT_GETREGS, target, (caddr_t)regs, 0);
 }
 
-long remote_setregs(pid_t target, regs_t *regs){
+EZAPI remote_setregs(pid_t target, regs_t *regs){
 	return ptrace(PT_SETREGS, target, (caddr_t)regs, 0);
 }
 
-int remote_wait(pid_t target){
+EZAPI remote_wait(pid_t target){
 	int rc;
 	int status;
 	do {
@@ -45,11 +45,11 @@ int remote_wait(pid_t target){
 	return status;
 }
 
-int remote_syscall_step(pid_t target){
+EZAPI remote_syscall_step(pid_t target){
 	return ptrace(PT_SYSCALL, target, (caddr_t)1, 0);
 }
 
-int remote_syscall_trace_enable(pid_t target, int enable){
+EZAPI remote_syscall_trace_enable(pid_t target, int enable){
 	unsigned int mask = 0;
 	if(ptrace(PT_GET_EVENT_MASK, target, (caddr_t)&mask, sizeof(mask)) < 0){
 		PERROR("ptrace");
@@ -67,7 +67,7 @@ int remote_syscall_trace_enable(pid_t target, int enable){
 	return 0;
 }
 
-size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
+EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
 	
 	struct ptrace_io_desc iov = {
@@ -80,7 +80,7 @@ size_t remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t s
 	return iov.piod_len;
 }
 
-size_t remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
+EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	uintptr_t *sourceWords = (uintptr_t *)source;
 	
 	struct ptrace_io_desc iov = {
