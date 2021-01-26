@@ -36,10 +36,10 @@ INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 	br_puts(br, ctx->libdl_name);
 
 	// just to make sure it's really loaded
-	ctx->h_libdl = dlopen(ctx->libdl_name, RTLD_NOLOAD);
+	ctx->h_libdl = ctx->libdl.dlopen(ctx->libdl_name, RTLD_NOLOAD);
 	DBGPTR(br, ctx->h_libdl);
 	if(ctx->h_libdl == NULL){
-		ctx->h_libdl = dlopen(ctx->libdl_name, RTLD_NOW | RTLD_GLOBAL);
+		ctx->h_libdl = ctx->libdl.dlopen(ctx->libdl_name, RTLD_NOW | RTLD_GLOBAL);
 	}
 
 	if(ctx->h_libdl == NULL){
