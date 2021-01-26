@@ -326,11 +326,7 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	char *stbl_argv = BR_STRTBL(br) + br->argv_offset;
 	STRTBL_FETCH(stbl_argv, ctx->userlib_name);
 
-#ifdef EZ_TARGET_POSIX
-	br->userlib = ctx->libdl.dlopen(ctx->userlib_name, RTLD_NOW);
-#else
-	br->userlib = ctx->libdl.dlopen(ctx->userlib_name);
-#endif
+	br->userlib = inj_dlopen(ctx, ctx->userlib_name, RTLD_NOW);
 
 	//DBGPTR(br, br->userlib);
 	if(br->userlib == NULL){
@@ -348,9 +344,6 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 }
 
 void injected_fn(struct injcode_bearing *br){
-	void *h_pthread = NULL;
-	int had_pthread = 0;
-
 	struct injcode_ctx stack_ctx = {
 		.br = br,
 		.stbl = BR_STRTBL(br)
@@ -390,8 +383,7 @@ void injected_fn(struct injcode_bearing *br){
 			}
 			break;
 		}
-
-		DBGPTR(br, h_pthread);
+		DBGPTR(br, ctx->h_libthread);
 
 		if(inj_api_init(ctx) != 0
 		|| inj_api_check(ctx) != 0){
@@ -438,9 +430,9 @@ void injected_fn(struct injcode_bearing *br){
 				dlclose(br->userlib);
 
 				#ifndef UCLIBC_OLD
-				if(!had_pthread){
+				/*if(!had_pthread){
 					dlclose(h_pthread);
-				}
+				}*/
 				#endif
 			}
 		}
