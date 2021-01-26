@@ -7,10 +7,13 @@ INLINE void inj_thread_init(
 }
 
 INLINE intptr_t inj_thread_wait(
-	struct injcode_bearing *br,
-	struct thread_api *api,
+	struct injcode_ctx *ctx,
 	intptr_t *pExitStatus
 ){
+	struct injcode_bearing *br = ctx->br;
+	struct thread_api *api = &ctx->libthread;
+
+
 	api->pthread_mutex_lock(&br->mutex);
 	while(!br->loaded_signal){
 		api->pthread_cond_wait(&br->cond, &br->mutex);
@@ -18,7 +21,7 @@ INLINE intptr_t inj_thread_wait(
 	api->pthread_mutex_unlock(&br->mutex);
 
 	// wait for user thread to die
-	PL_DBG('j');
+	PL_DBG(br, 'j');
 
 	void *result = NULL;
 	api->pthread_join(br->user_tid, &result);
@@ -43,7 +46,7 @@ INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 		return -1;
 	}
 
-	return fetch_sym(br, ctx->h_libdl, &ctx->libdl.dlerror);
+	return fetch_sym(ctx, ctx->h_libdl, (void **)&ctx->libdl.dlerror);
 }
 
 INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){

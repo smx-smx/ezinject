@@ -30,10 +30,6 @@
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
-#if defined(EZ_TARGET_LINUX) && !defined(HAVE_SHM_SYSCALLS)
-#include <asm-generic/ipc.h>
-#endif
-
 #ifdef EZ_TARGET_WINDOWS
 // for BYTE_ORDER
 #include <sys/param.h>
@@ -235,12 +231,16 @@ INLINE intptr_t fetch_sym(
 }
 
 #include "ezinject_injcode_util.c"
-#if defined(HAVE_LIBC_DLOPEN_MODE)
-#include "ezinject_injcode_glibc.c"
-#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
-#include "ezinject_injcode_uclibc.c"
+
+#if defined(EZ_TARGET_POSIX)
+	#include "ezinject_injcode_posix.c"
+	#if defined(HAVE_LIBC_DLOPEN_MODE)
+		#include "ezinject_injcode_glibc.c"
+	#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
+		#include "ezinject_injcode_uclibc.c"
+	#endif
 #elif defined(EZ_TARGET_WINDOWS)
-#include "ezinject_injcode_windows.c"
+	#include "ezinject_injcode_windows.c"
 #else
 INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	return ctx->br->libdl_handle;
@@ -251,7 +251,7 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 #undef EXIT_FAILURE
 #undef EXIT_SUCCESS
 #define EXIT_FAILURE SIGTRAP
-#define EXIT_SUCCESS EXIT_SUCCESS
+#define EXIT_SUCCESS SIGSTOP
 #endif
 
 INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned flags){
@@ -323,7 +323,11 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	char *stbl_argv = BR_STRTBL(br) + br->argv_offset;
 	STRTBL_FETCH(stbl_argv, ctx->userlib_name);
 
+#ifdef EZ_TARGET_POSIX
+	br->userlib = ctx->libdl.dlopen(ctx->userlib_name, RTLD_NOW);
+#else
 	br->userlib = ctx->libdl.dlopen(ctx->userlib_name);
+#endif
 
 	//DBGPTR(br, br->userlib);
 	if(br->userlib == NULL){

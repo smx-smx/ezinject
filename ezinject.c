@@ -183,15 +183,6 @@ static int lwp_ensure_state(pid_t target, unsigned int flags){
 }
 #endif
 
-#define ARGMASK(x, i) (x | (1 << (i)))
-#define SC_0ARGS ARGMASK(0, 0)
-#define SC_1ARGS ARGMASK(SC_0ARGS, 1)
-#define SC_2ARGS ARGMASK(SC_1ARGS, 2)
-#define SC_3ARGS ARGMASK(SC_2ARGS, 3)
-#define SC_4ARGS ARGMASK(SC_3ARGS, 4)
-#define SC_5ARGS ARGMASK(SC_4ARGS, 5)
-#define SC_6ARGS ARGMASK(SC_5ARGS, 6)
-
 uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 	regs_t orig_ctx, new_ctx;
 	remote_call_setup(ctx, call, &orig_ctx, &new_ctx);
@@ -326,7 +317,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 			// child raised a debug event
 			// this is a debug condition, so do a hard exit
 			// $TODO: do it nicer
-			remote_detach(ctx->target);
+			remote_detach(ctx);
 			exit(0);
 			return -1;
 		}
@@ -707,19 +698,6 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	return 0;
 }
 
-#define __RCALL(ctx, insn, argmask, ...) remote_call(ctx, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
-#define __RCALL_SC(ctx, nr, argmask, ...) __RCALL(ctx, ctx->syscall_insn.remote, argmask, nr, ##__VA_ARGS__)
-
-// Remote System Call
-#define FAILED(result) ((signed int)(result) < 0)
-#define RSCALL0(ctx,nr)               __RCALL_SC(ctx,nr,SC_0ARGS)
-#define RSCALL1(ctx,nr,a1)            __RCALL_SC(ctx,nr,SC_1ARGS,UPTR(a1))
-#define RSCALL2(ctx,nr,a1,a2)         __RCALL_SC(ctx,nr,SC_2ARGS,UPTR(a1),UPTR(a2))
-#define RSCALL3(ctx,nr,a1,a2,a3)      __RCALL_SC(ctx,nr,SC_3ARGS,UPTR(a1),UPTR(a2),UPTR(a3))
-#define RSCALL4(ctx,nr,a1,a2,a3,a4)   __RCALL_SC(ctx,nr,SC_4ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
-#define RSCALL5(ctx,nr,a1,a2,a3,a4,a5) __RCALL_SC(ctx,nr,SC_5ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5))
-#define RSCALL6(ctx,nr,a1,a2,a3,a4,a5,a6) __RCALL_SC(ctx,nr,SC_6ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5),UPTR(a6))
-
 void cleanup_mem(struct ezinj_ctx *ctx){
 	#ifdef USE_SHM
 	if(ctx->mapped_mem.local != 0){
@@ -834,25 +812,6 @@ int ezinject_main(
 	int err = 1;
 	do {
 		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
-		#if defined(EZ_TARGET_ANDROID) && defined(USE_ANDROID_ASHMEM)
-		remote_shm_ptr = remote_shmat_android(ctx, br->mapping_size);
-		#elif defined(EZ_TARGET_LINUX)
-		remote_shm_ptr = remote_shmat(ctx, ctx->shm_id, NULL, SHM_EXEC);
-		#elif defined(EZ_TARGET_FREEBSD)
-		// FreeBSD doesn't allow executable shared memory
-		remote_shm_ptr = RSCALL6(ctx, SYS_mmap,
-			NULL, br->mapping_size,
-			PROT_READ | PROT_WRITE | PROT_EXEC,
-			MAP_ANONYMOUS, -1, 0
-		);
-		#elif defined(EZ_TARGET_WINDOWS)
-		remote_shm_ptr = VirtualAllocEx(
-				ctx->hProc, NULL,
-				br->mapping_size,
-				MEM_COMMIT | MEM_RESERVE,
-				PAGE_EXECUTE_READWRITE
-		);
-		#endif
 		if(remote_shm_ptr == 0){
 		#ifdef EZ_TARGET_WINDOWS
 			PERROR("VirtualAllocEx failed");
@@ -979,14 +938,14 @@ int main(int argc, char *argv[]){
 	{
 		int status = 0;
 		for(;;){
-			waitpid(target, &status, 0);
+			waitpid(ctx.target, &status, 0);
 			if(WIFSTOPPED(status)){
 				int stopsig = WSTOPSIG(status);
 				if(!IS_IGNORED_SIG(stopsig)){
 					break;
 				}
 				INFO("Skipping signal %u", stopsig);
-				CHECK(remote_continue(ctx, stopsig));
+				CHECK(remote_continue(&ctx, stopsig));
 			}
 		}
 	}
@@ -998,7 +957,7 @@ int main(int argc, char *argv[]){
 #endif
 
 #if defined(EZ_TARGET_LINUX)
-	if(ptrace(PTRACE_SETOPTIONS, target, 0, PTRACE_O_TRACESYSGOOD) < 0){
+	if(ptrace(PTRACE_SETOPTIONS, ctx.target, 0, PTRACE_O_TRACESYSGOOD) < 0){
 		PERROR("ptrace setoptions");
 		return 1;
 	}

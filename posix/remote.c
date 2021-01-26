@@ -2,7 +2,9 @@
 #include <signal.h>
 #include <sys/types.h>
 
-EZAPI remote_suspend(pid_t target){
-	kill(target, SIGSTOP);
+#include "ezinject.h"
+
+EZAPI remote_suspend(struct ezinj_ctx *ctx){
+	kill(ctx->target, SIGSTOP);
 	return 0;
 }

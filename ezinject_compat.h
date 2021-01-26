@@ -1,6 +1,8 @@
 #ifndef __EZINJECT_COMPAT_H
 #define __EZINJECT_COMPAT_H
 
+#include "config.h"
+
 #if !defined(HAVE_SHM_EXEC)
 	#if defined(EZ_TARGET_LINUX)
 	#define	SHM_EXEC	0100000	/* execution access */

@@ -90,6 +90,28 @@ struct ezinj_str {
 // nr, a0, a1, a2, a3, a4, a5, a6
 #define SC_MAX_ARGS 8
 
+#define ARGMASK(x, i) (x | (1 << (i)))
+#define SC_0ARGS ARGMASK(0, 0)
+#define SC_1ARGS ARGMASK(SC_0ARGS, 1)
+#define SC_2ARGS ARGMASK(SC_1ARGS, 2)
+#define SC_3ARGS ARGMASK(SC_2ARGS, 3)
+#define SC_4ARGS ARGMASK(SC_3ARGS, 4)
+#define SC_5ARGS ARGMASK(SC_4ARGS, 5)
+#define SC_6ARGS ARGMASK(SC_5ARGS, 6)
+
+#define __RCALL(ctx, insn, argmask, ...) remote_call(ctx, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
+#define __RCALL_SC(ctx, nr, argmask, ...) __RCALL(ctx, ctx->syscall_insn.remote, argmask, nr, ##__VA_ARGS__)
+
+// Remote System Call
+#define FAILED(result) ((signed int)(result) < 0)
+#define RSCALL0(ctx,nr)               __RCALL_SC(ctx,nr,SC_0ARGS)
+#define RSCALL1(ctx,nr,a1)            __RCALL_SC(ctx,nr,SC_1ARGS,UPTR(a1))
+#define RSCALL2(ctx,nr,a1,a2)         __RCALL_SC(ctx,nr,SC_2ARGS,UPTR(a1),UPTR(a2))
+#define RSCALL3(ctx,nr,a1,a2,a3)      __RCALL_SC(ctx,nr,SC_3ARGS,UPTR(a1),UPTR(a2),UPTR(a3))
+#define RSCALL4(ctx,nr,a1,a2,a3,a4)   __RCALL_SC(ctx,nr,SC_4ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
+#define RSCALL5(ctx,nr,a1,a2,a3,a4,a5) __RCALL_SC(ctx,nr,SC_5ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5))
+#define RSCALL6(ctx,nr,a1,a2,a3,a4,a5,a6) __RCALL_SC(ctx,nr,SC_6ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5),UPTR(a6))
+
 struct sc_req {
 	unsigned int argmask;
 	uintptr_t argv[SC_MAX_ARGS];
@@ -113,6 +135,14 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 #define EZAPI intptr_t
 
 #include "ezinject_arch.h"
+
+uintptr_t remote_call(
+	struct ezinj_ctx *ctx,
+	uintptr_t stack_addr,
+	uintptr_t insn_addr,
+	int num_wait_calls,
+	unsigned int argmask, ...
+);
 
 /** attach api **/
 

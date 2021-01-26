@@ -1,5 +1,7 @@
 #include <unistd.h>
 #include <dlfcn.h>
+#include <link.h>
+
 #include "ezinject.h"
 #include "log.h"
 

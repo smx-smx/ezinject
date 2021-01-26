@@ -1,4 +1,17 @@
+#include "config.h"
+
+#if defined(EZ_TARGET_LINUX) && !defined(HAVE_SHM_SYSCALLS)
+#include <asm-generic/ipc.h>
+#endif
+
+#include <sys/shm.h>
+#include <sys/syscall.h>
+
+
 #include "ezinject.h"
+#include "ezinject_compat.h"
+
+#include "log.h"
 
 static uintptr_t _remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int shmflg){
 	uintptr_t remote_shm_ptr = (uintptr_t)MAP_FAILED;
