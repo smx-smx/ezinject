@@ -496,10 +496,10 @@ endif()
 
 include(CheckCCompilerFlag)
 check_c_compiler_flag("-mno-stack-arg-probe" HAVE_STACK_ARG_PROBE)
-set(CFLAG_STACK_ARG_PROBE "")
 
+set(injcode_cflags "-O1 -fno-stack-check -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 if(HAVE_STACK_ARG_PROBE)
-	set(CFLAG_STACK_ARG_PROBE "-mno-stack-arg-probe")
+	set(injcode_cflags "${injcode_cflags} -mno-stack-arg-probe")
 endif()
 
 # -fno-stack-protector: remove stack cookie checks
@@ -508,7 +508,7 @@ endif()
 # -fomit-frame-pointer: don't save stack frames
 # -ffreestanding: don't assume libc functions exist
 # -fno-stack-check,-mno-stack-arg-probe: don't emit ___chkstk_ms calls
-set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "-Os -fno-stack-check -fno-stack-protector ${CFLAG_STACK_ARG_PROBE} -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
+set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "${injcode_cflags}")
 target_link_libraries(ezinject dl)
 
 if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
