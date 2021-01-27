@@ -31,7 +31,7 @@
 #else
 #define INLINE
 #define SYSCALL syscall
-#define PL_DBG
+#define inj_dchar
 #endif
 
 INLINE int shmget(BR_PARAM key_t key, size_t size, int shmflg){

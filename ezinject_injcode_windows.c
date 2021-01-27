@@ -1,8 +1,3 @@
-#include "ezinject_injcode.h"
-
-#undef DBGPTR
-#define DBGPTR(br, x) dbg_bin(br, (uintptr_t)x)
-
 INLINE void dbg_bin(struct injcode_bearing *br, uintptr_t dw){
 #ifndef DEBUG
 	UNUSED(br);
@@ -17,7 +12,7 @@ INLINE void dbg_bin(struct injcode_bearing *br, uintptr_t dw){
 		buf[i++] = (bit) ? '1' : '0';
 		dw <<= 1;
 	}
-	br_puts(br, buf);
+	inj_puts(br, buf);
 #endif
 }
 
@@ -55,6 +50,7 @@ INLINE void *_inj_get_kernel32(struct injcode_bearing *br){
 	// kernel32.dll length in utf16
 	const int NAME_LENGTH = 24;
 	
+	/** poor man's UTF16 conversion of "kernel32.dll" **/
 	char buf[NAME_LENGTH];
 	for(int i=0; i<NAME_LENGTH; i+=2){
 		buf[i+0] = libdl_name[i/2];

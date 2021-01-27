@@ -21,7 +21,7 @@ INLINE intptr_t inj_thread_wait(
 	api->pthread_mutex_unlock(&br->mutex);
 
 	// wait for user thread to die
-	PL_DBG(br, 'j');
+	inj_dchar(br, 'j');
 
 	void *result = NULL;
 	api->pthread_join(br->user_tid, &result);
@@ -33,7 +33,7 @@ INLINE intptr_t inj_thread_wait(
 INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
-	br_puts(br, ctx->libdl_name);
+	inj_puts(br, ctx->libdl_name);
 
 	// just to make sure it's really loaded
 	ctx->h_libdl = ctx->libdl.dlopen(ctx->libdl_name, RTLD_NOLOAD);

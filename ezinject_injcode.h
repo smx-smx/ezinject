@@ -33,20 +33,6 @@
 
 #define INLINE static inline __attribute__((always_inline))
 
-//pl:x\n\0
-#if defined(DEBUG) && defined(EZ_TARGET_POSIX)
-#define PL_DBG(br, ch) do { \
-	const uint64_t str = str64(0x706C3A000A000000 | (((uint64_t)ch << 32) & 0xFF00000000)); \
-	br->libc_syscall(__NR_write, STDOUT_FILENO, &str, 5); \
-} while(0)
-
-#else
-#define PL_DBG(br, ch) do { \
-	const uint64_t str = str64(0x706C3A0000000000 | (((uint64_t)ch << 32) & 0xFF00000000)); \
-	br_puts(br, (char *)&str); \
-} while(0)
-#endif
-
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 #include <elf.h>
 

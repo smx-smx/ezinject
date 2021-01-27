@@ -80,7 +80,8 @@ INLINE uint64_t str64(uint64_t x){
 	#endif
 }
 
-#if defined(DEBUG) && defined(EZ_TARGET_POSIX)
+#ifdef DEBUG
+#if defined(EZ_TARGET_POSIX)
 #define DBGPTR(br, ptr) do { \
 	const uint64_t buf[2] = { \
 		str64(0x706C3A7074723A25), /* pl:ptr:% */ \
@@ -88,46 +89,17 @@ INLINE uint64_t str64(uint64_t x){
 	}; \
 	br->libc_printf((char *)buf, ptr); \
 } while(0);
-INLINE void br_puts(struct injcode_bearing *br, char *str){
-	if(str == NULL){
-		return;
-	}
+#elif defined(EZ_TARGET_WINDOWS)
+#define DBGPTR(br, x) dbg_bin(br, (uintptr_t)x)
 
-	int l;
-	for(l=0; str[l] != 0x00; l++);
-	br->libc_syscall(__NR_write, STDOUT_FILENO, str, l);
-	char nl = '\n';
-	
-	br->libc_syscall(__NR_write, STDOUT_FILENO, &nl, 1);
-}
-#else
-#define DBGPTR(br, ptr)
-INLINE void br_puts(struct injcode_bearing *br, char *str){
-	if(str == NULL){
-		return;
-	}
-
-	PPEB peb = br->RtlGetCurrentPeb();
-	PINT_RTL_USER_PROCESS_PARAMETERS params = (PINT_RTL_USER_PROCESS_PARAMETERS)peb->ProcessParameters;
-	
-	HANDLE h = params->StandardOutput;
-	if(h == INVALID_HANDLE_VALUE){
-		return;
-	}
-
-	int l = 0;
-	char *p = str;
-	while(*(p++)) ++l;
-
-	IO_STATUS_BLOCK stb;
-	br->NtWriteFile(h, NULL, NULL, NULL, &stb, str, l, 0, NULL);
-
-	char nl[2];
-	nl[0] = '\r'; nl[1] = '\n';
-	br->NtWriteFile(h, NULL, NULL, NULL, &stb, nl, sizeof(nl), 0, NULL);
+#else // DEBUG
+#define DBGPTR(br, x)
+INLINE void inj_puts(struct injcode_bearing *br, char *str){
+	UNUSED(br);
+	UNUSED(str);
 }
 #endif
-
+#endif // DEBUG
 
 struct dl_api {
 #if defined(EZ_TARGET_POSIX)
@@ -195,17 +167,14 @@ struct injcode_ctx {
 	void *h_libthread;
 };
 
-#ifdef EZ_ARCH_ARM
-INLINE void br_cacheflush(struct injcode_bearing *br, void *from, void *to){
-	br->libc_syscall(__ARM_NR_cacheflush, from, to, 0);
-}
-#else
-INLINE void br_cacheflush(struct injcode_bearing *br, void *from, void *to){
-	UNUSED(br);
-	UNUSED(from);
-	UNUSED(to);
-}
+#if defined(EZ_TARGET_POSIX)
+#include "ezinject_injcode_posix_common.c"
+#elif defined(EZ_TARGET_WINDOWS)
+#include "ezinject_injcode_windows_common.c"
 #endif
+
+
+#include "ezinject_injcode_util.c"
 
 INLINE intptr_t fetch_sym(
 	struct injcode_ctx *ctx,
@@ -215,20 +184,18 @@ INLINE intptr_t fetch_sym(
 	// advances stbl in ctx
 	STRTBL_FETCH(ctx->stbl, sym_name);
 #ifdef DEBUG
-	br_puts(ctx->br, sym_name);
+	inj_puts(ctx->br, sym_name);
 #endif
-	br_cacheflush(ctx->br, &sym_name, (void *)(UPTR(&sym_name) + sizeof(sym_name)));
+	inj_cacheflush(ctx->br, &sym_name, (void *)(UPTR(&sym_name) + sizeof(sym_name)));
 	*sym = ctx->libdl.dlsym(handle, sym_name);
 	if(*sym == NULL){
-		PL_DBG(ctx->br, '!');
-		PL_DBG(ctx->br, 's');
-		br_puts(ctx->br, sym_name);
+		inj_dchar(ctx->br, '!');
+		inj_dchar(ctx->br, 's');
+		inj_puts(ctx->br, sym_name);
 		return -1;
 	}
 	return 0;
 }
-
-#include "ezinject_injcode_util.c"
 
 #ifdef EZ_TARGET_POSIX
 #include "ezinject_injcode_posix.c"
@@ -286,12 +253,12 @@ INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	void *libdl_handle = br->libdl_handle;
 	// acquire libdl
 	if(libdl_handle == NULL){
-		PL_DBG(br, 'l');
+		inj_dchar(br, 'l');
 
 		libdl_handle = inj_get_libdl(ctx);
 		DBGPTR(br, libdl_handle);
 		if(libdl_handle == NULL){
-			PL_DBG(br, '!');
+			inj_dchar(br, '!');
 			return -1;
 		}
 	}
@@ -344,63 +311,63 @@ void PLAPI injected_fn(struct injcode_bearing *br){
 
 	do {
 		// entry
-		PL_DBG(br, 'e');
+		inj_dchar(br, 'e');
 
 		STRTBL_FETCH(ctx->stbl, ctx->libdl_name);
 		STRTBL_FETCH(ctx->stbl, ctx->libpthread_name);
 
 		if(inj_libdl_init(ctx) != 0){
-			PL_DBG(br, '!');
+			inj_dchar(br, '!');
 			break;
 		}
 
 		// acquire libpthread
-		PL_DBG(br, 'p');
+		inj_dchar(br, 'p');
 
 		//had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
-		br_puts(br, ctx->libpthread_name);
+		inj_puts(br, ctx->libpthread_name);
 		ctx->h_libthread = inj_dlopen(ctx, ctx->libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
 		if(!ctx->h_libthread){
-			PL_DBG(br, '!');
-			PL_DBG(br, '1');
+			inj_dchar(br, '!');
+			inj_dchar(br, '1');
 			char *errstr = NULL;
 			if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
-				br_puts(br, errstr);
+				inj_puts(br, errstr);
 			}
 			break;
 		}
 		DBGPTR(br, ctx->h_libthread);
 
 		if(inj_api_init(ctx) != 0){
-			PL_DBG(br, '!');
-			PL_DBG(br, '2');
+			inj_dchar(br, '!');
+			inj_dchar(br, '2');
 			break;
 		}
 
 		// setup
-		PL_DBG(br, 's');
+		inj_dchar(br, 's');
 		if(inj_load_prepare(ctx) != 0){
-			PL_DBG(br, '!');
+			inj_dchar(br, '!');
 		}
 
 		// dlopen
-		PL_DBG(br, 'd');
+		inj_dchar(br, 'd');
 		if(inj_load_library(ctx) != 0){
-			PL_DBG(br, '!');
+			inj_dchar(br, '!');
 			break;
 		}
 
 		// wait for the thread to notify us
-		PL_DBG(br, 'w');
+		inj_dchar(br, 'w');
 		intptr_t result = 0;
 		if(inj_thread_wait(ctx, &result) != 0){
-			PL_DBG(br, '!');
+			inj_dchar(br, '!');
 		}
 		result = 1;
 
 		if((enum userlib_return_action)result != userlib_persist){
 			// cleanup
-			PL_DBG(br, 'c');
+			inj_dchar(br, 'c');
 			{
 				/**
 				 * NOTE: uclibc old might trigger segfaults in the user library while doing this (sigh)
@@ -420,7 +387,7 @@ void PLAPI injected_fn(struct injcode_bearing *br){
 
 
 	// bye
-	PL_DBG(br, 'b');
+	inj_dchar(br, 'b');
 
 	inj_thread_stop(ctx, signal);
 }
