@@ -264,18 +264,6 @@ INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned 
 #endif
 }
 
-INLINE int inj_api_check(struct injcode_ctx *ctx){
-	struct thread_api *api = &ctx->libthread;
-	int nPointers = sizeof(*api) / sizeof(uintptr_t);
-	uintptr_t *ptrs = (uintptr_t *)api;
-	for(int i=0; i<nPointers; i++){
-		if(ptrs[i] == 0){
-			return -1;
-		}
-	}
-	return 0;
-}
-
 INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
 #if defined(EZ_TARGET_POSIX)
 	// awake ptrace
@@ -383,25 +371,17 @@ void PLAPI injected_fn(struct injcode_bearing *br){
 		}
 		DBGPTR(br, ctx->h_libthread);
 
-		if(inj_api_init(ctx) != 0
-		|| inj_api_check(ctx) != 0){
+		if(inj_api_init(ctx) != 0){
 			PL_DBG(br, '!');
 			PL_DBG(br, '2');
 			break;
 		}
 
-	#ifdef EZ_TARGET_WINDOWS
-	PL_DBG(br, 's');
-	br->hEvent = ctx->libthread.CreateEventA(
-		NULL,
-		TRUE,
-		FALSE,
-		NULL
-	);
-	if(br->hEvent == INVALID_HANDLE_VALUE){
-		PL_DBG(br, '!');
-	}
-	#endif
+		// setup
+		PL_DBG(br, 's');
+		if(inj_load_prepare(ctx) != 0){
+			PL_DBG(br, '!');
+		}
 
 		// dlopen
 		PL_DBG(br, 'd');
@@ -425,7 +405,7 @@ void PLAPI injected_fn(struct injcode_bearing *br){
 				/**
 				 * NOTE: uclibc old might trigger segfaults in the user library while doing this (sigh)
 				 **/
-				dlclose(br->userlib);
+				ctx->libdl.dlclose(br->userlib);
 
 				#ifndef UCLIBC_OLD
 				/*if(!had_pthread){

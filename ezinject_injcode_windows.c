@@ -93,3 +93,13 @@ INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	return _inj_get_kernel32(ctx->br);
 }
+
+INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
+	struct injcode_bearing *br = ctx->br;
+
+	br->hEvent = ctx->libthread.CreateEventA(NULL, TRUE, FALSE, NULL);
+	if(br->hEvent == INVALID_HANDLE_VALUE){
+		return -1;
+	}
+	return 0;
+}

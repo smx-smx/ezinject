@@ -66,3 +66,8 @@ INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 	}
 	return 0;
 }
+
+INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
+	UNUSED(ctx);
+	return 0;
+}
