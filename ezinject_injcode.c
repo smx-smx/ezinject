@@ -200,11 +200,11 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 }
 
 void PLAPI injected_fn(struct injcode_bearing *br){
-	struct injcode_ctx stack_ctx = {
-		.br = br,
-		.stbl = BR_STRTBL(br)
-	};
+	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;
+	inj_memset(ctx, 0x00, sizeof(*ctx));
+	ctx->br = br;
+	ctx->stbl = BR_STRTBL(br);
 
 	if(br->pl_debug){
 		inj_thread_stop(ctx, EXIT_SUCCESS);

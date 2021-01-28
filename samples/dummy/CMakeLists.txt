@@ -1,6 +1,6 @@
 add_executable(target target.c)
 add_ezinject_library(dummy
-	#USE_LH
+	USE_LH
 	#USE_LOG
 	SOURCES libdummy.c
 )

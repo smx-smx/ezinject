@@ -497,7 +497,7 @@ endif()
 include(CheckCCompilerFlag)
 check_c_compiler_flag("-mno-stack-arg-probe" HAVE_STACK_ARG_PROBE)
 
-set(injcode_cflags "-O1 -fno-stack-check -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
+set(injcode_cflags "-Os -fno-stack-check -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 if(HAVE_STACK_ARG_PROBE)
 	set(injcode_cflags "${injcode_cflags} -mno-stack-arg-probe")
 endif()

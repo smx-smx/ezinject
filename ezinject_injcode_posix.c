@@ -1,7 +1,7 @@
 INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
-	const uint64_t buf[2] = { \
-		str64(0x706C3A7074723A25), /* pl:ptr:% */ \
-		str64(0x700A000000000000)  /* p\n\0    */ \
+	volatile uint64_t buf[2] = {
+		str64(0x706C3A7074723A25), /* pl:ptr:% */
+		str64(0x700A000000000000)  /* p\n\0    */
 	};
 	br->libc_printf((char *)buf, ptr);
 }
