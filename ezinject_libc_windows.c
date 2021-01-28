@@ -20,7 +20,7 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 
 	ez_addr kernel32 = {
 		.local = UPTR(h_kernel32),
-		.remote = get_base(ctx->target, "kernel32.dll", NULL)
+		.remote = (uintptr_t) get_base(ctx->target, "kernel32.dll", NULL)
 	};
 	if(!kernel32.local || !kernel32.remote){
 		ERR("Failed to locate kernel32");

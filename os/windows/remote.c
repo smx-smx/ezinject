@@ -32,7 +32,9 @@ EZAPI remote_suspend(struct ezinj_ctx *ctx){
 }
 
 EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
-	DBG("Resuming %u %u", ctx->ev.dwProcessId, ctx->ev.dwThreadId);
+	UNUSED(signal);
+
+	DBG("Resuming %lu %lu", ctx->ev.dwProcessId, ctx->ev.dwThreadId);
 	CloseHandle(ctx->hThread);
 	if(ContinueDebugEvent(ctx->ev.dwProcessId, ctx->ev.dwThreadId, DBG_EXCEPTION_HANDLED) == FALSE){
 		return -1;
@@ -98,7 +100,7 @@ EZAPI remote_wait(struct ezinj_ctx *ctx){
 		if(WaitForDebugEvent(ev, INFINITE) == FALSE){
 			return -1;
 		}
-		DBG("Received Debug Event: %u", ev->dwDebugEventCode);
+		DBG("Received Debug Event: %lu", ev->dwDebugEventCode);
 		if(ev->dwDebugEventCode == LOAD_DLL_DEBUG_EVENT){
 			LPVOID ptrAddr = ev->u.LoadDll.lpImageName;
 			do {
@@ -111,12 +113,12 @@ EZAPI remote_wait(struct ezinj_ctx *ctx){
 					break;
 				}
 
-				char buf[MAX_PATH];
+				uint8_t buf[MAX_PATH];
 				remote_read(ctx, buf, (uintptr_t)ptr, sizeof(buf));
 				if(ev->u.LoadDll.fUnicode){
-					DBG("LoadDLL[W]: %p -> %ls", ev->u.LoadDll.lpBaseOfDll, buf);
+					DBG("LoadDLL[W]: %p -> %ls", ev->u.LoadDll.lpBaseOfDll, (wchar_t *)buf);
 				} else {
-					DBG("LoadDLL[A]: %p -> %s", ev->u.LoadDll.lpBaseOfDll, buf);
+					DBG("LoadDLL[A]: %p -> %s", ev->u.LoadDll.lpBaseOfDll, (char *)buf);
 				}
 
 				CloseHandle(ev->u.LoadDll.hFile);
@@ -132,7 +134,7 @@ EZAPI remote_wait(struct ezinj_ctx *ctx){
 				break;	
 			}
 			DBG("Unknown exception, target will likely crash");
-			DBG("ExceptionCode: 0x%08X", ev->u.Exception.ExceptionRecord.ExceptionCode);
+			DBG("ExceptionCode: 0x%08lX", ev->u.Exception.ExceptionRecord.ExceptionCode);
 			DBG("ExceptionAddr: %p", ev->u.Exception.ExceptionRecord.ExceptionAddress);
 			#ifdef USE_EXTERNAL_DEBUGGER
 			DBG("Press Enter to continue");
@@ -146,13 +148,11 @@ EZAPI remote_wait(struct ezinj_ctx *ctx){
 	}
 	DBG("Ready");
 	
-	DWORD dwProcessId = GetProcessId(ctx->hProc);
-
 	/**
 	 *  we stopped on a breakpoint
 	 * get a handle to the thread that generated this event
 	 **/
-	DBG("Primary TID: %u", ev->dwThreadId);
+	DBG("Thread ID: %lu", ev->dwThreadId);
 	ctx->hThread = OpenThread(THREAD_ALL_ACCESS, false, ev->dwThreadId);
 	if(ctx->hThread == INVALID_HANDLE_VALUE){
 		PERROR("OpenThread failed");

@@ -1,16 +1,29 @@
-INLINE void dbg_bin(struct injcode_bearing *br, uintptr_t dw){
+INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
+	UNUSED(ctx);
+	UNUSED(signal);
+	asm volatile("int $3\n");
+	while(1);
+}
+
+INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned flags){
+	UNUSED(flags);
+	return ctx->libdl.dlopen(filename);
+}
+
+INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
 #ifndef DEBUG
 	UNUSED(br);
 	UNUSED(dw);
 #else
-	const int n = sizeof(dw) * 8;
+	uintptr_t addr = (uintptr_t)ptr;
+	const int n = sizeof(addr) * 8;
 	char buf[n + 1];
 
 	int i=0;
 	while(i<n){
-		int bit = (dw >> (n-1)) & 1;
+		int bit = (addr >> (n-1)) & 1;
 		buf[i++] = (bit) ? '1' : '0';
-		dw <<= 1;
+		addr <<= 1;
 	}
 	inj_puts(br, buf);
 #endif

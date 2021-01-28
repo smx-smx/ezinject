@@ -858,7 +858,7 @@ int ezinject_main(
 
 		
 		#if defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
-		remote_write(ctx, ctx->mapped_mem.remote, ctx->mapped_mem.local, br->mapping_size);
+		remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size);
 		#endif
 
 		// switch to SIGSTOP wait mode

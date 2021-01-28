@@ -41,8 +41,6 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-#define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
-
 void PLAPI injected_sc(){
 	EMIT_LABEL("injected_sc_start");
 	EMIT_SC();
@@ -80,75 +78,11 @@ INLINE uint64_t str64(uint64_t x){
 	#endif
 }
 
-#ifdef DEBUG
 #if defined(EZ_TARGET_POSIX)
-#define DBGPTR(br, ptr) do { \
-	const uint64_t buf[2] = { \
-		str64(0x706C3A7074723A25), /* pl:ptr:% */ \
-		str64(0x700A000000000000)  /* p\n\0    */ \
-	}; \
-	br->libc_printf((char *)buf, ptr); \
-} while(0);
+#include "ezinject_injcode_posix_common.c"
 #elif defined(EZ_TARGET_WINDOWS)
-#define DBGPTR(br, x) dbg_bin(br, (uintptr_t)x)
-
-#else // DEBUG
-#define DBGPTR(br, x)
-INLINE void inj_puts(struct injcode_bearing *br, char *str){
-	UNUSED(br);
-	UNUSED(str);
-}
+#include "ezinject_injcode_windows_common.c"
 #endif
-#endif // DEBUG
-
-struct dl_api {
-#if defined(EZ_TARGET_POSIX)
-	void *(*dlopen)(const char *filename, int flag);
-#elif defined(EZ_TARGET_WINDOWS)
-	void *(*dlopen)(const char *filename);
-#endif
-	void *(*dlsym)(void *handle, const char *symbol);
-	int (*dlclose)(void *handle);
-	char *(*dlerror)(void);
-};
-
-struct thread_api {
-#if defined(EZ_TARGET_POSIX)
-	int (*pthread_mutex_init)(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
-	int (*pthread_mutex_lock)(pthread_mutex_t *mutex);
-	int (*pthread_mutex_unlock)(pthread_mutex_t *mutex);
-	int (*pthread_cond_init)(pthread_cond_t *cond, const pthread_condattr_t *attr);
-	int (*pthread_cond_wait)(pthread_cond_t *restrict cond, pthread_mutex_t *restrict mutex);
-	int (*pthread_join)(pthread_t thread, void **retval);
-#elif defined(EZ_TARGET_WINDOWS)
-	HANDLE (*CreateEventA)(
-		LPSECURITY_ATTRIBUTES lpEventAttributes,
-		BOOL                  bManualReset,
-		BOOL                  bInitialState,
-		LPCSTR                lpName
-	);
-	HANDLE (*CreateThread)(
-		LPSECURITY_ATTRIBUTES   lpThreadAttributes,
-		SIZE_T                  dwStackSize,
-		LPTHREAD_START_ROUTINE  lpStartAddress,
-		__drv_aliasesMem LPVOID lpParameter,
-		DWORD                   dwCreationFlags,
-		LPDWORD                 lpThreadId
-	);
-	BOOL (*CloseHandle)(
-  		HANDLE hObject
-	);
-	DWORD (*WaitForSingleObject)(
-		HANDLE hHandle,
-		DWORD  dwMilliseconds
-	);
-	BOOL (*GetExitCodeThread)(
-		HANDLE  hThread,
-		LPDWORD lpExitCode
-	);
-#endif
-};
-
 
 struct injcode_ctx {
 	struct injcode_bearing *br;
@@ -166,13 +100,6 @@ struct injcode_ctx {
 	/** handle to the library providing threads **/
 	void *h_libthread;
 };
-
-#if defined(EZ_TARGET_POSIX)
-#include "ezinject_injcode_posix_common.c"
-#elif defined(EZ_TARGET_WINDOWS)
-#include "ezinject_injcode_windows_common.c"
-#endif
-
 
 #include "ezinject_injcode_util.c"
 
@@ -222,30 +149,6 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 #define EXIT_SUCCESS SIGSTOP
 #endif
 
-INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned flags){
-#if defined(EZ_TARGET_POSIX)
-	return ctx->libdl.dlopen(filename, flags);
-#elif defined(EZ_TARGET_WINDOWS)
-	UNUSED(flags);
-	return ctx->libdl.dlopen(filename);
-#endif
-}
-
-INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
-#if defined(EZ_TARGET_POSIX)
-	// awake ptrace
-	// success: SIGSTOP
-	// failure: anything else
-	struct injcode_bearing *br = ctx->br;
-	br->libc_syscall(__NR_kill, br->libc_syscall(__NR_getpid), signal);
-#elif defined(EZ_TARGET_WINDOWS)
-	UNUSED(ctx);
-	UNUSED(signal);
-	asm volatile("int $3\n");
-#endif
-	while(1);
-}
-
 INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 	struct dl_api *libdl = &ctx->libdl;
@@ -256,7 +159,7 @@ INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 		inj_dchar(br, 'l');
 
 		libdl_handle = inj_get_libdl(ctx);
-		DBGPTR(br, libdl_handle);
+		inj_dbgptr(br, libdl_handle);
 		if(libdl_handle == NULL){
 			inj_dchar(br, '!');
 			return -1;
@@ -281,12 +184,12 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 
 	br->userlib = inj_dlopen(ctx, ctx->userlib_name, RTLD_NOW);
 
-	//DBGPTR(br, br->userlib);
+	//inj_dbgptr(br, br->userlib);
 	if(br->userlib == NULL){
 		return -1;
 	}
 	crt_init = ctx->libdl.dlsym(br->userlib, sym_crt_init);
-	DBGPTR(br, crt_init);
+	inj_dbgptr(br, crt_init);
 	if(crt_init == NULL){
 		return -2;
 	}
@@ -336,7 +239,7 @@ void PLAPI injected_fn(struct injcode_bearing *br){
 			}
 			break;
 		}
-		DBGPTR(br, ctx->h_libthread);
+		inj_dbgptr(br, ctx->h_libthread);
 
 		if(inj_api_init(ctx) != 0){
 			inj_dchar(br, '!');

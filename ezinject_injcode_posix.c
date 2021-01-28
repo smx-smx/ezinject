@@ -1,3 +1,24 @@
+INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
+	const uint64_t buf[2] = { \
+		str64(0x706C3A7074723A25), /* pl:ptr:% */ \
+		str64(0x700A000000000000)  /* p\n\0    */ \
+	};
+	br->libc_printf((char *)buf, ptr);
+}
+
+INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
+	// awake ptrace
+	// success: SIGSTOP
+	// failure: anything else
+	struct injcode_bearing *br = ctx->br;
+	br->libc_syscall(__NR_kill, br->libc_syscall(__NR_getpid), signal);
+	while(1);
+}
+
+INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned flags){
+	return ctx->libdl.dlopen(filename, flags);
+}
+
 INLINE void inj_thread_init(
 	struct injcode_bearing *br,
 	struct thread_api *api
@@ -37,7 +58,7 @@ INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 
 	// just to make sure it's really loaded
 	ctx->h_libdl = ctx->libdl.dlopen(ctx->libdl_name, RTLD_NOLOAD);
-	DBGPTR(br, ctx->h_libdl);
+	inj_dbgptr(br, ctx->h_libdl);
 	if(ctx->h_libdl == NULL){
 		ctx->h_libdl = ctx->libdl.dlopen(ctx->libdl_name, RTLD_NOW | RTLD_GLOBAL);
 	}

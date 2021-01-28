@@ -173,13 +173,10 @@ void *real_entry(void *arg) {
 	enum userlib_return_action result;
 
 	crt_userinit(br);
-	switch(br->user.persist){
-		case 1:
-			result = userlib_persist;
-			break;
-		default:
-			result = userlib_unload;
-			break;
+	if(br->user.persist){
+		result = userlib_persist;
+	} else {
+		result = userlib_unload;
 	}
 
 	DBG("ret");

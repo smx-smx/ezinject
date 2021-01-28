@@ -34,7 +34,7 @@ static uintptr_t _remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmadd
 	 **/
 	CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, shmflg, ctx->target_codebase + 4));
 	remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, ctx->target, ctx->target_codebase + 4);
-	DBGPTR(remote_shm_ptr);
+	inj_dbgptr(remote_shm_ptr);
 	CHECK(RSCALL3(ctx, __NR_mprotect, ctx->target_codebase, getpagesize(), PROT_READ | PROT_EXEC));
 #endif
 	return remote_shm_ptr;

@@ -103,7 +103,6 @@ struct ezinj_str {
 #define __RCALL_SC(ctx, nr, argmask, ...) __RCALL(ctx, ctx->syscall_insn.remote, argmask, nr, ##__VA_ARGS__)
 
 // Remote System Call
-#define FAILED(result) ((signed int)(result) < 0)
 #define RSCALL0(ctx,nr)               __RCALL_SC(ctx,nr,SC_0ARGS)
 #define RSCALL1(ctx,nr,a1)            __RCALL_SC(ctx,nr,SC_1ARGS,UPTR(a1))
 #define RSCALL2(ctx,nr,a1,a2)         __RCALL_SC(ctx,nr,SC_2ARGS,UPTR(a1),UPTR(a2))
