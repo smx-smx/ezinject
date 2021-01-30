@@ -71,7 +71,7 @@ INLINE int shmdt(BR_PARAM const void *shmaddr){
 #endif
 }
 
-#ifndef EZINJECT_INJCODE
+#if !defined(EZINJECT_INJCODE) && !defined(EZ_TARGET_DARWIN)
 #include <stdarg.h>
 
 #ifndef IPC_64

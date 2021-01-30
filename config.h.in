@@ -9,6 +9,7 @@
 #cmakedefine EZ_TARGET_POSIX
 #cmakedefine EZ_TARGET_ANDROID
 #cmakedefine EZ_TARGET_WINDOWS
+#cmakedefine EZ_TARGET_DARWIN
 #cmakedefine HAVE_CPU_VLE
 #cmakedefine HAVE_SHM_EXEC
 #cmakedefine HAVE_STRSIGNAL

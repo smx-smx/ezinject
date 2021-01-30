@@ -86,7 +86,7 @@ int crt_init(struct injcode_bearing *br){
 	// get pid (use syscall to avoid libc pid caching)
 	#if defined(EZ_TARGET_LINUX)
 	params->pid = syscall(__NR_getpid);
-	#elif defined(EZ_TARGET_FREEBSD)
+	#elif defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_DARWIN)
 	params->pid = syscall(SYS_getpid);
 	#elif defined(EZ_TARGET_WINDOWS)
 	params->pid = GetCurrentProcessId();

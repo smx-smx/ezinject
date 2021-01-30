@@ -13,6 +13,10 @@
 #include <sys/user.h>
 #endif
 
+#ifdef EZ_TARGET_DARWIN
+#include <mach/mach.h>
+#endif
+
 #include "ezinject_compat.h"
 #include "ezinject_injcode.h"
 
@@ -47,6 +51,10 @@ struct ezinj_ctx {
 	DEBUG_EVENT ev;
 	HANDLE hProc;
 	HANDLE hThread;
+#endif
+#ifdef EZ_TARGET_DARWIN
+	task_t task;
+	thread_t thread;
 #endif
 	uintptr_t target_codebase;
 	ez_addr libc;

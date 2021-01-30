@@ -20,8 +20,12 @@
 #include <sys/shm.h>
 #endif
 
-#ifndef EZ_TARGET_WINDOWS
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
 #include <link.h>
+#endif
+
+#ifdef EZ_TARGET_POSIX
+#include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
 #include <sys/syscall.h>
@@ -159,26 +163,6 @@ void remote_call_setup(struct ezinj_ctx *ctx, struct call_req call, regs_t *orig
 	}
 }
 
-#if defined(EZ_TARGET_LINUX)
-#define SC_EVENT_STATUS (SIGTRAP | 0x80)
-#elif defined(EZ_TARGET_FREEBSD)
-#define SC_EVENT_STATUS SIGTRAP
-#endif
-
-#ifdef EZ_TARGET_FREEBSD
-static int lwp_ensure_state(pid_t target, unsigned int flags){
-	struct ptrace_lwpinfo info;
-	if (ptrace(PT_LWPINFO, target, (caddr_t)&info, sizeof(info)) < 0){
-		return -1;
-	}
-
-	if((info.pl_flags & flags) != 0){
-		return 0; //good state
-	}
-	return -1;
-}
-#endif
-
 uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 	regs_t orig_ctx, new_ctx;
 	remote_call_setup(ctx, call, &orig_ctx, &new_ctx);
@@ -189,60 +173,23 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 	for(int i=0; i<call.num_wait_calls; i++){
 		int rc;
 		do {
-			if(remote_syscall_step(ctx) < 0){
+			if(remote_continue(ctx, 0) < 0){
 				PERROR("ptrace");
 				return -1;
 			}
 			status = remote_wait(ctx);
 		#ifdef EZ_TARGET_POSIX
-			if((rc=WSTOPSIG(status)) != SC_EVENT_STATUS){
+			if((rc=WSTOPSIG(status)) != SIGTRAP){
 				ERR("remote_wait: %s", strsignal(rc));
 				return -1;
 			}
 		#endif
-
-			#if defined(EZ_TARGET_FREEBSD)
-			if(lwp_ensure_state(ctx->target, PL_FLAG_SCE) != 0){
-				ERR("Not in syscall entry");
-				return -1;
-			}
-			#endif
-			remote_syscall_step(ctx);
-
-			status = remote_wait(ctx);
-		#ifdef EZ_TARGET_POSIX
-			if((rc=WSTOPSIG(status)) != SC_EVENT_STATUS){
-				ERR("remote_wait: %s", strsignal(rc));
-				return -1;
-			}
-		#endif
-
-			#ifdef EZ_TARGET_FREEBSD
-			if(lwp_ensure_state(ctx->target, PL_FLAG_SCX) != 0){
-				ERR("Not in syscall exit");
-				return -1;
-			}
-			#endif
-
-			#if 0//def EZ_TARGET_FREEBSD
-			struct ptrace_sc_ret fbsd_sc_ret;
-			if(ptrace(PT_GET_SC_RET, target, (caddr_t)&fbsd_sc_ret, sizeof(fbsd_sc_ret)) < 0){
-				PERROR("ptrace");
-				return -1;
-			}
-			DBGPTR(fbsd_sc_ret.sr_retval[0]);
-			DBGPTR(fbsd_sc_ret.sr_retval[1]);
-			DBGPTR(fbsd_sc_ret.sr_error);
-			sc_ret = fbsd_sc_ret.sr_retval[0];
-			#else
 			// get syscall return value
 			if(remote_getregs(ctx, &new_ctx) < 0){ /* Get return value */
 				PERROR("ptrace");
 				return -1;
 			}
 			sc_ret = REG(new_ctx, REG_RET);
-			#endif
-
 			DBG("[RET] = %zu", sc_ret);
 
 			if((signed int)sc_ret == -EINTR){
@@ -390,15 +337,16 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
 	return sym;
 }
 
-#ifdef EZ_TARGET_WINDOWS
-#define LIBC_SEARCH "ntdll.dll"
-#else
+#ifdef EZ_TARGET_LINUX
 #define LIBC_SEARCH "libc"
+#else
+#define LIBC_SEARCH C_LIBRARY_NAME
 #endif
 
 int libc_init(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
 
+	INFO("Looking up " C_LIBRARY_NAME);
 	ez_addr libc = {
 		.local  = (uintptr_t) get_base(getpid(), LIBC_SEARCH, ignores),
 		.remote = (uintptr_t) get_base(ctx->target, LIBC_SEARCH, ignores)
@@ -773,9 +721,25 @@ int ezinject_main(
 
 	DBG("dataLength: %zu", dataLength);
 	uint8_t dataBak[dataLength];
+
+	#ifdef EZ_TARGET_DARWIN
+	/** 
+	 * Darwin does not allow us to make the header writable
+	 * we need to make a new allocation instead
+	 **/
+	codeBase = remote_pl_alloc(ctx, dataLength);
+	if(codeBase == 0){
+		PERROR("failed to allocate scratch memory");
+	}
+	DBG("new codebase: %p", (void *)codeBase);
+	#endif
+
 	//backup and replace ELF header
 	remote_read(ctx, &dataBak, codeBase, dataLength);
-	remote_write(ctx, codeBase, region_sc_insn.start, dataLength);
+	if(remote_write(ctx, codeBase, region_sc_insn.start, dataLength) != dataLength){
+		PERROR("remote_write failed");
+		return -1;
+	}
 	ctx->syscall_insn.remote = codeBase;
 
 #ifdef EZ_ARCH_MIPS
@@ -791,6 +755,8 @@ int ezinject_main(
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
 	#elif defined(EZ_TARGET_FREEBSD)
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, SYS_getpid);
+	#elif defined(EZ_TARGET_DARWIN)
+	pid_t remote_pid = (pid_t)RSCALL0(ctx, SYS_getpid | 0x2000000);
 	#elif defined(EZ_TARGET_WINDOWS)
 	pid_t remote_pid = ctx->target;
 	#endif
@@ -812,6 +778,7 @@ int ezinject_main(
 		#endif
 			break;
 		}
+		DBG("remote payload base: %p", (void *)remote_shm_ptr);
 
 		ctx->mapped_mem.remote = remote_shm_ptr;
 
@@ -857,8 +824,10 @@ int ezinject_main(
 		#endif
 
 		
-		#if defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
-		remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size);
+		#if defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS) || defined(EZ_TARGET_DARWIN)
+		if(remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
+			PERROR("remote_write failed");
+		}		
 		#endif
 
 		// switch to SIGSTOP wait mode

@@ -14,6 +14,7 @@ struct thread_api {
 	int (*pthread_join)(pthread_t thread, void **retval);
 };
 
+
 INLINE void inj_puts(struct injcode_bearing *br, char *str){
 	if(str == NULL){
 		return;

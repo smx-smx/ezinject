@@ -21,11 +21,6 @@
 #endif
 
 #include "ezinject_compat.h"
-
-#ifdef EZ_TARGET_POSIX
-#include "ezinject_compat.c"
-#endif
-
 #include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
@@ -44,6 +39,7 @@
 void PLAPI injected_sc(){
 	EMIT_LABEL("injected_sc_start");
 	EMIT_SC();
+	EMIT_BP();
 	EMIT_LABEL("injected_sc_end");
 }
 

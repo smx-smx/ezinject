@@ -1,5 +1,11 @@
+#include "config.h"
+
 #include <sys/syscall.h>
+
+#ifdef EZ_TARGET_FREEBSD
 #include <sys/sysproto.h>
+#endif
+
 #include <sys/mman.h>
 
 #include "ezinject.h"
