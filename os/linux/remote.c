@@ -61,14 +61,6 @@ EZAPI remote_wait(struct ezinj_ctx *ctx){
 	return status;
 }
 
-EZAPI remote_syscall_step(struct ezinj_ctx *ctx){
-	return ptrace(PTRACE_SYSCALL, ctx->target, 0, 0);
-}
-
-EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable){
-	return 0;
-}
-
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
 	

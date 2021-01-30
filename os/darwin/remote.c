@@ -98,10 +98,6 @@ EZAPI remote_wait(struct ezinj_ctx *ctx){
 	return status;
 }
 
-EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable){
-	return 0;
-}
-
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	mach_msg_type_number_t read = 0;
 

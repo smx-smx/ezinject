@@ -162,8 +162,6 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs);
 EZAPI remote_wait(struct ezinj_ctx *ctx);
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size);
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
-EZAPI remote_syscall_step(struct ezinj_ctx *ctx);
-EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable);
 
 /** injection api **/ 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);

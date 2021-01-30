@@ -45,28 +45,6 @@ EZAPI remote_wait(struct ezinj_ctx *ctx){
 	return status;
 }
 
-EZAPI remote_syscall_step(struct ezinj_ctx *ctx){
-	return ptrace(PT_SYSCALL, ctx->target, (caddr_t)1, 0);
-}
-
-EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable){
-	unsigned int mask = 0;
-	if(ptrace(PT_GET_EVENT_MASK, ctx->target, (caddr_t)&mask, sizeof(mask)) < 0){
-		PERROR("ptrace");
-		return -1;
-	}
-	if(enable){
-		mask = mask | PTRACE_SYSCALL;
-	} else {
-		mask = mask & ~PTRACE_SYSCALL;
-	}
-	if(ptrace(PT_SET_EVENT_MASK, ctx->target, (caddr_t)&mask, sizeof(mask)) < 0){
-		PERROR("ptrace");
-		return -1;
-	}
-	return 0;
-}
-
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
 	

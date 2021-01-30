@@ -199,8 +199,6 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 	}
 
 	if(call.num_wait_calls == 0){
-		// disable syscall tracing
-		remote_syscall_trace_enable(ctx, 0);
 		int stopsig = 0;
 		do {
 
