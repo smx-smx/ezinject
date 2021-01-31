@@ -453,6 +453,7 @@ set(os_sources "")
 if(EZ_TARGET_POSIX)
 	list(APPEND os_sources
 		os/posix/remote.c
+		os/posix/inject.c
 	)
 	if(EZ_TARGET_LINUX)
 		list(APPEND os_sources

@@ -47,12 +47,12 @@ enum verbosity_level verbosity = V_DBG;
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
-static ez_region region_pl_code = {
+ez_region region_pl_code = {
 	.start = (void *)&__start_payload,
 	.end = (void *)&__stop_payload
 };
 
-static ez_region region_sc_insn = {
+ez_region region_sc_insn = {
 	.start = (void *)&injected_sc_start,
 	.end = (void *)&injected_sc_end
 };
@@ -690,14 +690,6 @@ int ezinject_main(
 ){
 	print_maps();
 
-	uintptr_t codeBase = (uintptr_t) get_base(ctx->target, NULL, NULL);
-	if(codeBase == 0){
-		ERR("Could not obtain code base");
-		return 1;
-	}
-	DBGPTR(codeBase);
-	ctx->target_codebase = codeBase;
-
 	signal(SIGINT, sigint_handler);
 
 	// allocate bearing on shared memory
@@ -706,38 +698,10 @@ int ezinject_main(
 		return -1;
 	}
 
-	size_t dataLength = ROUND_UP(
-		REGION_LENGTH(region_sc_insn),
-		sizeof(uintptr_t)
-	);
-
-	DBG("dataLength: %zu", dataLength);
-	uint8_t dataBak[dataLength];
-
-	#ifdef EZ_TARGET_DARWIN
-	/** 
-	 * Darwin does not allow us to make the header writable
-	 * we need to make a new allocation instead
-	 **/
-	codeBase = remote_pl_alloc(ctx, dataLength);
-	if(codeBase == 0){
-		PERROR("failed to allocate scratch memory");
-	}
-	DBG("new codebase: %p", (void *)codeBase);
-	#endif
-
-	//backup and replace ELF header
-	remote_read(ctx, &dataBak, codeBase, dataLength);
-	if(remote_write(ctx, codeBase, region_sc_insn.start, dataLength) != dataLength){
-		PERROR("remote_write failed");
+	if(remote_sc_alloc(ctx) != 0){
+		ERR("remote_sc_alloc failed");
 		return -1;
 	}
-	ctx->syscall_insn.remote = codeBase;
-
-#ifdef EZ_ARCH_MIPS
-	// skip syscall instruction and apply stack offset (see note about sys_ipc)
-	ctx->syscall_stack.remote = codeBase + 4 - 16;
-#endif
 
 	// wait for a single syscall
 	ctx->num_wait_calls = 1;
@@ -747,9 +711,7 @@ int ezinject_main(
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
 	#elif defined(EZ_TARGET_FREEBSD)
 	pid_t remote_pid = (pid_t)RSCALL0(ctx, SYS_getpid);
-	#elif defined(EZ_TARGET_DARWIN)
-	pid_t remote_pid = (pid_t)RSCALL0(ctx, SYS_getpid | 0x2000000);
-	#elif defined(EZ_TARGET_WINDOWS)
+	#elif defined(EZ_TARGET_WINDOWS) || defined(EZ_TARGET_DARWIN)
 	pid_t remote_pid = ctx->target;
 	#endif
 	if(remote_pid != ctx->target)
@@ -834,8 +796,10 @@ int ezinject_main(
 
 		remote_pl_free(ctx, remote_shm_ptr);
 
-		//restore ELF header
-		remote_write(ctx, codeBase, &dataBak, dataLength);
+		if(remote_sc_free(ctx) != 0){
+			ERR("remote_sc_free failed!");
+			break;
+		}
 
 		err = 0;
 	} while(0);

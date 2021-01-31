@@ -56,6 +56,11 @@ struct ezinj_ctx {
 	task_t task;
 	thread_t thread;
 #endif
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+	// holds the overwritten ELF header
+	uint8_t *saved_sc_data;
+	size_t saved_sc_size;
+#endif
 	uintptr_t target_codebase;
 	ez_addr libc;
 	ez_addr libdl;
@@ -165,5 +170,8 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 
 /** injection api **/ 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);
-int remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
+EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
+
+EZAPI remote_sc_alloc(struct ezinj_ctx *ctx);
+EZAPI remote_sc_free(struct ezinj_ctx *ctx);
 #endif
