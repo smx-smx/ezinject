@@ -12,6 +12,7 @@
 #include "config.h"
 
 #ifdef EZ_TARGET_POSIX
+#include <signal.h>
 #include <sys/wait.h>
 #include <sys/syscall.h>
 #endif

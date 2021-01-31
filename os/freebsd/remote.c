@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/ptrace.h>
 #include <sys/wait.h>
+#include <sys/syscall.h>
 
 #include "ezinject.h"
 #include "ezinject_arch.h"
@@ -27,8 +28,6 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 }
 
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
-	uintptr_t *destWords = (uintptr_t *)dest;
-	
 	struct ptrace_io_desc iov = {
 		.piod_op = PIOD_READ_D,
 		.piod_offs = (void *)source,
@@ -40,8 +39,6 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 }
 
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
-	uintptr_t *sourceWords = (uintptr_t *)source;
-	
 	struct ptrace_io_desc iov = {
 		.piod_op = PIOD_WRITE_D,
 		.piod_offs = (void *)dest,
