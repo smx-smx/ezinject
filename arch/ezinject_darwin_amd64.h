@@ -1,5 +1,11 @@
-#ifndef __EZINJECT_AMD64_H
-#define __EZINJECT_AMD64_H
+#ifndef __EZINJECT_DARWIN_AMD64_H
+#define __EZINJECT_DARWIN_AMD64_H
+
+#include <mach/thread_status.h>
+
+#define _CONCAT(x,y) x##y
+#define CONCAT(x,y) _CONCAT(x,y)
+#define REG(u, reg) (u).CONCAT(__,reg)
 
 #define REG_PC rip
 #define REG_SP rsp
@@ -12,8 +18,6 @@
 #define REG_ARG5 r8
 #define REG_ARG6 r9
 
-#define REG(u, r) (u).regs.r
-
 #define EMIT_SC() asm volatile("syscall\n")
 #define EMIT_BP() asm volatile("int $3\n")
 #define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))
@@ -24,6 +28,11 @@
 
 #define JMP_INSN "jmp"
 
-typedef struct user regs_t;
+typedef x86_thread_state64_t regs_t;
+
+#undef MACHINE_THREAD_STATE
+#undef MACHINE_THREAD_STATE_COUNT
+#define MACHINE_THREAD_STATE x86_THREAD_STATE64
+#define MACHINE_THREAD_STATE_COUNT x86_THREAD_STATE64_COUNT
 
 #endif

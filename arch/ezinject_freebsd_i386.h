@@ -14,6 +14,7 @@
 #define REG(u, reg) (u).CONCAT(r_,reg)
 
 #define EMIT_SC() asm volatile("int $0x80\n")
+#define EMIT_BP() asm volatile("int $3\n")
 #define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))
 
 #define POP_PARAMS(out_br, out_func) \

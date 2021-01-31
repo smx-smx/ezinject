@@ -20,7 +20,13 @@
 #define RTLD_NOLOAD 0
 #endif
 
+#if defined(EZ_TARGET_DARWIN)
+#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2)
+#elif defined(EZ_TARGET_WINDOWS)
+#define IS_IGNORED_SIG(x) 0
+#else
 #define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
+#endif
 
 #ifndef PTRACE_SETOPTIONS
 #define PTRACE_SETOPTIONS 0x4200
@@ -31,6 +37,11 @@
 #endif
 
 #include "config.h"
+
+#ifdef EZ_TARGET_WINDOWS
+#define SIGSTOP 0
+#define SIGTRAP 0
+#endif
 
 #ifndef EZ_TARGET_WINDOWS
 #include <sys/ipc.h>
@@ -72,7 +83,7 @@ int shmctl(int id, int cmd, struct shmid_ds *buf);
 
 #endif /* EZINJECT_INJCODE */
 
-#if defined(EZ_TARGET_FREEBSD)
+#if defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_DARWIN)
 #define __NR_getpid SYS_getpid
 #define __NR_shmget SYS_shmget
 #define __NR_shmat SYS_shmat

@@ -26,6 +26,13 @@
 #error "Unsupported architecture"
 #endif
 
+#elif defined(EZ_TARGET_DARWIN)
+#if defined(EZ_ARCH_AMD64)
+#include "arch/ezinject_darwin_amd64.h"
+#else
+#error "Unsupported architecture"
+#endif
+
 #elif defined(EZ_TARGET_WINDOWS)
 #if defined(EZ_ARCH_AMD64)
 #include "arch/ezinject_windows_amd64.h"

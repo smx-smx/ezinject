@@ -14,7 +14,7 @@
 #include <sys/stat.h>
 #include <sys/ptrace.h>
 
-#include "util.h"
+#include "ezinject_util.h"
 #include "elfparse.h"
 
 enum verbosity_level verbosity = V_INFO;

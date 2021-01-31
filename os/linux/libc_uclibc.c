@@ -2,7 +2,7 @@
 #include <dlfcn.h>
 #include "ezinject.h"
 #include "log.h"
-#include "util.h"
+#include "ezinject_util.h"
 
 int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ez_addr ldso = {

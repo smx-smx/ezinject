@@ -16,13 +16,22 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
 	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll")
 	set(EZ_TARGET_WINDOWS TRUE)
+elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
+	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
+	SET(CMAKE_FIND_LIBRARY_SUFFIXES "" ".a" ".dylib")
+	set(EZ_TARGET_DARWIN TRUE)
+	
+	message(STATUS "SDK Path: ${CMAKE_OSX_SYSROOT}")
 else()
 	message(FATAL_ERROR "Unsupported OS ${CMAKE_SYSTEM_NAME}")
 endif()
 
-if(NOT EZ_TARGET_WINDOWS)
+if(NOT EZ_TARGET_WINDOWS AND NOT EZ_TARGET_DARWIN)
 	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export-dynamic")
 endif()
+
+include(CheckIncludeFile)
+check_include_file(sys/shm.h HAVE_SYS_SHM_H)
 
 include(CheckSymbolExists)
 check_symbol_exists("__NR_shmget" "asm/unistd.h" HAVE_SHM_SYSCALLS)
@@ -37,7 +46,7 @@ check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
 check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
 check_symbol_exists("__ANDROID__" "" EZ_TARGET_ANDROID)
 
-if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD)
+if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD OR EZ_TARGET_DARWIN)
 	set(EZ_TARGET_POSIX TRUE)
 endif()
 
@@ -87,6 +96,7 @@ endif()
 include(CheckLibraryExists)
 
 set(REQUIRES_LIBPTHREAD REQUIRED)
+set(REQUIRES_LIBDL REQUIRED)
 
 if(EZ_TARGET_ANDROID)
 	set(prefix ${CMAKE_SYSROOT}/usr/lib/${ANDROID_TOOLCHAIN_NAME})
@@ -101,6 +111,10 @@ endif()
 
 if(EZ_TARGET_ANDROID OR EZ_TARGET_WINDOWS)
 	set(REQUIRES_LIBPTHREAD "")
+endif()
+
+if(EZ_TARGET_DARWIN)
+	set(REQUIRES_LIBDL "")
 endif()
 
 set(EXTRA_SEARCH_PATHS "")
@@ -119,6 +133,11 @@ elseif(EZ_TARGET_FREEBSD)
 	list(APPEND C_LIBRARY_NAMES
 		libc.so.7
 	)
+elseif(EZ_TARGET_DARWIN)
+	list(APPEND C_LIBRARY_NAMES
+		libsystem_kernel.dylib
+	)
+	list(APPEND EXTRA_SEARCH_PATHS "/usr/lib/system")
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND C_LIBRARY_NAMES
 		ntdll.dll
@@ -150,16 +169,32 @@ elseif(EZ_TARGET_WINDOWS)
 	)
 endif()
 
-find_library(DL_LIBRARY
-	NAMES ${DL_LIBRARY_NAMES}
-	PATHS ${EXTRA_SEARCH_PATHS}
-	REQUIRED
-)
-get_filename_component(DL_LIBRARY_NAME "${DL_LIBRARY}" NAME)
+if(NOT ${REQUIRES_LIBDL} STREQUAL "")
+	find_library(DL_LIBRARY
+		NAMES ${DL_LIBRARY_NAMES}
+		PATHS ${EXTRA_SEARCH_PATHS}
+		${REQUIRES_LIBDL}
+	)
+	get_filename_component(DL_LIBRARY_NAME "${DL_LIBRARY}" NAME)
+elseif(EZ_TARGET_DARWIN)
+	# NOTE: this can be a fake library
+	# it mignt not exist and is intercepted by dyld
+	# Darwin physically exposed libdl through dyld
+	# however, target processes have a virtual mapping called
+	# libdyld.dylib which seems to be a remapped dyld, containing the actual symbols
+	set(DL_LIBRARY_NAME "libdl.dylib")
+else()
+	message(FATAL_ERROR "Unsupported platform")
+endif()
 
 find_library(PTHREAD_LIBRARY
+	PATHS ${EXTRA_SEARCH_PATHS}
 	NAMES
+		# darwin
+		libsystem_pthread
+		# uClibc
 		libpthread.so.0
+		# fallback
 		libpthread.so
 	${REQUIRES_LIBPTHREAD}
 )
@@ -167,6 +202,9 @@ find_library(PTHREAD_LIBRARY
 if(EZ_TARGET_ANDROID)
 	# these platforms implement pthreads in libc
 	set(PTHREAD_LIBRARY_NAME ${C_LIBRARY_NAME})
+elseif(EZ_TARGET_DARWIN)
+	# libpthread is also a fake library provided by /usr/lib/system/libsystem_pthread.dylib
+	set(PTHREAD_LIBRARY_NAME "libpthread.dylib")
 elseif(EZ_TARGET_WINDOWS)
 	# this is actually kernel32.dll
 	set(PTHREAD_LIBRARY_NAME ${DL_LIBRARY_NAME})
@@ -176,6 +214,11 @@ endif()
 
 if(EZ_ARCH_ARM AND USE_ARM_THUMB)
 	add_definitions(-mthumb)
+endif()
+
+if(EZ_TARGET_DARWIN)
+	# we need full names on Darwin
+	set(C_LIBRARY_NAME ${C_LIBRARY})
 endif()
 
 macro(find_uclibc)
@@ -231,7 +274,10 @@ function(libc_autodetect)
 	check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
 	export_var(HAVE_LIBC_DLOPEN_MODE)
 
-	if(NOT HAVE_LIBC_DLOPEN_MODE AND NOT EZ_TARGET_ANDROID AND NOT HAVE_LIBDL_IN_LIBC)
+	if(NOT HAVE_LIBC_DLOPEN_MODE
+	AND NOT EZ_TARGET_ANDROID
+	AND NOT HAVE_LIBDL_IN_LIBC
+	AND NOT EZ_TARGET_DARWIN)
 		find_uclibc()
 		check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
 	endif()
@@ -251,12 +297,17 @@ function(libc_autodetect)
 		)	
 		set(DYN_LINKER_NAME "${DYN_LINKER}")
 		export_var(DYN_LINKER_NAME)
+	elseif(EZ_TARGET_DARWIN)
+		# libdyld.dylib is a virtual library
+		set(DYN_LINKER_NAME "libdyld.dylib")
+		export_var(DYN_LINKER_NAME)
 	endif()
 
 	if(NOT EZ_TARGET_ANDROID
 	AND NOT HAVE_LIBC_DLOPEN_MODE
 	AND NOT HAVE_DL_LOAD_SHARED_LIBRARY
 	AND NOT HAVE_LIBDL_IN_LIBC
+	AND NOT EZ_TARGET_DARWIN
 	)
 		message(FATAL_ERROR "Unsupported C library")
 	endif()
@@ -301,6 +352,7 @@ if( NOT EZ_TARGET_WINDOWS
 	AND NOT HAVE_SC_IPC
 	AND NOT USE_ANDROID_ASHMEM
 	AND NOT HAVE_LIBDL_IN_LIBC
+	AND NOT EZ_TARGET_DARWIN
 )
 	message(FATAL_ERROR "Unsupported system")
 endif()
@@ -329,10 +381,7 @@ if(HAVE_CPU_VLE)
 	endif()
 endif()
 
-include(CheckIncludeFile)
-check_include_file(sys/shm.h HAVE_SYS_SHM_H)
-
-if(EZ_TARGET_FREEBSD OR EZ_TARGET_WINDOWS)
+if(EZ_TARGET_FREEBSD OR EZ_TARGET_DARWIN OR EZ_TARGET_WINDOWS)
 	set(USE_SHM FALSE)
 else()
 	set(USE_SHM TRUE)
@@ -357,17 +406,18 @@ function(add_ezinject_library target)
 	list(APPEND sources
 		${CMAKE_SOURCE_DIR}/crt/crt.c
 		${CMAKE_SOURCE_DIR}/crt/crt_user.c
-		${CMAKE_SOURCE_DIR}/util.c
+		${CMAKE_SOURCE_DIR}/ezinject_util.c
 	)
 
-	if(EZ_TARGET_WINDOWS)
+	if(EZ_TARGET_POSIX)
 		list(APPEND sources
+			${CMAKE_SOURCE_DIR}/crt/crt_posix.c
+		)
+	elseif(EZ_TARGET_WINDOWS)
+		list(APPEND sources
+			${CMAKE_SOURCE_DIR}/crt/crt_windows.c
 			${CMAKE_SOURCE_DIR}/os/windows/util.c
 		)
-	endif()
-
-	if(DEBUG)
-		list(APPEND sources ${CMAKE_SOURCE_DIR}/util.c)
 	endif()
 
 	set(moduledefs "MODULE_NAME=\"${target}\"")
@@ -404,83 +454,89 @@ set(os_sources "")
 if(EZ_TARGET_POSIX)
 	list(APPEND os_sources
 		os/posix/remote.c
+		os/posix/inject.c
 	)
+	if(EZ_TARGET_LINUX)
+		list(APPEND os_sources
+			os/linux/remote.c
+			os/linux/util.c
+		)
 
+		# Android with ashmem + mmap
+		if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
+			list(APPEND os_sources
+				os/android/inject.c
+			)
+		# SysV IPC with executable SHM
+		else()
+			list(APPEND os_sources
+				os/linux/inject.c
+			)
+		endif()
+
+		# bionic
+		if(EZ_TARGET_ANDROID)
+			list(APPEND os_sources
+				os/linux/libc_bionic.c
+			)
+		# glibc
+		elseif(HAVE_LIBC_DLOPEN_MODE)
+			list(APPEND os_sources
+				os/linux/libc_glibc.c
+			)
+		# uClibc
+		elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
+			list(APPEND os_sources
+				os/linux/libc_uclibc.c
+			)
+		endif()
+	elseif(EZ_TARGET_FREEBSD)
+		list(APPEND os_sources
+			os/freebsd/remote.c
+			os/freebsd/inject.c
+			os/freebsd/util.c
+			os/freebsd/libc_freebsd.c
+		)
+	elseif(EZ_TARGET_DARWIN)
+		list(APPEND os_sources
+			os/darwin/remote.c
+			os/darwin/inject.c
+			os/darwin/util.c
+			os/darwin/libc_darwin.c
+		)
+	endif()
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND os_sources
 		os/windows/remote.c
+		os/windows/inject.c
 		os/windows/util.c
+		os/windows/libc_windows.c
 	)
 endif()
 
+# TODO: cross platform
 if(EZ_TARGET_LINUX)
-	list(APPEND os_sources
-		os/linux/remote.c
-		os/linux/util.c
-	)
-elseif(EZ_TARGET_FREEBSD)
-	list(APPEND os_sources
-		os/freebsd/remote.c
-		os/freebsd/util.c
-	)
-endif()
-
-# TODO: fix for Freebsd
-if(NOT EZ_TARGET_FREEBSD AND NOT EZ_TARGET_WINDOWS)
 	add_executable(ezpatch
 		elfparse.c
 		ezpatch.c
 		elfparse.c
-		util.c
-		${os_sources}
+		ezinject_util.c
+		os/linux/util.c
 	)
 endif()
 
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
-	util.c
+	ezinject_util.c
 	${os_sources}
 )
 
 # not android, or android without ashmem
-if((EZ_TARGET_ANDROID AND NOT USE_ANDROID_ASHMEM) OR NOT HAVE_SYS_SHM_H AND NOT EZ_TARGET_WINDOWS)
+if((EZ_TARGET_ANDROID AND NOT USE_ANDROID_ASHMEM) OR NOT HAVE_SYS_SHM_H
+AND NOT EZ_TARGET_WINDOWS
+AND NOT EZ_TARGET_DARWIN)
 	list(APPEND ezinject_sources ezinject_compat.c)
-endif()
-
-if(HAVE_LIBC_DLOPEN_MODE)
-	list(APPEND ezinject_sources ezinject_libc_glibc.c)
-elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
-	list(APPEND ezinject_sources ezinject_libc_uclibc.c)
-endif()
-
-if(EZ_TARGET_LINUX)
-	if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
-		list(APPEND ezinject_sources
-			ezinject_android.c
-		)
-	else()
-		list(APPEND ezinject_sources
-			ezinject_linux.c
-		)
-	endif()
-endif()
-
-if(EZ_TARGET_ANDROID)
-	list(APPEND ezinject_sources
-		elfparse.c
-		ezinject_libc_android.c
-	)
-elseif(EZ_TARGET_FREEBSD)
-	list(APPEND ezinject_sources
-		ezinject_freebsd.c
-		ezinject_libc_freebsd.c
-	)
-elseif(EZ_TARGET_WINDOWS)
-	list(APPEND ezinject_sources
-		ezinject_windows.c
-		ezinject_libc_windows.c
-	)
 endif()
 
 add_executable(ezinject ${ezinject_sources})

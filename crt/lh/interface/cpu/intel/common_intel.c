@@ -1,7 +1,7 @@
 #include "interface/cpu/intel/cpu_intel.h"
 #include "interface/if_hook.h"
 #include "log.h"
-#include "util.h"
+#include "ezinject_util.h"
 
 /*
  * Relocates code pointed by codePtr from sourcePC to destPC

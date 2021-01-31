@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#include "util.h"
+#include "ezinject_util.h"
 #include <stdbool.h>
 #include <string.h>
 

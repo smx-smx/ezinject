@@ -1,5 +1,11 @@
+#include "config.h"
+
 #include <sys/syscall.h>
+
+#ifdef EZ_TARGET_FREEBSD
 #include <sys/sysproto.h>
+#endif
+
 #include <sys/mman.h>
 
 #include "ezinject.h"
@@ -17,6 +23,6 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 	return result;
 }
 
-int remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
-	return (int) CHECK(RSCALL1(ctx, SYS_shmdt, remote_shmaddr));
+EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
+	return (intptr_t) CHECK(RSCALL1(ctx, SYS_shmdt, remote_shmaddr));
 }

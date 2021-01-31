@@ -9,7 +9,7 @@
 #include <elf.h>
 #include "ezinject.h"
 #include "log.h"
-#include "util.h"
+#include "ezinject_util.h"
 
 // android 10
 #include "elfparse.h"

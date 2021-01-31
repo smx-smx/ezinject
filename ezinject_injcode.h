@@ -17,17 +17,34 @@
 #include "ezinject_common.h"
 
 #define EZAPI intptr_t
-#define PLAPI __attribute__((section("payload")))
+
+#ifdef EZ_TARGET_DARWIN
+#define SECTION(X) __attribute__((section("__DATA,__" X)))
+#define SECTION_START(X) __asm("section$start$__DATA$__" X)
+#define SECTION_END(X) __asm("section$end$__DATA$__" X)
+#else
+#define SECTION(X) __attribute__((section(X)))
+#define SECTION_START(X)
+#define SECTION_END(X)
+#endif
+
+#define PLAPI SECTION("payload")
 
 #define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
 
 // temporary stack size
 #define PL_STACK_SIZE 1024 * 1024 * 4
 
+#ifdef EZ_TARGET_DARWIN
+#define LABEL_PREFIX "_"
+#else
+#define LABEL_PREFIX
+#endif
 #define EMIT_LABEL(name) \
 	asm volatile( \
-		".globl "name"\n" \
-		name":\n" \
+		".globl "LABEL_PREFIX name"\n" \
+		".align 4\n" \
+		LABEL_PREFIX name":\n" \
 	)
 
 
@@ -92,7 +109,10 @@ struct injcode_bearing
 #endif
 	void *userlib;
 
-#if defined(HAVE_LIBDL_IN_LIBC) || defined(HAVE_LIBC_DLOPEN_MODE) || defined(EZ_TARGET_ANDROID)
+#if defined(HAVE_LIBDL_IN_LIBC) \
+|| defined(HAVE_LIBC_DLOPEN_MODE) \
+|| defined(EZ_TARGET_ANDROID) \
+|| defined(EZ_TARGET_DARWIN)
 	void *(*libc_dlopen)(const char *name, int mode);
 #elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
@@ -215,7 +235,7 @@ extern void injected_fn(struct injcode_bearing *br);
 
 extern void injected_clone();
 
-extern uint8_t __start_payload;
-extern uint8_t __stop_payload;
+extern uint8_t __start_payload SECTION_START("payload");
+extern uint8_t __stop_payload SECTION_END("payload");
 
 #endif

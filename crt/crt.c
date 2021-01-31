@@ -45,7 +45,7 @@
 #include "log.h"
 
 #ifdef DEBUG
-#include "util.h"
+#include "ezinject_util.h"
 #endif
 
 #ifndef MODULE_NAME
@@ -58,17 +58,11 @@
 #include "crt_uclibc.c"
 #endif
 
+#include "crt.h"
+
 extern int crt_userinit(struct injcode_bearing *br);
 
-struct crt_params {
-	pid_t pid;
-	int sema;
-	struct injcode_bearing *br;
-};
-
-static struct crt_params gParams;
-
-void* real_entry(void *arg);
+void* crt_user_entry(void *arg);
 
 __attribute__((constructor)) void ctor(void)
 {
@@ -80,31 +74,19 @@ __attribute__((constructor)) void ctor(void)
 int crt_init(struct injcode_bearing *br){
 	INFO("initializing");
 
-	struct crt_params *params = &gParams;
-	memset(params, 0x00, sizeof(*params));
-
-	// get pid (use syscall to avoid libc pid caching)
-	#if defined(EZ_TARGET_LINUX)
-	params->pid = syscall(__NR_getpid);
-	#elif defined(EZ_TARGET_FREEBSD)
-	params->pid = syscall(SYS_getpid);
-	#elif defined(EZ_TARGET_WINDOWS)
-	params->pid = GetCurrentProcessId();
-	#else
-	#error "Unsupported target"
-	#endif
-
-	INFO("pid: %u", params->pid);
-
 	// copy local br (excluding code and stack)
 	size_t br_size = SIZEOF_BR(*br);
-	void *localBr = malloc(br_size);
-	if(!localBr){
+	struct injcode_bearing *local_br = malloc(br_size);
+	if(!local_br){
 		PERROR("malloc");
 		return -2;
 	}
-	memcpy(localBr, br, br_size);
-	params->br = (struct injcode_bearing *)localBr;
+	memcpy(local_br, br, br_size);
+
+	struct crt_ctx ctx = {
+		.shared_br = br,
+		.local_br = local_br
+	};
 
 	// workaround for old uClibc (see http://lists.busybox.net/pipermail/uclibc/2009-October/043122.html)
 	// https://github.com/kraj/uClibc/commit/cfa1d49e87eae4d46e0f0d568627b210383534f3
@@ -112,39 +94,18 @@ int crt_init(struct injcode_bearing *br){
 	uclibc_fixup_pthread();
 	#endif
 
-
-#if defined(EZ_TARGET_POSIX)
-	DBG("pthread_create");
-	if(pthread_create(&br->user_tid, NULL, real_entry, params) < 0){
-		PERROR("pthread_create");
-		return -3;
+	DBG("crt_thread_create");
+	// user thread must run against the local copy of br
+	if(crt_thread_create(&ctx, crt_user_entry) < 0){
+		ERR("crt_thread_create failed");
+		return -1;
 	}
-
-	DBG("sending pthread signal");
-	pthread_mutex_lock(&br->mutex);
-	{
-		br->loaded_signal = 1;
-		pthread_cond_signal(&br->cond);
+	DBG("crt_thread_notify");
+	// notification must be done over the (possibly shared) br
+	if(crt_thread_notify(&ctx) < 0){
+		ERR("crt_thread_notify failed");
+		return -1;
 	}
-	pthread_mutex_unlock(&br->mutex);
-#elif defined(EZ_TARGET_WINDOWS)
-	br->hThread = CreateThread(
-		NULL,
-		0,
-		real_entry,
-		params,
-		0,
-		&br->user_tid
-	);
-	if(br->hThread == INVALID_HANDLE_VALUE){
-		PERROR("CreateThread");
-		return -3;
-	}
-	if(SetEvent(br->hEvent) == FALSE){
-		PERROR("SetEvent");
-		return -4;
-	}
-#endif
 	return 0;
 }
 
@@ -152,9 +113,8 @@ int crt_init(struct injcode_bearing *br){
 /**
  * User code: runs on mmap'd stack
  **/
-void *real_entry(void *arg) {
-	struct crt_params *params = (struct crt_params *)arg;
-	struct injcode_bearing *br = params->br;
+void *crt_user_entry(void *arg) {
+	struct injcode_bearing *br = arg;
 
 	// prepare argv
 	char **dynPtr = &br->argv[0];

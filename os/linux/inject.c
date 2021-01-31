@@ -48,7 +48,7 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 	return result;
 }
 
-int remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
+EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 	int result = -1;
 	#ifdef HAVE_SHM_SYSCALLS
 		result = (int) CHECK(RSCALL1(ctx, __NR_shmdt, remote_shmaddr));
@@ -58,4 +58,14 @@ int remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 		result = (int) CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, ctx->target_codebase + 4));
 	#endif
 	return result;
+}
+
+EZAPI remote_sc_check(struct ezinj_ctx *ctx){
+	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
+	if(remote_pid != ctx->target){
+		ERR("Remote syscall returned incorrect result!");
+		ERR("Expected: %u, actual: %u", ctx->target, remote_pid);
+		return -1;
+	}
+	return 0;
 }

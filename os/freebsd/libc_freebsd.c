@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include "ezinject.h"
 #include "log.h"
-#include "util.h"
+#include "ezinject_util.h"
 
 int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	void *h_self = dlopen(NULL, RTLD_LAZY);

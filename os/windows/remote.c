@@ -43,6 +43,9 @@ EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 }
 
 EZAPI remote_detach(struct ezinj_ctx *ctx){
+	// we need to dispatch the last debug event first
+	remote_continue(ctx, 0);
+
 	if(DebugActiveProcessStop(ctx->target) == FALSE){
 		return -1;
 	}
@@ -77,20 +80,11 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 	return 0;
 }
 
-EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable){
-	UNUSED(ctx);
-	UNUSED(enable);
-	return 0;
-}
-
-EZAPI remote_syscall_step(struct ezinj_ctx *ctx){
-	UNUSED(ctx);
-	return 0;
-}
-
 #define USE_EXTERNAL_DEBUGGER
 
-EZAPI remote_wait(struct ezinj_ctx *ctx){
+EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
+	UNUSED(expected_signal);
+
 	DEBUG_EVENT *ev = &ctx->ev;
 	/**
 	 * on resume, the thread exits the debug status
@@ -158,5 +152,9 @@ EZAPI remote_wait(struct ezinj_ctx *ctx){
 		PERROR("OpenThread failed");
 		return -1;
 	}
+	return 0;
+}
+
+EZAPI remote_sc_check(struct ezinj_ctx *ctx){
 	return 0;
 }

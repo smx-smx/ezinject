@@ -13,6 +13,10 @@
 #include <sys/user.h>
 #endif
 
+#ifdef EZ_TARGET_DARWIN
+#include <mach/mach.h>
+#endif
+
 #include "ezinject_compat.h"
 #include "ezinject_injcode.h"
 
@@ -47,6 +51,15 @@ struct ezinj_ctx {
 	DEBUG_EVENT ev;
 	HANDLE hProc;
 	HANDLE hThread;
+#endif
+#ifdef EZ_TARGET_DARWIN
+	task_t task;
+	thread_t thread;
+#endif
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+	// holds the overwritten ELF header
+	uint8_t *saved_sc_data;
+	size_t saved_sc_size;
 #endif
 	uintptr_t target_codebase;
 	ez_addr libc;
@@ -151,13 +164,15 @@ EZAPI remote_suspend(struct ezinj_ctx *ctx);
 EZAPI remote_continue(struct ezinj_ctx *ctx, int signal);
 EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs);
 EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs);
-EZAPI remote_wait(struct ezinj_ctx *ctx);
+EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal);
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size);
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
-EZAPI remote_syscall_step(struct ezinj_ctx *ctx);
-EZAPI remote_syscall_trace_enable(struct ezinj_ctx *ctx, int enable);
 
 /** injection api **/ 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);
-int remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
+EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
+
+EZAPI remote_sc_alloc(struct ezinj_ctx *ctx);
+EZAPI remote_sc_check(struct ezinj_ctx *ctx);
+EZAPI remote_sc_free(struct ezinj_ctx *ctx);
 #endif
