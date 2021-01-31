@@ -1,5 +1,4 @@
-# 3.14 requirement: https://cmake.org/cmake/help/latest/policy/CMP0083.html
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.13)
 project(ezpatch C ASM)
 enable_language(CXX OPTIONAL)
 
@@ -345,7 +344,12 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	else()
 		message(FATAL_ERROR "Unsupported libc variant ${EZ_LIBC_VARIANT}")
 	endif()
+
+	if(CMAKE_POSITION_INDEPENDENT_CODE)
+		add_definitions(-fPIE -pie)
+	endif()
 endif()
+
 
 if( NOT EZ_TARGET_WINDOWS
 	AND NOT HAVE_SHM_SYSCALLS
