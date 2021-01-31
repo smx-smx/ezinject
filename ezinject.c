@@ -917,11 +917,6 @@ int main(int argc, char *argv[]){
 	err = ezinject_main(&ctx, argc - optind, &argv[optind]);
 
 	INFO("detaching...");
-	#ifdef EZ_TARGET_WINDOWS
-	// on windows, we need to dispatch the last debug event first
-	remote_continue(&ctx, 0);
-	#endif
-
 	if(remote_detach(&ctx) < 0){
 		PERROR("remote_detach failed");
 	}
@@ -933,12 +928,9 @@ int main(int argc, char *argv[]){
 	if(err != 0){
 		if(ctx.pl_debug){
 			INFO("You may now attach with gdb for payload debugging");
-			#ifdef USE_ANDROID_ASHMEM
 			INFO("Press Enter to quit");
 			getchar();
-			#endif
 		}
-		return err;
 	}
 
 	cleanup_mem(&ctx);

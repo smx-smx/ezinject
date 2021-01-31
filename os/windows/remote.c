@@ -43,6 +43,9 @@ EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 }
 
 EZAPI remote_detach(struct ezinj_ctx *ctx){
+	// we need to dispatch the last debug event first
+	remote_continue(ctx, 0);
+
 	if(DebugActiveProcessStop(ctx->target) == FALSE){
 		return -1;
 	}
