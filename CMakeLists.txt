@@ -454,40 +454,72 @@ if(EZ_TARGET_POSIX)
 	list(APPEND os_sources
 		os/posix/remote.c
 	)
+	if(EZ_TARGET_LINUX)
+		list(APPEND os_sources
+			os/linux/remote.c
+			os/linux/util.c
+		)
+
+		# Android with ashmem + mmap
+		if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
+			list(APPEND os_sources
+				os/android/inject.c
+			)
+		# SysV IPC with executable SHM
+		else()
+			list(APPEND os_sources
+				os/linux/inject.c
+			)
+		endif()
+
+		# bionic
+		if(EZ_TARGET_ANDROID)
+			list(APPEND os_sources
+				os/linux/libc_bionic.c
+			)
+		# glibc
+		elseif(HAVE_LIBC_DLOPEN_MODE)
+			list(APPEND os_sources
+				os/linux/libc_glibc.c
+			)
+		# uClibc
+		elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
+			list(APPEND os_sources
+				os/linux/libc_uclibc.c
+			)
+		endif()
+	elseif(EZ_TARGET_FREEBSD)
+		list(APPEND os_sources
+			os/freebsd/remote.c
+			os/freebsd/inject.c
+			os/freebsd/util.c
+			os/freebsd/libc_freebsd.c
+		)
+	elseif(EZ_TARGET_DARWIN)
+		list(APPEND os_sources
+			os/darwin/remote.c
+			os/darwin/inject.c
+			os/darwin/util.c
+			os/darwin/libc_darwin.c
+		)
+	endif()
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND os_sources
 		os/windows/remote.c
+		os/windows/inject.c
 		os/windows/util.c
+		os/windows/libc_windows.c
 	)
 endif()
 
+# TODO: cross platform
 if(EZ_TARGET_LINUX)
-	list(APPEND os_sources
-		os/linux/remote.c
-		os/linux/util.c
-	)
-elseif(EZ_TARGET_FREEBSD)
-	list(APPEND os_sources
-		os/freebsd/remote.c
-		os/freebsd/util.c
-	)
-elseif(EZ_TARGET_DARWIN)
-	list(APPEND os_sources
-		os/darwin/remote.c
-		os/darwin/util.c
-	)
-endif()
-
-# TODO: fix for Freebsd
-if(NOT EZ_TARGET_FREEBSD
-AND NOT EZ_TARGET_WINDOWS
-AND NOT EZ_TARGET_DARWIN)
 	add_executable(ezpatch
 		elfparse.c
 		ezpatch.c
 		elfparse.c
 		util.c
-		${os_sources}
+		os/linux/util.c
 	)
 endif()
 
@@ -503,46 +535,6 @@ if((EZ_TARGET_ANDROID AND NOT USE_ANDROID_ASHMEM) OR NOT HAVE_SYS_SHM_H
 AND NOT EZ_TARGET_WINDOWS
 AND NOT EZ_TARGET_DARWIN)
 	list(APPEND ezinject_sources ezinject_compat.c)
-endif()
-
-if(HAVE_LIBC_DLOPEN_MODE)
-	list(APPEND ezinject_sources ezinject_libc_glibc.c)
-elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
-	list(APPEND ezinject_sources ezinject_libc_uclibc.c)
-endif()
-
-if(EZ_TARGET_LINUX)
-	if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
-		list(APPEND ezinject_sources
-			ezinject_android.c
-		)
-	else()
-		list(APPEND ezinject_sources
-			ezinject_linux.c
-		)
-	endif()
-endif()
-
-if(EZ_TARGET_ANDROID)
-	list(APPEND ezinject_sources
-		elfparse.c
-		ezinject_libc_android.c
-	)
-elseif(EZ_TARGET_FREEBSD)
-	list(APPEND ezinject_sources
-		ezinject_freebsd.c
-		ezinject_libc_freebsd.c
-	)
-elseif(EZ_TARGET_DARWIN)
-	list(APPEND ezinject_sources
-		ezinject_darwin.c
-		ezinject_libc_darwin.c
-	)
-elseif(EZ_TARGET_WINDOWS)
-	list(APPEND ezinject_sources
-		ezinject_windows.c
-		ezinject_libc_windows.c
-	)
 endif()
 
 add_executable(ezinject ${ezinject_sources})
