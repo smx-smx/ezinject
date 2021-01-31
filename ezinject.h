@@ -162,6 +162,7 @@ EZAPI remote_attach(struct ezinj_ctx *ctx);
 EZAPI remote_detach(struct ezinj_ctx *ctx);
 EZAPI remote_suspend(struct ezinj_ctx *ctx);
 EZAPI remote_continue(struct ezinj_ctx *ctx, int signal);
+EZAPI remote_step(struct ezinj_ctx *ctx, int signal);
 EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs);
 EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs);
 EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal);

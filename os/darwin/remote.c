@@ -49,6 +49,10 @@ EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 	return ptrace(PT_CONTINUE, ctx->target, (caddr_t)1, signal);
 }
 
+EZAPI remote_step(struct ezinj_ctx *ctx, int signal){
+	return ptrace(PT_STEP, ctx->target, (caddr_t)1, signal);
+}
+
 EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
 	mach_msg_type_number_t count = MACHINE_THREAD_STATE_COUNT;
 	kern_return_t kr = thread_get_state(

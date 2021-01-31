@@ -40,7 +40,6 @@
 void PLAPI injected_sc(){
 	EMIT_LABEL("injected_sc_start");
 	EMIT_SC();
-	EMIT_BP();
 	EMIT_LABEL("injected_sc_end");
 }
 

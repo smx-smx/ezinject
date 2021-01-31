@@ -42,6 +42,10 @@ EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 	return 0;
 }
 
+EZAPI remote_step(struct ezinj_ctx *ctx, int signal){
+	return -1;
+}
+
 EZAPI remote_detach(struct ezinj_ctx *ctx){
 	// we need to dispatch the last debug event first
 	remote_continue(ctx, 0);

@@ -14,6 +14,10 @@ EZAPI remote_detach(struct ezinj_ctx *ctx){
 	return ptrace(PTRACE_DETACH, ctx->target, 0, 0);
 }
 
+EZAPI remote_step(struct ezinj_ctx *ctx, int signal){
+	return ptrace(PTRACE_SINGLESTEP, ctx->target, 0, signal);
+}
+
 EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 	return ptrace(PTRACE_CONT, ctx->target, 0, signal);
 }

@@ -15,7 +15,6 @@
 #define REG(u, r) (u).r
 
 #define EMIT_SC() asm volatile("svc #0\n")
-#define EMIT_BP() asm volatile("bkpt #0\n")
 #define EMIT_LDP(var1, var2) asm volatile("ldp %0, %1, [sp], #16" : "=r"(var1), "=r"(var2))
 
 #define POP_PARAMS(out_br, out_func) \

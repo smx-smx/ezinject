@@ -169,11 +169,11 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 	for(int i=0; i<call.num_wait_calls; i++){
 		int rc;
 		do {
-			if(remote_continue(ctx, 0) < 0){
+			if(remote_step(ctx, 0) < 0){
 				PERROR("ptrace");
 				return -1;
 			}
-			if(remote_wait(ctx, SIGTRAP) < 0){
+			if(remote_wait(ctx, 0) < 0){
 				ERR("remote_wait failed");
 				return -1;
 			}

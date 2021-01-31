@@ -19,7 +19,6 @@
 #define REG_ARG6 r9
 
 #define EMIT_SC() asm volatile("syscall\n")
-#define EMIT_BP() asm volatile("int $3\n")
 #define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))
 
 #define POP_PARAMS(out_br, out_func) \
