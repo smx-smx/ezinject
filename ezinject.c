@@ -173,13 +173,11 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 				PERROR("ptrace");
 				return -1;
 			}
-			status = remote_wait(ctx);
-		#ifdef EZ_TARGET_POSIX
-			if((rc=WSTOPSIG(status)) != SIGTRAP){
-				ERR("remote_wait: %s", strsignal(rc));
+			if(remote_wait(ctx, SIGTRAP) < 0){
+				ERR("remote_wait failed");
 				return -1;
 			}
-		#endif
+
 			// get syscall return value
 			if(remote_getregs(ctx, &new_ctx) < 0){ /* Get return value */
 				PERROR("ptrace");
@@ -212,7 +210,11 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 		#endif
 
 			// wait for the children to stop
-			status = remote_wait(ctx);
+			status = remote_wait(ctx, 0);
+			if(status < 0){
+				ERR("remote_wait failed");
+				return -1;
+			}
 
 		#ifdef EZ_TARGET_POSIX
 			stopsig = WSTOPSIG(status);
@@ -227,11 +229,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 			if(ctx->pl_debug){
 				return -1;
 			}
-	#ifdef EZ_TARGET_POSIX
 		} while(IS_IGNORED_SIG(stopsig));
-	#else
-		} while(0);
-	#endif
 
 		if(remote_getregs(ctx, &new_ctx) < 0){
 			PERROR("ptrace");
@@ -887,7 +885,7 @@ int main(int argc, char *argv[]){
 	{
 		int status = 0;
 		for(;;){
-			waitpid(ctx.target, &status, 0);
+			status = remote_wait(&ctx, 0);
 			if(WIFSTOPPED(status)){
 				int stopsig = WSTOPSIG(status);
 				if(!IS_IGNORED_SIG(stopsig)){
@@ -899,7 +897,7 @@ int main(int argc, char *argv[]){
 		}
 	}
 #elif defined(EZ_TARGET_WINDOWS)
-	if(remote_wait(&ctx) < 0){
+	if(remote_wait(&ctx, 0) < 0){
 		PERROR("remote_wait");
 		return 1;
 	}

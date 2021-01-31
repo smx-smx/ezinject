@@ -26,25 +26,6 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 	return ptrace(PT_SETREGS, ctx->target, (caddr_t)regs, 0);
 }
 
-EZAPI remote_wait(struct ezinj_ctx *ctx){
-	int rc;
-	int status;
-	do {
-		rc = waitpid(ctx->target, &status, 0);
-		if(rc < 0){
-			PERROR("waitpid");
-			return rc;
-		}
-	} while(rc != ctx->target);
-
-	if(!WIFSTOPPED(status)){
-		ERR("remote did not stop");
-		return -1;
-	}
-
-	return status;
-}
-
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
 	

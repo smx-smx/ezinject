@@ -22,6 +22,8 @@
 
 #if defined(EZ_TARGET_DARWIN)
 #define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2)
+#elif defined(EZ_TARGET_WINDOWS)
+#define IS_IGNORED_SIG(x) 0
 #else
 #define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
 #endif

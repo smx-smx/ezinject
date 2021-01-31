@@ -79,7 +79,9 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 
 #define USE_EXTERNAL_DEBUGGER
 
-EZAPI remote_wait(struct ezinj_ctx *ctx){
+EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
+	UNUSED(expected_signal);
+
 	DEBUG_EVENT *ev = &ctx->ev;
 	/**
 	 * on resume, the thread exits the debug status
