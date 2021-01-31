@@ -12,8 +12,11 @@
 
 LOG_SETUP(V_DBG);
 
+// $TODO
+#ifndef EZ_TARGET_WINDOWS
 #define USE_SLJIT
 #define USE_LH
+#endif
 
 #ifdef USE_SLJIT
 /**
