@@ -11,6 +11,7 @@ Modular binary injection framework
   
 - Windows: x64
 - FreeBSD: x86, amd64
+- Darwin: x64
 
 ## Supported C Libraries:
 - Linux
@@ -20,6 +21,7 @@ Modular binary injection framework
 - FreeBSD (tested on FreeBSD 12)
 - Windows
   - NT 6 (tested on Windows 10)
+- Darwin (tested on macOS 11)
 
 ## How does it work
 
