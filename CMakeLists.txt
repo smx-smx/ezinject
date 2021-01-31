@@ -409,8 +409,13 @@ function(add_ezinject_library target)
 		${CMAKE_SOURCE_DIR}/util.c
 	)
 
-	if(EZ_TARGET_WINDOWS)
+	if(EZ_TARGET_POSIX)
 		list(APPEND sources
+			${CMAKE_SOURCE_DIR}/crt/crt_posix.c
+		)
+	elseif(EZ_TARGET_WINDOWS)
+		list(APPEND sources
+			${CMAKE_SOURCE_DIR}/crt/crt_windows.c
 			${CMAKE_SOURCE_DIR}/os/windows/util.c
 		)
 	endif()

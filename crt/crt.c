@@ -58,9 +58,11 @@
 #include "crt_uclibc.c"
 #endif
 
+#include "crt.h"
+
 extern int crt_userinit(struct injcode_bearing *br);
 
-void* real_entry(void *arg);
+void* crt_user_entry(void *arg);
 
 __attribute__((constructor)) void ctor(void)
 {
@@ -74,12 +76,12 @@ int crt_init(struct injcode_bearing *br){
 
 	// copy local br (excluding code and stack)
 	size_t br_size = SIZEOF_BR(*br);
-	void *localBr = malloc(br_size);
-	if(!localBr){
+	struct injcode_bearing *local_br = malloc(br_size);
+	if(!local_br){
 		PERROR("malloc");
 		return -2;
 	}
-	memcpy(localBr, br, br_size);
+	memcpy(local_br, br, br_size);
 
 	// workaround for old uClibc (see http://lists.busybox.net/pipermail/uclibc/2009-October/043122.html)
 	// https://github.com/kraj/uClibc/commit/cfa1d49e87eae4d46e0f0d568627b210383534f3
@@ -87,39 +89,16 @@ int crt_init(struct injcode_bearing *br){
 	uclibc_fixup_pthread();
 	#endif
 
-
-#if defined(EZ_TARGET_POSIX)
-	DBG("pthread_create");
-	if(pthread_create(&br->user_tid, NULL, real_entry, localBr) < 0){
-		PERROR("pthread_create");
-		return -3;
+	DBG("crt_thread_create");
+	if(crt_thread_create(local_br, crt_user_entry) < 0){
+		ERR("crt_thread_create failed");
+		return -1;
 	}
-
-	DBG("sending pthread signal");
-	pthread_mutex_lock(&br->mutex);
-	{
-		br->loaded_signal = 1;
-		pthread_cond_signal(&br->cond);
+	DBG("crt_thread_notify");
+	if(crt_thread_notify(local_br) < 0){
+		ERR("crt_thread_notify failed");
+		return -1;
 	}
-	pthread_mutex_unlock(&br->mutex);
-#elif defined(EZ_TARGET_WINDOWS)
-	br->hThread = CreateThread(
-		NULL,
-		0,
-		real_entry,
-		localBr,
-		0,
-		&br->user_tid
-	);
-	if(br->hThread == INVALID_HANDLE_VALUE){
-		PERROR("CreateThread");
-		return -3;
-	}
-	if(SetEvent(br->hEvent) == FALSE){
-		PERROR("SetEvent");
-		return -4;
-	}
-#endif
 	return 0;
 }
 
@@ -127,7 +106,7 @@ int crt_init(struct injcode_bearing *br){
 /**
  * User code: runs on mmap'd stack
  **/
-void *real_entry(void *arg) {
+void *crt_user_entry(void *arg) {
 	struct injcode_bearing *br = arg;
 
 	// prepare argv
