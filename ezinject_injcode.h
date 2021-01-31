@@ -43,6 +43,7 @@
 #define EMIT_LABEL(name) \
 	asm volatile( \
 		".globl "LABEL_PREFIX name"\n" \
+		".align 4\n" \
 		LABEL_PREFIX name":\n" \
 	)
 
