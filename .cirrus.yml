@@ -20,7 +20,10 @@ linux_android_armel_task:
   env:
     PATH: /usr/local/bin:/opt/android-ndk-r14b-android-9/bin:${PATH}
 
-  install_script:
+  submodules_script:
+    - git submodule update --init --recursive
+
+  android_ndk_script:
     - wget -O cmake.sh https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh
     - sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
     - apt-get update -qq
@@ -31,9 +34,14 @@ linux_android_armel_task:
         --arch arm
         --api 9
         --install-dir /opt/android-ndk-r14b-android-9
-
-  submodules_script:
-    - git submodule update --init --recursive
+  
+  build_capstone_script:
+    - (
+        mkdir staging;
+        cd staging;
+        git clone -b 4.0.2 https://github.com/aquynh/capstone.git;
+      )
+    - ./targets/android_build_capstone.sh /opt/android-ndk-r14b-android-9 ./staging/capstone
 
   script:
     - ./build.sh ./targets/arm-android.cmake
@@ -44,6 +52,7 @@ linux_android_armel_task:
         -DCMAKE_SYSTEM_VERSION=9
         -DUSE_ANDROID_ASHMEM=ON
         -DUSE_ARM_THUMB=ON
+        -DCAPSTONE_PREFIX=$(readlink -f ./staging/capstone/out/usr)
 
 linux_android_aarch64_task:
   container:
@@ -52,7 +61,10 @@ linux_android_aarch64_task:
   env:
     PATH: /usr/local/bin:/opt/android-ndk-r14b-android-21-arm64/bin:${PATH}
 
-  install_script:
+  submodules_script:
+    - git submodule update --init --recursive
+
+  android_ndk_script:
     - wget -O cmake.sh https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh
     - sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
     - apt-get update -qq
@@ -63,9 +75,6 @@ linux_android_aarch64_task:
         --arch arm64
         --api 21
         --install-dir /opt/android-ndk-r14b-android-21-arm64
-
-  submodules_script:
-    - git submodule update --init --recursive
 
   script:
     - ./build.sh ./targets/arm64-android.cmake
