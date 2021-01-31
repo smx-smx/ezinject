@@ -4,10 +4,10 @@
 
 #include "config.h"
 #include "log.h"
-#include "util.h"
 #include "interface/if_hook.h"
 #include "interface/cpu/if_sljit.h"
 
+#include "ezinject_util.h"
 #include "ezinject_injcode.h"
 
 LOG_SETUP(V_DBG);
