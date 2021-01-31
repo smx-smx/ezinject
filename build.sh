@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
+if [[ "$OSTYPE" == "freebsd"* ]]; then
+	alias nproc='sysctl -n hw.ncpu'
+fi
+
 cd "$(dirname "$0")"
 if [ "$1" == "clean" ]; then
 	echo "Removing build directory..."
