@@ -36,7 +36,7 @@
 #include <asm-generic/ipc.h>
 #endif
 
-#include "util.h"
+#include "ezinject_util.h"
 #include "ezinject.h"
 #include "ezinject_compat.h"
 #include "ezinject_common.h"

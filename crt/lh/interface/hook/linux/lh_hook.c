@@ -9,7 +9,7 @@
 
 #include "config.h"
 #include "log.h"
-#include "util.h"
+#include "ezinject_util.h"
 
 #include "interface/if_cpu.h"
 #include "interface/if_hook.h"

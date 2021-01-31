@@ -10,7 +10,7 @@
 #include <link.h>
 
 #include "config.h"
-#include "util.h"
+#include "ezinject_util.h"
 
 #if defined(EZ_TARGET_LINUX)
 #define ElfAddr ElfW(Addr)

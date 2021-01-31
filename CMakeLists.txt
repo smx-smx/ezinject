@@ -406,7 +406,7 @@ function(add_ezinject_library target)
 	list(APPEND sources
 		${CMAKE_SOURCE_DIR}/crt/crt.c
 		${CMAKE_SOURCE_DIR}/crt/crt_user.c
-		${CMAKE_SOURCE_DIR}/util.c
+		${CMAKE_SOURCE_DIR}/ezinject_util.c
 	)
 
 	if(EZ_TARGET_POSIX)
@@ -418,10 +418,6 @@ function(add_ezinject_library target)
 			${CMAKE_SOURCE_DIR}/crt/crt_windows.c
 			${CMAKE_SOURCE_DIR}/os/windows/util.c
 		)
-	endif()
-
-	if(DEBUG)
-		list(APPEND sources ${CMAKE_SOURCE_DIR}/util.c)
 	endif()
 
 	set(moduledefs "MODULE_NAME=\"${target}\"")
@@ -524,7 +520,7 @@ if(EZ_TARGET_LINUX)
 		elfparse.c
 		ezpatch.c
 		elfparse.c
-		util.c
+		ezinject_util.c
 		os/linux/util.c
 	)
 endif()
@@ -532,7 +528,7 @@ endif()
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
-	util.c
+	ezinject_util.c
 	${os_sources}
 )
 

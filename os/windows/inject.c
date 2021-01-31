@@ -14,3 +14,6 @@ EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 	UNUSED(remote_shmaddr);
 	return 0;
 }
+
+EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){ return 0; }
+EZAPI remote_sc_free(struct ezinj_ctx *ctx){ return 0; }

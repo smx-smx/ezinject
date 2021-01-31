@@ -45,7 +45,7 @@
 #include "log.h"
 
 #ifdef DEBUG
-#include "util.h"
+#include "ezinject_util.h"
 #endif
 
 #ifndef MODULE_NAME

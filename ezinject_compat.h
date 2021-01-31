@@ -38,6 +38,11 @@
 
 #include "config.h"
 
+#ifdef EZ_TARGET_WINDOWS
+#define SIGSTOP 0
+#define SIGTRAP 0
+#endif
+
 #ifndef EZ_TARGET_WINDOWS
 #include <sys/ipc.h>
 

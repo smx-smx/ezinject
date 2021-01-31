@@ -5,7 +5,7 @@
 #include <sys/mman.h>
 
 #include "log.h"
-#include "util.h"
+#include "ezinject_util.h"
 
 #include "interface/if_hook.h"
 #include "interface/if_cpu.h"

@@ -3,7 +3,7 @@
 #include "config.h"
 #include "ezinject.h"
 #include "log.h"
-#include "util.h"
+#include "ezinject_util.h"
 
 extern ez_region region_sc_insn;
 

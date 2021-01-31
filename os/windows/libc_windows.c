@@ -2,7 +2,7 @@
 #include <windows.h>
 
 #include "ezinject.h"
-#include "util.h"
+#include "ezinject_util.h"
 #include "log.h"
 
 int resolve_libc_symbols(struct ezinj_ctx *ctx){
