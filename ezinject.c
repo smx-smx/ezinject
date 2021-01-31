@@ -20,10 +20,6 @@
 #include <sys/shm.h>
 #endif
 
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
-#include <link.h>
-#endif
-
 #ifdef EZ_TARGET_POSIX
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -791,25 +787,19 @@ int ezinject_main(
 
 		// trampoline entry
 		uintptr_t remote_trampoline_entry = PL_REMOTE_CODE(&trampoline_entry);
+		DBGPTR(remote_trampoline_entry);
 
 		// stack base
 		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
-
-		// reserve space for 2 arguments at the top of the initial stack
-		uintptr_t *stack_argv = (uintptr_t *)(
-			((uintptr_t)target_sp - (sizeof(uintptr_t) * 2))
-		);
-
 		DBGPTR(target_sp);
 
-		// push clone arguments
-		stack_argv[0] = PL_REMOTE(pl->br_start);
-		stack_argv[1] = PL_REMOTE_CODE(&injected_fn);
+		// push payload arguments
+		uintptr_t *stack_argv = target_sp;
+		*(--stack_argv) = PL_REMOTE_CODE(&injected_fn);
+		*(--stack_argv) = PL_REMOTE(pl->br_start);
 
 		DBGPTR(stack_argv[0]);
 		DBGPTR(stack_argv[1]);
-
-		DBGPTR(remote_trampoline_entry);
 
 		#ifdef __GNUC__
 		{
