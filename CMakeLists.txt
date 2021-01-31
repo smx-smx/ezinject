@@ -2,9 +2,6 @@ cmake_minimum_required(VERSION 3.13)
 project(ezpatch C ASM)
 enable_language(CXX OPTIONAL)
 
-include(CheckPIESupported)
-check_pie_supported()
-
 add_definitions(-fPIC)
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
