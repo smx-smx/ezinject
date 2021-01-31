@@ -83,6 +83,11 @@ int crt_init(struct injcode_bearing *br){
 	}
 	memcpy(local_br, br, br_size);
 
+	struct crt_ctx ctx = {
+		.shared_br = br,
+		.local_br = local_br
+	};
+
 	// workaround for old uClibc (see http://lists.busybox.net/pipermail/uclibc/2009-October/043122.html)
 	// https://github.com/kraj/uClibc/commit/cfa1d49e87eae4d46e0f0d568627b210383534f3
 	#ifdef UCLIBC_OLD
@@ -90,12 +95,14 @@ int crt_init(struct injcode_bearing *br){
 	#endif
 
 	DBG("crt_thread_create");
-	if(crt_thread_create(local_br, crt_user_entry) < 0){
+	// user thread must run against the local copy of br
+	if(crt_thread_create(&ctx, crt_user_entry) < 0){
 		ERR("crt_thread_create failed");
 		return -1;
 	}
 	DBG("crt_thread_notify");
-	if(crt_thread_notify(local_br) < 0){
+	// notification must be done over the (possibly shared) br
+	if(crt_thread_notify(&ctx) < 0){
 		ERR("crt_thread_notify failed");
 		return -1;
 	}

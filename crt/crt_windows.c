@@ -2,16 +2,19 @@
 #include "ezinject.h"
 #include "crt.h"
 
-EZAPI crt_thread_create(struct injcode_bearing *br, crt_thread_func_t pfnThreadEntry){
-	br->hThread = CreateThread(
+EZAPI crt_thread_create(struct crt_ctx *ctx, crt_thread_func_t pfnThreadEntry){
+	HANDLE hThread = CreateThread(
 		NULL,
 		0,
 		pfnThreadEntry,
-		br,
+		ctx->local_br,
 		0,
 		&br->user_tid
 	);
-	if(br->hThread == INVALID_HANDLE_VALUE){
+	ctx->shared_br->hThread = hThread;
+	ctx->local_br->hThread = hThread;
+
+	if(hThread == INVALID_HANDLE_VALUE){
 		PERROR("CreateThread");
 		return -1;
 	}
@@ -19,7 +22,7 @@ EZAPI crt_thread_create(struct injcode_bearing *br, crt_thread_func_t pfnThreadE
 }
 
 EZAPI crt_thread_notify(struct injcode_bearing *br){
-	if(SetEvent(br->hEvent) == FALSE){
+	if(SetEvent(ctx->shared_br->hEvent) == FALSE){
 		PERROR("SetEvent");
 		return -1;
 	}
