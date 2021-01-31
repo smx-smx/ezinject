@@ -19,6 +19,10 @@ EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 	return ptrace(PT_CONTINUE, ctx->target, (caddr_t)1, signal);
 }
 
+EZAPI remote_step(struct ezinj_ctx *ctx, int signal){
+	return ptrace(PT_STEP, ctx->target, (caddr_t)1, signal);
+}
+
 EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
 	return ptrace(PT_GETREGS, ctx->target, (caddr_t)regs, 0);
 }
