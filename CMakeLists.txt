@@ -478,7 +478,8 @@ if(EZ_TARGET_POSIX)
 		# bionic
 		if(EZ_TARGET_ANDROID)
 			list(APPEND os_sources
-				os/linux/libc_bionic.c
+				os/android/libc_bionic.c
+				elfparse.c
 			)
 		# glibc
 		elseif(HAVE_LIBC_DLOPEN_MODE)
