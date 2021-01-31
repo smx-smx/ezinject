@@ -140,3 +140,7 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 	}
 	return size;
 }
+
+EZAPI remote_sc_check(struct ezinj_ctx *ctx){
+	return 0;
+}

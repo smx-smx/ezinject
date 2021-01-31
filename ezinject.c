@@ -707,18 +707,9 @@ int ezinject_main(
 	ctx->num_wait_calls = 1;
 
 	/* Verify that remote_call works correctly */
-	#if defined(EZ_TARGET_LINUX)
-	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
-	#elif defined(EZ_TARGET_FREEBSD)
-	pid_t remote_pid = (pid_t)RSCALL0(ctx, SYS_getpid);
-	#elif defined(EZ_TARGET_WINDOWS) || defined(EZ_TARGET_DARWIN)
-	pid_t remote_pid = ctx->target;
-	#endif
-	if(remote_pid != ctx->target)
-	{
-		ERR("Remote syscall returned incorrect result!");
-		ERR("Expected: %u, actual: %u", ctx->target, remote_pid);
-		return 1;
+	if(remote_sc_check(ctx) != 0){
+		ERR("remote_sc_check failed");
+		return -1;
 	}
 
 	int err = 1;

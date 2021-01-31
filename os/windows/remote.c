@@ -154,3 +154,7 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 	}
 	return 0;
 }
+
+EZAPI remote_sc_check(struct ezinj_ctx *ctx){
+	return 0;
+}

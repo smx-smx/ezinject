@@ -59,3 +59,13 @@ EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 	#endif
 	return result;
 }
+
+EZAPI remote_sc_check(struct ezinj_ctx *ctx){
+	pid_t remote_pid = (pid_t)RSCALL0(ctx, __NR_getpid);
+	if(remote_pid != ctx->target){
+		ERR("Remote syscall returned incorrect result!");
+		ERR("Expected: %u, actual: %u", ctx->target, remote_pid);
+		return -1;
+	}
+	return 0;
+}
