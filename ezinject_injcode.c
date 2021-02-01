@@ -46,8 +46,22 @@ void PLAPI injected_sc(){
 //#define PL_EARLYDEBUG
 
 void PLAPI trampoline(){
+	/**
+	 * if the process was blocked in a system call
+	 * the program counter will be subtracted by sizeof(instruction)
+	 * upon detach
+	 * https://stackoverflow.com/a/38009680/11782802
+	 *
+	 * this is a problem with variable length encoding CPUs
+	 * so we must emit NOPs that are as big as the syscall instruction
+	 **/
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+
 	EMIT_LABEL("trampoline_entry");
-	
+
 	#ifdef PL_EARLYDEBUG
 	EMIT_LABEL("inj_halt");
 	asm volatile(JMP_INSN" inj_halt");
