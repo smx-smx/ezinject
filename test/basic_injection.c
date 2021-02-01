@@ -92,7 +92,7 @@ int run_on_pid(void *state, void *arg){
 	char *line = (char *)arg;
 
 	pid_t pid = 0;
-	if(sscanf(line, "pid=%"PRIdMAX, &pid) != 1){
+	if(sscanf(line, "pid=%u", &pid) != 1){
 		return -1;
 	}
 	ctx->pid = pid;
@@ -103,7 +103,7 @@ int run_on_return1(void *state, void *arg){
 	UNUSED(arg);
 
 	struct test_state *ctx = (struct test_state *)state;
-	char *cmd = asprintf_ex("%s %"PRIdMAX" %s 1 2 3 4 5 6", ctx->ezinject, ctx->pid, ctx->library);
+	char *cmd = asprintf_ex("%s %u"" %s 1 2 3 4 5 6", ctx->ezinject, ctx->pid, ctx->library);
 	int rc = system(cmd);
 	free(cmd);
 	return rc;
@@ -129,7 +129,7 @@ int run(struct test_state *ctx){
 		if(expect(hTarget, "pid=", -1, &on_pid) != 0){
 			break;
 		}
-		printf("[+] pid: %"PRIdMAX"\n", ctx->pid);
+		printf("[+] pid: %u""\n", ctx->pid);
 		if(expect(hTarget, "return1() = 1", 8, &on_return1) != 0){
 			break;
 		}
