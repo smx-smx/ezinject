@@ -19,6 +19,7 @@
 #include <mono/utils/mono-error.h>
 
 #include "log.h"
+#include "ezinject_compat.h"
 #include "ezinject_injcode.h"
 #include "util.h"
 
