@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 project(ezpatch C ASM)
 enable_language(CXX OPTIONAL)
+enable_testing()
 
 add_definitions(-fPIC)
 
@@ -579,3 +580,4 @@ endif()
 
 add_subdirectory(crt)
 add_subdirectory(samples)
+add_subdirectory(test)

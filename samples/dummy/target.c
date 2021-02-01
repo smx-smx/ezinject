@@ -55,6 +55,9 @@ void print_maps(){
 
 int main(int argc, char *argv[])
 {
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+
 	UNUSED(argv);
 
 	#ifdef EZ_TARGET_POSIX

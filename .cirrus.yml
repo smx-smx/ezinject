@@ -12,6 +12,8 @@ linux_x64_task:
     - apt-get install -y libcapstone-dev
   script:
     - ./build.sh
+  test_script:
+    - (cd build; ctest -V)
 
 linux_android_armel_task:
   container:
@@ -94,6 +96,8 @@ freebsd_x64_task:
     - pkg install -y bash cmake capstone pkgconf
   script:
     - ./build.sh
+  test_script:
+    - (cd build; ctest -V)
 
 darwin_x64_task:
   macos_instance:
@@ -102,6 +106,8 @@ darwin_x64_task:
   install_script: brew install pkg-config cmake capstone
   script:
     - ./build.sh
+  test_script:
+    - (cd build; ctest -V)
 
 windows_x64_task:
   timeout_in: 90m
@@ -181,3 +187,5 @@ windows_x64_task:
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake .. -G 'MSYS Makefiles'"
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake --build ."
     - exit $LastExitCode
+  test_script:
+    - (cd build; ctest -V)
