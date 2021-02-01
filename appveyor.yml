@@ -22,7 +22,7 @@ for:
       only:
         - image: macos
     install:
-      - brew install pkg-config cmake capstone
+      - brew install capstone
     build_script:
       ./build.sh
     test_script:
