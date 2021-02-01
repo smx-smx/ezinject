@@ -20,6 +20,11 @@
 #define RTLD_NOLOAD 0
 #endif
 
+#ifndef RTLD_DEEPBIND
+// dummy
+#define RTLD_DEEPBIND 0
+#endif
+
 #if defined(EZ_TARGET_DARWIN)
 #define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2)
 #elif defined(EZ_TARGET_WINDOWS)
