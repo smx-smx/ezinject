@@ -63,7 +63,7 @@ int expect(FILE *fh, char *str, int maxLines, delegate *cb){
 	int rc = -1;
 
 	int i;
-	for(i=0;i<maxLines;i++){
+	for(i=0;i<maxLines || maxLines < 0;i++){
 		if(fgets(line, sizeof(line), fh) == NULL){
 			return -1;
 		}
@@ -126,7 +126,7 @@ int run(struct test_state *ctx){
 
 	int rc = -1;
 	do {
-		if(expect(hTarget, "pid=", 1, &on_pid) != 0){
+		if(expect(hTarget, "pid=", -1, &on_pid) != 0){
 			break;
 		}
 		printf("[+] pid: %"PRIdMAX"\n", ctx->pid);
@@ -141,16 +141,17 @@ int run(struct test_state *ctx){
 		rc = 0;
 	} while(0);
 
-
-#if defined(EZ_TARGET_POSIX)
-	kill(ctx->pid, SIGKILL);
-#elif defined(EZ_TARGET_WINDOWS)
-	HANDLE hProc = OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, ctx->pid);
-	TerminateProcess(hProc, 0);
-	CloseHandle(hProc);
-#else
-#error "Unsupported platform"
-#endif
+	if(ctx->pid > 0){
+	#if defined(EZ_TARGET_POSIX)
+		kill(ctx->pid, SIGKILL);
+	#elif defined(EZ_TARGET_WINDOWS)
+		HANDLE hProc = OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, ctx->pid);
+		TerminateProcess(hProc, 0);
+		CloseHandle(hProc);
+	#else
+	#error "Unsupported platform"
+	#endif
+	}
 
 	pclose(hTarget);
 	return rc;
