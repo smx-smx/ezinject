@@ -16,7 +16,7 @@ for:
     build_script:
       ./build.sh
     test_script:
-      (cd build; ctest -V)
+      (cd build; sudo ctest -V)
   -
     matrix:
       only:
