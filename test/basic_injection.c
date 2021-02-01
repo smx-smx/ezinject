@@ -174,11 +174,5 @@ int main(int argc, char *argv[]){
 	ctx.target = target;
 	ctx.ezinject = ezinject;
 	ctx.library = library;
-
-	int rc = run(&ctx);
-
-	free(ctx.target);
-	free(ctx.ezinject);
-	free(ctx.library);
-	return rc;
+	return run(&ctx);
 }
