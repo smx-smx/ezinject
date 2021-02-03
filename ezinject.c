@@ -52,11 +52,6 @@ ez_region region_pl_code = {
 	.end = (void *)&__stop_payload
 };
 
-ez_region region_sc_insn = {
-	.start = (void *)&injected_sc_start,
-	.end = (void *)&injected_sc_end
-};
-
 int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size);
 int resolve_libc_symbols(struct ezinj_ctx *ctx);
 
@@ -68,108 +63,108 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx);
  * @param[out] new_ctx   the new process context
  * @param[in]  call      call arguments and options
  **/
-void setregs_syscall(
+intptr_t setregs_syscall(
+	struct ezinj_ctx *ctx,
 	regs_t *orig_ctx,
 	regs_t *new_ctx,
-	struct call_req call
+	struct call_req *call
 ){
-	REG(*new_ctx, REG_PC) = call.insn_addr;
+	REG(*new_ctx, REG_PC) = call->insn_addr;
 
-#if defined(EZ_TARGET_POSIX)
-	struct sc_req sc = call.syscall;
-	if(SC_HAS_ARG(sc, 0)){
-		REG(*new_ctx, REG_NR)   = sc.argv[0];
-	#if defined(EZ_TARGET_FREEBSD) && defined(EZ_ARCH_I386)
-		uintptr_t stack[8];
-		int num_words = 0;
-		for(int i=1; i<=6; i++){
-			if(SC_HAS_ARG(sc, i)){
-				// push argument
-				stack[i] = sc.argv[i];
-				DBG("push %d, %p", i, (void *)sc.argv[i]);
-				num_words++;
-			}
-		}
-		// if we have pushed any argument, account for the stack frame offsets
-		if(num_words > 0){
-			// dummy saved EIP
-			stack[0] = 0; num_words++;
+	struct sc_req sc = call->syscall;
 
-			// not sure why this is needed but it doesn't work without.
-			// padding?
-			stack[num_words++] = 0;
-
-			sc.frame_size = (sizeof(uintptr_t) * num_words);
-			sc.frame_bottom = REG(*orig_ctx, REG_SP) - sc.frame_size;
-			REG(*new_ctx, REG_SP) = sc.frame_bottom;
-
-			// FIXME: global variable
-			// save stack for extra safety (we don't know what the process was doing when we interrupted it)
-			remote_read(&ctx, &sc.saved_stack, sc.frame_bottom, sizeof(sc.saved_stack));
-			size_t written = remote_write(&ctx, sc.frame_bottom, &stack, sc.frame_size);
-			DBG("written stack frame, %zu bytes", written);
-		}
-	#else
-		REG(*new_ctx, REG_ARG1) = sc.argv[1];
-		REG(*new_ctx, REG_ARG2) = sc.argv[2];
-		REG(*new_ctx, REG_ARG3) = sc.argv[3];
-		REG(*new_ctx, REG_ARG4) = sc.argv[4];
-		#ifdef REG_ARG5
-		REG(*new_ctx, REG_ARG5) = sc.argv[5];
-		#endif
-		#ifdef REG_ARG6
-		REG(*new_ctx, REG_ARG6) = sc.argv[6];
-		#endif
-	#endif
-		DBG("remote_call(%u)", (unsigned int)sc.argv[0]);
-	}
+	struct injcode_sc rcall;
 	
+	uintptr_t target_sp = 0;
+	if(call->stack_addr != 0){
+		target_sp = call->stack_addr;
+	} else {
+		target_sp = REG(*orig_ctx, REG_SP);
+	}
+	uintptr_t r_sc_args = target_sp - sizeof(rcall);
+
+	rcall.argc = 0;
+	rcall.result = 0;
+	memcpy(&rcall.argv[0], &sc.argv[0], sizeof(sc.argv));
+	rcall.libc_syscall = ctx->libc_syscall.remote;
+	rcall.trampoline.fn_addr = ctx->syscall_insn.remote;
+	rcall.trampoline.fn_arg = r_sc_args;
+
+	for(int i=0; i<SC_MAX_ARGS; i++){
+		if(SC_HAS_ARG(sc, i)){
+			rcall.argc++;
+		}
+	}
+
+	size_t backupSize = ROUND_UP(sizeof(rcall), sizeof(uintptr_t));
+	
+	uint8_t *saved_stack = calloc(backupSize, 1);
+	if(remote_read(ctx, saved_stack, r_sc_args, backupSize) != backupSize){
+		ERR("failed to backup stack");
+		free(saved_stack);
+		return -1;
+	}
+
+	if(remote_write(
+		ctx,
+		r_sc_args,
+		&rcall, sizeof(rcall)
+	) != sizeof(rcall)){
+		ERR("failed to write remote call");
+		free(saved_stack);
+		return -1;
+	}
+
+	call->backup_addr = r_sc_args;
+	call->backup_data = saved_stack;
+	call->backup_size = backupSize;
+
+	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
+	DBGPTR(REG(*new_ctx, REG_SP));
+
 	#ifdef USE_ARM_THUMB
 	REG(*new_ctx, ARM_cpsr) = REG(*new_ctx, ARM_cpsr) | PSR_T_BIT;
 	#endif
 
-#endif /* EZ_TARGET_POSIX */
-
-	if(call.stack_addr != 0){
-		DBGPTR(call.stack_addr);
-		REG(*new_ctx, REG_SP) = call.stack_addr;
-	}
-
-#if defined(EZ_TARGET_LINUX) && defined(EZ_ARCH_I386)
-	//ebp must point to valid stack
-	REG(*new_ctx, REG_ARG6) = REG(*orig_ctx, REG_SP);
-#else
-	UNUSED(orig_ctx);
-#endif
-
+	return 0;
 }
 
 
-void remote_call_setup(struct ezinj_ctx *ctx, struct call_req call, regs_t *orig_ctx, regs_t *new_ctx){
+intptr_t remote_call_setup(struct ezinj_ctx *ctx, struct call_req *call, regs_t *orig_ctx, regs_t *new_ctx){
 	memset(orig_ctx, 0x00, sizeof(*orig_ctx));
 
 	if(remote_getregs(ctx, orig_ctx) < 0){
 		PERROR("remote_getregs failed");
+		return -1;
 	}
 	memcpy(new_ctx, orig_ctx, sizeof(*orig_ctx));
 
-	setregs_syscall(orig_ctx, new_ctx, call);
+	if(setregs_syscall(ctx, orig_ctx, new_ctx, call) < 0){
+		ERR("setregs_syscall failed");
+		return -1;
+	}
 	if(remote_setregs(ctx, new_ctx) < 0){
 		PERROR("remote_setregs failed");
+		return -1;
 	}
+
+	return 0;
 }
 
-uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
+uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	regs_t orig_ctx, new_ctx;
-	remote_call_setup(ctx, call, &orig_ctx, &new_ctx);
+	if(remote_call_setup(ctx, call, &orig_ctx, &new_ctx) < 0){
+		ERR("remote_call_setup failed");
+		return -1;
+	}
 
-	uintptr_t sc_ret;
+	uintptr_t sc_ret = 0;
 
 	int status;
-	for(int i=0; i<call.num_wait_calls; i++){
+	for(int i=0; i<call->num_wait_calls; i++){
 		int rc;
 		do {
-			if(remote_step(ctx, 0) < 0){
+			if(remote_continue(ctx, 0) < 0){
 				PERROR("ptrace");
 				return -1;
 			}
@@ -183,7 +178,19 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 				PERROR("ptrace");
 				return -1;
 			}
-			sc_ret = REG(new_ctx, REG_RET);
+
+			DBGPTR(call->backup_addr);
+			uintptr_t sc_ret_addr = call->backup_addr + offsetof(struct injcode_sc, result);
+			/*uintptr_t sc_ret_addr = (
+				REG(new_ctx, REG_SP)
+				// target has pop'd the trampoline arguments
+				+ sizeof(struct injcode_trampoline)
+				// and has pushed a register
+				- sizeof(uintptr_t)
+			);*/
+			remote_read(ctx, &sc_ret, sc_ret_addr, sizeof(uintptr_t));
+
+			//sc_ret = REG(new_ctx, REG_RET);
 			DBG("[RET] = %zu", sc_ret);
 
 			if((signed int)sc_ret == -EINTR){
@@ -192,7 +199,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 		} while((signed int)sc_ret == -EINTR);
 	}
 
-	if(call.num_wait_calls == 0){
+	if(call->num_wait_calls == 0){
 		int stopsig = 0;
 		do {
 
@@ -244,7 +251,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 			remote_getregs(ctx, &tmp);
 			DBG("CRASH @ %p (offset: %i)",
 				(void *)REG(tmp, REG_PC),
-				(signed int)(REG(tmp, REG_PC) - call.insn_addr)
+				(signed int)(REG(tmp, REG_PC) - call->insn_addr)
 			);
 		}
 
@@ -259,18 +266,14 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 	#endif
 	}
 
-	#if defined(EZ_TARGET_FREEBSD) && defined(EZ_ARCH_I386)
-	if(call.syscall.argmask > SC_0ARGS){
-		// FIXME: global variable
-		// restore overwritten stack
-		DBG("restoring stack frame");
-		remote_write(&ctx,
-			call.syscall.frame_bottom,
-			&call.syscall.saved_stack,
-			call.syscall.frame_size
-		);
+	DBG("restoring stack data");
+	if(remote_write(ctx,
+		call->backup_addr,
+		call->backup_data,
+		call->backup_size
+	) != call->backup_size){
+		ERR("failed to restore saved stack data");
 	}
-	#endif
 
 	if(remote_setregs(ctx, &orig_ctx)){
 		PERROR("remote_setregs failed");
@@ -278,7 +281,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req call){
 
 #ifdef DEBUG
 	DBG("PC: %p => %p",
-		(void *)call.insn_addr,
+		(void *)call->insn_addr,
 		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
 #endif
 
@@ -309,7 +312,7 @@ uintptr_t remote_call(
 	}
 	req.syscall = sc;
 
-	return remote_call_common(ctx, req);
+	return remote_call_common(ctx, &req);
 }
 
 struct ezinj_str ezstr_new(char *str){
@@ -735,23 +738,6 @@ int ezinject_main(
 		#define PL_REMOTE_CODE(addr) \
 			PL_REMOTE(pl->code_start) + PTRDIFF(addr, region_pl_code.start)
 
-
-		// trampoline entry
-		uintptr_t remote_trampoline_entry = PL_REMOTE_CODE(&trampoline_entry);
-		DBGPTR(remote_trampoline_entry);
-
-		// stack base
-		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
-		DBGPTR(target_sp);
-
-		// push payload arguments
-		uintptr_t *stack_argv = target_sp;
-		*(--stack_argv) = PL_REMOTE_CODE(&injected_fn);
-		*(--stack_argv) = PL_REMOTE(pl->br_start);
-
-		DBGPTR(stack_argv[0]);
-		DBGPTR(stack_argv[1]);
-
 		#ifdef __GNUC__
 		{
 			void *flush_start = br;
@@ -771,9 +757,13 @@ int ezinject_main(
 
 		// switch to SIGSTOP wait mode
 		ctx->num_wait_calls = 0;
-		ctx->syscall_stack.remote = (uintptr_t)PL_REMOTE(stack_argv); // stack is at the bottom of arguments (pop will move it up)
 
-		CHECK(__RCALL(ctx, remote_trampoline_entry, 0));
+		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
+		ctx->syscall_stack.remote = (uintptr_t)PL_REMOTE(target_sp);
+
+		ctx->syscall_insn.remote = PL_REMOTE_CODE(&injected_fn);
+		ctx->trampoline_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
+		CHECK(RSCALL0(ctx, PL_REMOTE(pl->br_start)));
 
 		/**
 		 * if payload debugging is on, skip any cleanup
@@ -783,8 +773,6 @@ int ezinject_main(
 		}
 
 		ctx->num_wait_calls = 1;
-		ctx->syscall_stack.remote = 0;
-
 		remote_pl_free(ctx, remote_shm_ptr);
 
 		if(remote_sc_free(ctx) != 0){

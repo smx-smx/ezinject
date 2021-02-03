@@ -37,12 +37,31 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-void PLAPI injected_sc(){
-	EMIT_LABEL("injected_sc_start");
-	EMIT_SC();
-	EMIT_LABEL("injected_sc_end");
+intptr_t SCAPI injected_sc(struct injcode_sc *sc){
+	switch(sc->argc){
+		case 0: return sc->libc_syscall(sc->argv[0]);
+		case 1: return sc->libc_syscall(sc->argv[0],
+			sc->argv[1]);
+		case 2: return sc->libc_syscall(sc->argv[0],
+			sc->argv[1], sc->argv[2]);
+		case 3: return sc->libc_syscall(sc->argv[0],
+			sc->argv[1], sc->argv[2],
+			sc->argv[3]);
+		case 4: return sc->libc_syscall(sc->argv[0],
+			sc->argv[1], sc->argv[2],
+			sc->argv[3], sc->argv[4]);
+		case 5: return sc->libc_syscall(sc->argv[0],
+			sc->argv[1], sc->argv[2],
+			sc->argv[3], sc->argv[4],
+			sc->argv[5]);
+		case 6: return sc->libc_syscall(sc->argv[0],
+			sc->argv[1], sc->argv[2],
+			sc->argv[3], sc->argv[4],
+			sc->argv[5], sc->argv[6]);
+		default:
+			return -1;
+	}
 }
-
 //#define PL_EARLYDEBUG
 
 void PLAPI trampoline(){
@@ -63,16 +82,30 @@ void PLAPI trampoline(){
 	EMIT_LABEL("trampoline_entry");
 
 	#ifdef PL_EARLYDEBUG
-	EMIT_LABEL("inj_halt");
-	asm volatile(JMP_INSN" inj_halt");
+	asm volatile(JMP_INSN " .");
 	#endif
 
-	register volatile struct injcode_bearing *br;
-	register void (*target)(volatile struct injcode_bearing *);
+	register struct injcode_sc *args = NULL;
+	register uintptr_t (*target)(volatile struct injcode_sc *) = NULL;
+	register long (*libc_syscall)(long number, ...) = NULL;
 
-	POP_PARAMS(br, target);
-	target(br);
-	while(1);
+	POP_PARAMS(args, target);
+	libc_syscall = args->libc_syscall;
+
+	// this is used onlyfor Linux and FreeBSD
+	// which use remote syscalls
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+	args->result = target(args);
+	args->libc_syscall(__NR_kill,
+		args->libc_syscall(__NR_getpid),
+		SIGTRAP
+	);
+#else
+	target(args);
+#endif
+
+	asm volatile(JMP_INSN " .");
+	EMIT_LABEL("trampoline_exit");
 }
 
 INLINE uint64_t str64(uint64_t x){
@@ -209,7 +242,9 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	return 0;
 }
 
-void PLAPI injected_fn(struct injcode_bearing *br){
+void PLAPI injected_fn(struct injcode_sc *sc){
+	struct injcode_bearing *br = (struct injcode_baring *)(sc->argv[0]);
+
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;
 	inj_memset(ctx, 0x00, sizeof(*ctx));

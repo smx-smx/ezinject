@@ -14,6 +14,7 @@
 #include <winternl.h>
 #endif
 
+#define SC_MAX_ARGS 8
 #include "ezinject_common.h"
 
 #define EZAPI intptr_t
@@ -29,6 +30,7 @@
 #endif
 
 #define PLAPI SECTION("payload")
+#define SCAPI SECTION("syscall")
 
 #define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
 
@@ -93,6 +95,27 @@ struct elf_resolve_hdr {
 
 struct injcode_user {
 	uint8_t persist;
+};
+
+struct __attribute__((packed)) injcode_trampoline {
+	uintptr_t fn_arg;
+	uintptr_t fn_addr;
+};
+
+struct __attribute__((packed))  injcode_sc {
+	long (*libc_syscall)(long number, ...);
+	int argc;
+	uintptr_t result;
+	uintptr_t argv[SC_MAX_ARGS];
+	/**
+	 * since we are skipping the prologue of the trampoline
+	 * we're not doing a proper stack allocation
+	 * this means that calling conventions like cdecl will overwrite a part of this struct
+	 * when pushing
+	 * so we have to reserve enough stack for trampoline here
+	 */
+	uintptr_t scratch[8];
+	struct injcode_trampoline trampoline;
 };
 
 struct injcode_bearing
@@ -226,15 +249,17 @@ typedef struct {
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
 #endif
 
-extern void injected_sc_start();
-extern void injected_sc_end();
+extern intptr_t SCAPI injected_sc(struct injcode_sc *sc);
 
+extern void PLAPI trampoline();
 extern void trampoline_entry();
-extern void injected_fn(struct injcode_bearing *br);
+extern void trampoline_exit();
 
-extern void injected_clone();
+extern void injected_fn(struct injcode_sc *sc);
 
 extern uint8_t __start_payload SECTION_START("payload");
 extern uint8_t __stop_payload SECTION_END("payload");
+extern uint8_t __start_syscall SECTION_START("syscall");
+extern uint8_t __stop_syscall SECTION_END("syscall");
 
 #endif

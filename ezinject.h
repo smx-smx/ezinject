@@ -64,6 +64,7 @@ struct ezinj_ctx {
 	uintptr_t target_codebase;
 	ez_addr libc;
 	ez_addr libdl;
+	ez_addr trampoline_insn;
 	ez_addr syscall_insn;
 	ez_addr syscall_stack;
 	ez_addr libc_syscall;
@@ -113,7 +114,7 @@ struct ezinj_str {
 #define SC_6ARGS ARGMASK(SC_5ARGS, 6)
 
 #define __RCALL(ctx, insn, argmask, ...) remote_call(ctx, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
-#define __RCALL_SC(ctx, nr, argmask, ...) __RCALL(ctx, ctx->syscall_insn.remote, argmask, nr, ##__VA_ARGS__)
+#define __RCALL_SC(ctx, nr, argmask, ...) __RCALL(ctx, ctx->trampoline_insn.remote, argmask, nr, ##__VA_ARGS__)
 
 // Remote System Call
 #define RSCALL0(ctx,nr)               __RCALL_SC(ctx,nr,SC_0ARGS)
@@ -139,6 +140,10 @@ struct call_req {
 	uintptr_t stack_addr;
 	struct sc_req syscall;
 	int num_wait_calls;
+
+	uintptr_t backup_addr;
+	uint8_t *backup_data;
+	size_t backup_size;
 };
 
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
