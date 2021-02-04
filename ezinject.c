@@ -90,7 +90,8 @@ intptr_t setregs_syscall(
 	rcall.trampoline.fn_addr = ctx->syscall_insn.remote;
 	rcall.trampoline.fn_arg = r_sc_args;
 
-	for(int i=0; i<SC_MAX_ARGS; i++){
+	// skip syscall nr
+	for(int i=1; i<SC_MAX_ARGS; i++){
 		if(SC_HAS_ARG(sc, i)){
 			rcall.argc++;
 		}
