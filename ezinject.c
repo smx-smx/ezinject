@@ -130,9 +130,13 @@ intptr_t setregs_syscall(
 	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
 	DBGPTR(REG(*new_ctx, REG_SP));
 
+#ifdef EZ_ARCH_ARM
 	#ifdef USE_ARM_THUMB
 	REG(*new_ctx, ARM_cpsr) = REG(*new_ctx, ARM_cpsr) | PSR_T_BIT;
+	#else
+	REG(*new_ctx, ARM_cpsr) = REG(*new_ctx, ARM_cpsr) & ~PSR_T_BIT;
 	#endif
+#endif
 
 	return 0;
 }
