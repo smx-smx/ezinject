@@ -110,25 +110,12 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	kern_return_t kr;
 	vm_size_t pageSz = getpagesize();
-	kr = vm_protect(
-		ctx->task,
-		(vm_address_t)dest,
-		pageSz,
-		false,
-		VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE
-	);
 	
 	void *mem = NULL;
 	if(posix_memalign(&mem, pageSz, size) < 0 || mem == NULL){
 		PERROR("posix_memalign");
 	}
 	memcpy(mem, source, size);
-
-	if(kr != KERN_SUCCESS){
-		ERR("vm_protect failed to set current page privs: %s", mach_error_string(kr));
-		free(mem);
-		return -1;
-	}
 
 	kr = vm_write(
 		ctx->task,
