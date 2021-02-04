@@ -99,46 +99,38 @@ struct ezinj_str {
 	char *str;
 };
 
-#define SC_HAS_ARG(sc, i) (sc.argmask & (1 << i))
-#define SC_GET_ARG(sc, i) (SC_HAS_ARG(sc, i) ? sc.argv[i] : 0)
+#define CALL_HAS_ARG(call, i) ((call).argmask & (1 << i))
+#define CALL_GET_ARG(call, i) (CALL_HAS_ARG(call, i) ? (call).argv[i] : 0)
 // nr, a0, a1, a2, a3, a4, a5, a6
-#define SC_MAX_ARGS 8
+#define CALL_MAX_ARGS 8
 
 #define ARGMASK(x, i) (x | (1 << (i)))
-#define SC_0ARGS ARGMASK(0, 0)
-#define SC_1ARGS ARGMASK(SC_0ARGS, 1)
-#define SC_2ARGS ARGMASK(SC_1ARGS, 2)
-#define SC_3ARGS ARGMASK(SC_2ARGS, 3)
-#define SC_4ARGS ARGMASK(SC_3ARGS, 4)
-#define SC_5ARGS ARGMASK(SC_4ARGS, 5)
-#define SC_6ARGS ARGMASK(SC_5ARGS, 6)
+#define CALL_0ARGS ARGMASK(0, 0)
+#define CALL_1ARGS ARGMASK(CALL_0ARGS, 1)
+#define CALL_2ARGS ARGMASK(CALL_1ARGS, 2)
+#define CALL_3ARGS ARGMASK(CALL_2ARGS, 3)
+#define CALL_4ARGS ARGMASK(CALL_3ARGS, 4)
+#define CALL_5ARGS ARGMASK(CALL_4ARGS, 5)
+#define CALL_6ARGS ARGMASK(CALL_5ARGS, 6)
 
-#define __RCALL(ctx, insn, argmask, ...) remote_call(ctx, ctx->syscall_stack.remote, UPTR(insn), ctx->num_wait_calls, argmask, ##__VA_ARGS__)
-#define __RCALL_SC(ctx, nr, argmask, ...) __RCALL(ctx, ctx->trampoline_insn.remote, argmask, nr, ##__VA_ARGS__)
+#define __RCALL(ctx, argmask, ...) remote_call(ctx, argmask, ##__VA_ARGS__)
+#define __RCALL_SC(ctx, nr, argmask, ...) __RCALL(ctx, argmask, nr, ##__VA_ARGS__)
 
 // Remote System Call
-#define RSCALL0(ctx,nr)               __RCALL_SC(ctx,nr,SC_0ARGS)
-#define RSCALL1(ctx,nr,a1)            __RCALL_SC(ctx,nr,SC_1ARGS,UPTR(a1))
-#define RSCALL2(ctx,nr,a1,a2)         __RCALL_SC(ctx,nr,SC_2ARGS,UPTR(a1),UPTR(a2))
-#define RSCALL3(ctx,nr,a1,a2,a3)      __RCALL_SC(ctx,nr,SC_3ARGS,UPTR(a1),UPTR(a2),UPTR(a3))
-#define RSCALL4(ctx,nr,a1,a2,a3,a4)   __RCALL_SC(ctx,nr,SC_4ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
-#define RSCALL5(ctx,nr,a1,a2,a3,a4,a5) __RCALL_SC(ctx,nr,SC_5ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5))
-#define RSCALL6(ctx,nr,a1,a2,a3,a4,a5,a6) __RCALL_SC(ctx,nr,SC_6ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5),UPTR(a6))
-
-struct sc_req {
-	unsigned int argmask;
-	uintptr_t argv[SC_MAX_ARGS];
-	#if defined(EZ_TARGET_FREEBSD) && defined(EZ_ARCH_I386)
-	uintptr_t frame_bottom;
-	size_t frame_size;
-	uintptr_t saved_stack[8];
-	#endif
-};
+#define RSCALL0(ctx,nr)               __RCALL_SC(ctx,nr,CALL_0ARGS)
+#define RSCALL1(ctx,nr,a1)            __RCALL_SC(ctx,nr,CALL_1ARGS,UPTR(a1))
+#define RSCALL2(ctx,nr,a1,a2)         __RCALL_SC(ctx,nr,CALL_2ARGS,UPTR(a1),UPTR(a2))
+#define RSCALL3(ctx,nr,a1,a2,a3)      __RCALL_SC(ctx,nr,CALL_3ARGS,UPTR(a1),UPTR(a2),UPTR(a3))
+#define RSCALL4(ctx,nr,a1,a2,a3,a4)   __RCALL_SC(ctx,nr,CALL_4ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4))
+#define RSCALL5(ctx,nr,a1,a2,a3,a4,a5) __RCALL_SC(ctx,nr,CALL_5ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5))
+#define RSCALL6(ctx,nr,a1,a2,a3,a4,a5,a6) __RCALL_SC(ctx,nr,CALL_6ARGS,UPTR(a1),UPTR(a2),UPTR(a3),UPTR(a4),UPTR(a5),UPTR(a6))
 
 struct call_req {
 	uintptr_t insn_addr;
 	uintptr_t stack_addr;
-	struct sc_req syscall;
+	
+	unsigned int argmask;
+	uintptr_t argv[CALL_MAX_ARGS];
 	int num_wait_calls;
 
 	uintptr_t backup_addr;
@@ -155,9 +147,6 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 
 uintptr_t remote_call(
 	struct ezinj_ctx *ctx,
-	uintptr_t stack_addr,
-	uintptr_t insn_addr,
-	int num_wait_calls,
 	unsigned int argmask, ...
 );
 
@@ -180,6 +169,6 @@ EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
 
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx);
 EZAPI remote_sc_check(struct ezinj_ctx *ctx);
-EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call);
+EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call);
 EZAPI remote_sc_free(struct ezinj_ctx *ctx);
 #endif

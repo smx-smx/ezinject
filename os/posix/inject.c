@@ -110,7 +110,7 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call){
+EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call){
 	call->trampoline.fn_addr = r_sc_base + sc_offsets[call->argc];
 	DBGPTR(call->trampoline.fn_addr);
 	return 0;
