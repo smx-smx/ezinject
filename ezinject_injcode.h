@@ -97,12 +97,12 @@ struct injcode_user {
 	uint8_t persist;
 };
 
-struct __attribute__((packed)) injcode_trampoline {
+struct injcode_trampoline {
 	uintptr_t fn_arg;
 	uintptr_t fn_addr;
 };
 
-struct __attribute__((packed))  injcode_sc {
+struct injcode_sc {
 	long (*libc_syscall)(long number, ...);
 	int argc;
 	uintptr_t result;
