@@ -82,6 +82,19 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
 			PERROR("failed to replace ELF header");
 			break;
 		}
+
+		uint8_t verify[dataLength];
+		memset(verify, 0x00, sizeof(verify));
+		if(remote_read(ctx, verify, codeBase, dataLength) != dataLength){
+			PERROR("verify: readback failed");
+			break;
+		}
+
+		if(memcmp(payload, verify, dataLength) != 0){
+			ERR("verify: verification failed");
+			break;
+		}
+
 		rc = 0;
 	} while(0);
 	free(payload);
