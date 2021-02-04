@@ -249,7 +249,13 @@ typedef struct {
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
 #endif
 
-extern intptr_t SCAPI injected_sc(struct injcode_sc *sc);
+extern intptr_t SCAPI injected_sc0(struct injcode_sc *sc);
+extern intptr_t SCAPI injected_sc1(struct injcode_sc *sc);
+extern intptr_t SCAPI injected_sc2(struct injcode_sc *sc);
+extern intptr_t SCAPI injected_sc3(struct injcode_sc *sc);
+extern intptr_t SCAPI injected_sc4(struct injcode_sc *sc);
+extern intptr_t SCAPI injected_sc5(struct injcode_sc *sc);
+extern intptr_t SCAPI injected_sc6(struct injcode_sc *sc);
 
 extern void PLAPI trampoline();
 extern void trampoline_entry();

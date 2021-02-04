@@ -87,7 +87,6 @@ intptr_t setregs_syscall(
 	rcall.result = 0;
 	memcpy(&rcall.argv[0], &sc.argv[0], sizeof(sc.argv));
 	rcall.libc_syscall = ctx->libc_syscall.remote;
-	rcall.trampoline.fn_addr = ctx->syscall_insn.remote;
 	rcall.trampoline.fn_arg = r_sc_args;
 
 	// skip syscall nr
@@ -95,6 +94,16 @@ intptr_t setregs_syscall(
 		if(SC_HAS_ARG(sc, i)){
 			rcall.argc++;
 		}
+	}
+
+	if(call->num_wait_calls > 0){
+		// set rcall.trampoline.fn_addr
+		if(remote_sc_prepare(ctx, &rcall) < 0){
+			ERR("remote_sc_prepare failed");
+			return -1;
+		}
+	} else {
+		rcall.trampoline.fn_addr = ctx->syscall_insn.remote;
 	}
 
 	size_t backupSize = ROUND_UP(sizeof(rcall), sizeof(uintptr_t));
@@ -182,16 +191,9 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 
 			DBGPTR(call->backup_addr);
 			uintptr_t sc_ret_addr = call->backup_addr + offsetof(struct injcode_sc, result);
-			/*uintptr_t sc_ret_addr = (
-				REG(new_ctx, REG_SP)
-				// target has pop'd the trampoline arguments
-				+ sizeof(struct injcode_trampoline)
-				// and has pushed a register
-				- sizeof(uintptr_t)
-			);*/
+
 			remote_read(ctx, &sc_ret, sc_ret_addr, sizeof(uintptr_t));
 
-			//sc_ret = REG(new_ctx, REG_RET);
 			DBG("[RET] = %zu", sc_ret);
 
 			if((signed int)sc_ret == -EINTR){
@@ -267,13 +269,17 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	#endif
 	}
 
-	DBG("restoring stack data");
-	if(remote_write(ctx,
-		call->backup_addr,
-		call->backup_data,
-		call->backup_size
-	) != call->backup_size){
-		ERR("failed to restore saved stack data");
+	// the payload is expected to use its own stack
+	// we don't restore stack in that case
+	if(call->num_wait_calls > 0){
+		DBG("restoring stack data");
+		if(remote_write(ctx,
+			call->backup_addr,
+			call->backup_data,
+			call->backup_size
+		) != call->backup_size){
+			ERR("failed to restore saved stack data");
+		}
 	}
 
 	if(remote_setregs(ctx, &orig_ctx)){
@@ -297,9 +303,9 @@ uintptr_t remote_call(
 	unsigned int argmask, ...
 ){
 	struct call_req req = {
-		.insn_addr = insn_addr,
-		.stack_addr = stack_addr,
-		.num_wait_calls = num_wait_calls
+		.insn_addr = ctx->trampoline_insn.remote,
+		.stack_addr = ctx->syscall_stack.remote,
+		.num_wait_calls = ctx->num_wait_calls
 	};
 
 	va_list ap;
@@ -759,9 +765,11 @@ int ezinject_main(
 		// switch to SIGSTOP wait mode
 		ctx->num_wait_calls = 0;
 
+		// switch to user stack
 		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
 		ctx->syscall_stack.remote = (uintptr_t)PL_REMOTE(target_sp);
 
+		// set trampoline parameters
 		ctx->syscall_insn.remote = PL_REMOTE_CODE(&injected_fn);
 		ctx->trampoline_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
 		CHECK(RSCALL0(ctx, PL_REMOTE(pl->br_start)));
@@ -773,7 +781,9 @@ int ezinject_main(
 			return -1;
 		}
 
+		// restore syscall behavior (to call shmdt, if needed by the target)
 		ctx->num_wait_calls = 1;
+		ctx->syscall_stack.remote = 0;
 		remote_pl_free(ctx, remote_shm_ptr);
 
 		if(remote_sc_free(ctx) != 0){
@@ -843,13 +853,6 @@ int main(int argc, char *argv[]){
 #elif defined(EZ_TARGET_WINDOWS)
 	if(remote_wait(&ctx, 0) < 0){
 		PERROR("remote_wait");
-		return 1;
-	}
-#endif
-
-#if defined(EZ_TARGET_LINUX)
-	if(ptrace(PTRACE_SETOPTIONS, ctx.target, 0, PTRACE_O_TRACESYSGOOD) < 0){
-		PERROR("ptrace setoptions");
 		return 1;
 	}
 #endif

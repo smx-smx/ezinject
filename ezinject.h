@@ -180,5 +180,6 @@ EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
 
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx);
 EZAPI remote_sc_check(struct ezinj_ctx *ctx);
+EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call);
 EZAPI remote_sc_free(struct ezinj_ctx *ctx);
 #endif

@@ -37,31 +37,49 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-intptr_t SCAPI injected_sc(struct injcode_sc *sc){
-	switch(sc->argc){
-		case 0: return sc->libc_syscall(sc->argv[0]);
-		case 1: return sc->libc_syscall(sc->argv[0],
-			sc->argv[1]);
-		case 2: return sc->libc_syscall(sc->argv[0],
-			sc->argv[1], sc->argv[2]);
-		case 3: return sc->libc_syscall(sc->argv[0],
-			sc->argv[1], sc->argv[2],
-			sc->argv[3]);
-		case 4: return sc->libc_syscall(sc->argv[0],
-			sc->argv[1], sc->argv[2],
-			sc->argv[3], sc->argv[4]);
-		case 5: return sc->libc_syscall(sc->argv[0],
-			sc->argv[1], sc->argv[2],
-			sc->argv[3], sc->argv[4],
-			sc->argv[5]);
-		case 6: return sc->libc_syscall(sc->argv[0],
-			sc->argv[1], sc->argv[2],
-			sc->argv[3], sc->argv[4],
-			sc->argv[5], sc->argv[6]);
-		default:
-			return -1;
-	}
+intptr_t SCAPI injected_sc0(struct injcode_sc *sc){
+	return sc->libc_syscall(sc->argv[0]);
 }
+intptr_t SCAPI injected_sc1(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1]
+	);
+}
+intptr_t SCAPI injected_sc2(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2]
+	);
+}
+intptr_t SCAPI injected_sc3(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3]
+	);
+}
+intptr_t SCAPI injected_sc4(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4]
+	);
+}
+intptr_t SCAPI injected_sc5(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4], sc->argv[5]
+	);
+}
+intptr_t SCAPI injected_sc6(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4], sc->argv[5],
+		sc->argv[6]
+	);
+}
+
 //#define PL_EARLYDEBUG
 
 void PLAPI trampoline(){
@@ -71,8 +89,10 @@ void PLAPI trampoline(){
 	 * upon detach
 	 * https://stackoverflow.com/a/38009680/11782802
 	 *
-	 * this is a problem with variable length encoding CPUs
-	 * so we must emit NOPs that are as big as the syscall instruction
+	 * this is a problem because we risk running the prologue of this function
+	 * and cause a stack misalignment
+	 * we must emit NOPs that are at least as big as the syscall instruction
+	 * 
 	 **/
 	asm volatile("nop\n");
 	asm volatile("nop\n");

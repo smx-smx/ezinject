@@ -5,15 +5,32 @@
 #include "log.h"
 #include "ezinject_util.h"
 
-ez_region region_sc_code = {
+static ez_region region_sc_code = {
 	.start = (void *)&__start_syscall,
 	.end = (void *)&__stop_syscall
 };
 
+// injected_sc0..injected_sc6
+static off_t sc_offsets[7];
+// remote base of syscall code section
+static uintptr_t r_sc_base;
+
 #ifdef EZ_TARGET_DARWIN
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){ return 0; }
 EZAPI remote_sc_free(struct ezinj_ctx *ctx){ return 0; }
+EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call){ return 0; }
 #else
+
+static void _remote_sc_setup_offsets(){
+	sc_offsets[0] = PTRDIFF(&injected_sc0, region_sc_code.start);
+	sc_offsets[1] = PTRDIFF(&injected_sc1, region_sc_code.start);
+	sc_offsets[2] = PTRDIFF(&injected_sc2, region_sc_code.start);
+	sc_offsets[3] = PTRDIFF(&injected_sc3, region_sc_code.start);
+	sc_offsets[4] = PTRDIFF(&injected_sc4, region_sc_code.start);
+	sc_offsets[5] = PTRDIFF(&injected_sc5, region_sc_code.start);
+	sc_offsets[6] = PTRDIFF(&injected_sc6, region_sc_code.start);
+}
+
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
 	uintptr_t codeBase = (uintptr_t) get_base(ctx->target, NULL, NULL);
 	if(codeBase == 0){
@@ -23,6 +40,7 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
 	DBGPTR(codeBase);
 	ctx->target_codebase = codeBase;
 
+	_remote_sc_setup_offsets();
 
 	off_t trampoline_offset = 0;
 	size_t trampoline_size = ROUND_UP(
@@ -72,12 +90,11 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
 		return rc;
 	}
 
+	r_sc_base = codeBase + sc_offset;
 
 	ctx->trampoline_insn.remote = codeBase
 		+ trampoline_offset
 		+ PTRDIFF(&trampoline_entry, &trampoline);
-	ctx->syscall_insn.remote = codeBase + sc_offset;
-	DBGPTR(ctx->syscall_insn.remote);
 	return 0;
 }
 
@@ -90,6 +107,12 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx){
 		free(ctx->saved_sc_data);
 		ctx->saved_sc_data = NULL;
 	}
+	return 0;
+}
+
+EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call){
+	call->trampoline.fn_addr = r_sc_base + sc_offsets[call->argc];
+	DBGPTR(call->trampoline.fn_addr);
 	return 0;
 }
 #endif
