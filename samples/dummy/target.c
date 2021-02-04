@@ -62,9 +62,9 @@ int main(int argc, char *argv[])
 
 	#ifdef EZ_TARGET_POSIX
 	signal(SIGSEGV, onSignal);
+	signal(SIGTRAP, onSignal);
+	signal(SIGABRT, onSignal);
 	#endif
-
-	//signal(SIGTRAP, onSignal);
 
 	print_maps();
 

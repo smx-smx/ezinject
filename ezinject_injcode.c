@@ -37,10 +37,47 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-void PLAPI injected_sc(){
-	EMIT_LABEL("injected_sc_start");
-	EMIT_SC();
-	EMIT_LABEL("injected_sc_end");
+intptr_t SCAPI injected_sc0(struct injcode_sc *sc){
+	return sc->libc_syscall(sc->argv[0]);
+}
+intptr_t SCAPI injected_sc1(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1]
+	);
+}
+intptr_t SCAPI injected_sc2(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2]
+	);
+}
+intptr_t SCAPI injected_sc3(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3]
+	);
+}
+intptr_t SCAPI injected_sc4(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4]
+	);
+}
+intptr_t SCAPI injected_sc5(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4], sc->argv[5]
+	);
+}
+intptr_t SCAPI injected_sc6(struct injcode_sc *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4], sc->argv[5],
+		sc->argv[6]
+	);
 }
 
 //#define PL_EARLYDEBUG
@@ -52,8 +89,10 @@ void PLAPI trampoline(){
 	 * upon detach
 	 * https://stackoverflow.com/a/38009680/11782802
 	 *
-	 * this is a problem with variable length encoding CPUs
-	 * so we must emit NOPs that are as big as the syscall instruction
+	 * this is a problem because we risk running the prologue of this function
+	 * and cause a stack misalignment
+	 * we must emit NOPs that are at least as big as the syscall instruction
+	 * 
 	 **/
 	asm volatile("nop\n");
 	asm volatile("nop\n");
@@ -63,16 +102,30 @@ void PLAPI trampoline(){
 	EMIT_LABEL("trampoline_entry");
 
 	#ifdef PL_EARLYDEBUG
-	EMIT_LABEL("inj_halt");
-	asm volatile(JMP_INSN" inj_halt");
+	asm volatile(JMP_INSN " .");
 	#endif
 
-	register volatile struct injcode_bearing *br;
-	register void (*target)(volatile struct injcode_bearing *);
+	register struct injcode_sc *args = NULL;
+	register uintptr_t (*target)(volatile struct injcode_sc *) = NULL;
+	register long (*libc_syscall)(long number, ...) = NULL;
 
-	POP_PARAMS(br, target);
-	target(br);
-	while(1);
+	POP_PARAMS(args, target);
+	libc_syscall = args->libc_syscall;
+
+	// this is used onlyfor Linux and FreeBSD
+	// which use remote syscalls
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+	args->result = target(args);
+	args->libc_syscall(__NR_kill,
+		args->libc_syscall(__NR_getpid),
+		SIGTRAP
+	);
+#else
+	target(args);
+#endif
+
+	asm volatile(JMP_INSN " .");
+	EMIT_LABEL("trampoline_exit");
 }
 
 INLINE uint64_t str64(uint64_t x){
@@ -209,7 +262,9 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	return 0;
 }
 
-void PLAPI injected_fn(struct injcode_bearing *br){
+void PLAPI injected_fn(struct injcode_sc *sc){
+	struct injcode_bearing *br = (struct injcode_baring *)(sc->argv[0]);
+
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;
 	inj_memset(ctx, 0x00, sizeof(*ctx));
