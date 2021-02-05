@@ -43,6 +43,10 @@ struct ezinj_pl {
 	uint8_t *stack_top;
 };
 
+struct ezinj_ctx;
+
+typedef EZAPI (*pfnCallHandler)(struct ezinj_ctx *ctx, struct injcode_call *rcall);
+
 struct ezinj_ctx {
 	int pl_debug;
 	int num_wait_calls;
@@ -67,6 +71,8 @@ struct ezinj_ctx {
 	ez_addr trampoline_insn;
 	ez_addr syscall_insn;
 	ez_addr syscall_stack;
+	pfnCallHandler rcall_handler_pre;
+	pfnCallHandler rcall_handler_post;
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
 #ifdef DEBUG
@@ -136,6 +142,8 @@ struct call_req {
 	uintptr_t backup_addr;
 	uint8_t *backup_data;
 	size_t backup_size;
+
+	struct injcode_call rcall;
 };
 
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
@@ -169,6 +177,6 @@ EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
 
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx);
 EZAPI remote_sc_check(struct ezinj_ctx *ctx);
-EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call);
+EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call);
 EZAPI remote_sc_free(struct ezinj_ctx *ctx);
 #endif

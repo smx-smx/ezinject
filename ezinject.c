@@ -71,7 +71,7 @@ intptr_t setregs_syscall(
 ){
 	REG(*new_ctx, REG_PC) = call->insn_addr;
 
-	struct injcode_sc rcall;
+	struct injcode_call *rcall = &call->rcall;
 	
 	uintptr_t target_sp = 0;
 	if(call->stack_addr != 0){
@@ -79,32 +79,39 @@ intptr_t setregs_syscall(
 	} else {
 		target_sp = REG(*orig_ctx, REG_SP);
 	}
-	uintptr_t r_call_args = target_sp - sizeof(rcall);
+	uintptr_t r_call_args = target_sp - sizeof(*rcall);
 
-	rcall.argc = 0;
-	rcall.result = 0;
-	memcpy(&rcall.argv, &call->argv, sizeof(call->argv));
-	rcall.libc_syscall = ctx->libc_syscall.remote;
-	rcall.trampoline.fn_arg = r_call_args;
+	rcall->argc = 0;
+	rcall->result = 0;
+	memcpy(&rcall->argv, &call->argv, sizeof(call->argv));
+	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
+	rcall->trampoline.fn_arg = r_call_args;
 
 	// skip syscall nr
 	for(int i=1; i<SC_MAX_ARGS; i++){
 		if(CALL_HAS_ARG(*call, i)){
-			rcall.argc++;
+			rcall->argc++;
 		}
 	}
 
 	if(call->num_wait_calls > 0){
 		// set rcall.trampoline.fn_addr
-		if(remote_call_prepare(ctx, &rcall) < 0){
+		if(remote_call_prepare(ctx, rcall) < 0){
 			ERR("remote_call_prepare failed");
 			return -1;
 		}
 	} else {
-		rcall.trampoline.fn_addr = ctx->syscall_insn.remote;
+		rcall->trampoline.fn_addr = ctx->syscall_insn.remote;
 	}
 
-	size_t backupSize = ROUND_UP(sizeof(rcall), sizeof(uintptr_t));
+	if(ctx->rcall_handler_pre != NULL){
+		if(ctx->rcall_handler_pre(ctx, &call->rcall) < 0){
+			ERR("rcall_handler_pre failed");
+			return -1;
+		}
+	}
+
+	size_t backupSize = ROUND_UP(sizeof(*rcall), sizeof(uintptr_t));
 	
 	uint8_t *saved_stack = calloc(backupSize, 1);
 	if(remote_read(ctx, saved_stack, r_call_args, backupSize) != backupSize){
@@ -116,8 +123,8 @@ intptr_t setregs_syscall(
 	if(remote_write(
 		ctx,
 		r_call_args,
-		&rcall, sizeof(rcall)
-	) != sizeof(rcall)){
+		rcall, sizeof(*rcall)
+	) != sizeof(*rcall)){
 		ERR("failed to write remote call");
 		free(saved_stack);
 		return -1;
@@ -128,7 +135,7 @@ intptr_t setregs_syscall(
 	call->backup_size = backupSize;
 
 	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
-	DBGPTR(REG(*new_ctx, REG_SP));
+	DBGPTR((void *)REG(*new_ctx, REG_SP));
 
 #ifdef EZ_ARCH_ARM
 	#ifdef USE_ARM_THUMB
@@ -170,8 +177,6 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
-	uintptr_t call_ret = 0;
-
 	int status;
 	for(int i=0; i<call->num_wait_calls; i++){
 		int rc;
@@ -191,17 +196,21 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 				return -1;
 			}
 
-			DBGPTR(call->backup_addr);
-			uintptr_t call_ret_addr = call->backup_addr + offsetof(struct injcode_sc, result);
-
-			remote_read(ctx, &call_ret, call_ret_addr, sizeof(uintptr_t));
-
-			DBG("[RET] = %zu", call_ret);
-
-			if((signed int)call_ret == -EINTR){
-				remote_call_setup(ctx, call, &orig_ctx, &new_ctx);
+			if(ctx->rcall_handler_post != NULL){
+				if(ctx->rcall_handler_post(ctx, &call->rcall) < 0){
+					ERR("rcall_handler_post failed");
+					return -1;
+				}
 			}
-		} while((signed int)call_ret == -EINTR);
+
+			remote_read(ctx,
+				&call->rcall.result,
+				RCALL_FIELD_ADDR(&call->rcall, result),
+				sizeof(uintptr_t)
+			);
+
+			DBG("[RET] = %zu", call->rcall.result);
+		} while(0);
 	}
 
 	if(call->num_wait_calls == 0){
@@ -294,7 +303,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
 #endif
 
-	return call_ret;
+	return call->rcall.result;
 }
 
 uintptr_t remote_call(

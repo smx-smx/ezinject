@@ -2,11 +2,15 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <sys/uio.h>
-#include <linux/elf.h>
 
 #include "ezinject.h"
 #include "ezinject_arch.h"
 #include "log.h"
+
+#ifndef PTRACE_GETREGS
+// NT_PRSTATUS
+#include <linux/elf.h>
+#endif
 
 EZAPI remote_attach(struct ezinj_ctx *ctx){
 	return ptrace(PTRACE_ATTACH, ctx->target, 0, 0);

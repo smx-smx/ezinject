@@ -37,41 +37,41 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-intptr_t SCAPI injected_sc0(struct injcode_sc *sc){
+intptr_t SCAPI injected_sc0(struct injcode_call *sc){
 	return sc->libc_syscall(sc->argv[0]);
 }
-intptr_t SCAPI injected_sc1(struct injcode_sc *sc){
+intptr_t SCAPI injected_sc1(struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1]
 	);
 }
-intptr_t SCAPI injected_sc2(struct injcode_sc *sc){
+intptr_t SCAPI injected_sc2(struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2]
 	);
 }
-intptr_t SCAPI injected_sc3(struct injcode_sc *sc){
+intptr_t SCAPI injected_sc3(struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3]
 	);
 }
-intptr_t SCAPI injected_sc4(struct injcode_sc *sc){
+intptr_t SCAPI injected_sc4(struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4]
 	);
 }
-intptr_t SCAPI injected_sc5(struct injcode_sc *sc){
+intptr_t SCAPI injected_sc5(struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4], sc->argv[5]
 	);
 }
-intptr_t SCAPI injected_sc6(struct injcode_sc *sc){
+intptr_t SCAPI injected_sc6(struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
@@ -105,12 +105,9 @@ void PLAPI trampoline(){
 	asm volatile(JMP_INSN " .");
 	#endif
 
-	register struct injcode_sc *args = NULL;
-	register uintptr_t (*target)(volatile struct injcode_sc *) = NULL;
-	register long (*libc_syscall)(long number, ...) = NULL;
-
+	register struct injcode_call *args = NULL;
+	register uintptr_t (*target)(volatile struct injcode_call *) = NULL;
 	POP_PARAMS(args, target);
-	libc_syscall = args->libc_syscall;
 
 	// this is used onlyfor Linux and FreeBSD
 	// which use remote syscalls
@@ -262,7 +259,7 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	return 0;
 }
 
-void PLAPI injected_fn(struct injcode_sc *sc){
+void PLAPI injected_fn(struct injcode_call *sc){
 	struct injcode_bearing *br = (struct injcode_baring *)(sc->argv[0]);
 
 	struct injcode_ctx stack_ctx;

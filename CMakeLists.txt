@@ -252,6 +252,17 @@ function(libc_autodetect)
 		return()
 	endif()
 
+	check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
+	export_var(HAVE_LIBC_DLOPEN_MODE)
+
+	if(EZ_TARGET_LINUX
+	AND NOT HAVE_LIBC_DLOPEN_MODE)
+		find_uclibc()
+		export_var(DYN_LINKER_NAME)
+		check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
+	endif()
+
+
 	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLSYM)
 	if(HAVE_DLOPEN AND HAVE_DLSYM)
@@ -271,17 +282,6 @@ function(libc_autodetect)
 
 	export_var(HAVE_DLOPEN)
 	export_var(HAVE_DLSYM)
-
-	check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
-	export_var(HAVE_LIBC_DLOPEN_MODE)
-
-	if(NOT HAVE_LIBC_DLOPEN_MODE
-	AND NOT EZ_TARGET_ANDROID
-	AND NOT HAVE_LIBDL_IN_LIBC
-	AND NOT EZ_TARGET_DARWIN)
-		find_uclibc()
-		check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
-	endif()
 
 	if(EZ_TARGET_FREEBSD)
 		if(EZ_ARCH_I386)

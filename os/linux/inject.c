@@ -6,6 +6,8 @@
 
 #include <sys/shm.h>
 #include <sys/syscall.h>
+#include <sys/mman.h>
+#include <sys/ptrace.h>
 
 
 #include "ezinject.h"
@@ -13,12 +15,49 @@
 
 #include "log.h"
 
+#ifndef HAVE_SHM_SYSCALLS
+static EZAPI _rcall_handler_pre(struct ezinj_ctx *ctx, struct injcode_call *rcall){
+	if(rcall->argv[0] != __NR_ipc || rcall->argv[1] != IPCCALL(0, SHMAT)){
+		return 0;
+	}
+	//syscall(__NR_ipc, IPCCALL, id, flags, memptr, shmaddr)
+	//            0        1      2    3      4       5
+	rcall->argv[4] = RCALL_FIELD_ADDR(rcall, result2);
+	DBG("result2: %p", (void *)rcall->argv[4]);
+	return 0;
+}
+
+static EZAPI _rcall_handler_post(struct ezinj_ctx *ctx, struct injcode_call *rcall){
+	if(rcall->argv[0] != __NR_ipc || rcall->argv[1] != IPCCALL(0, SHMAT)){
+		return 0;
+	}
+	
+	DBG("sys_ipc(SHMAT) returned %d", (int)rcall->result);
+	// call succeded, copy result2 over result
+	if(rcall->result == 0){
+		DBG("overwriting shmat return");
+		uintptr_t result = 0;
+		remote_read(ctx, &result, RCALL_FIELD_ADDR(rcall, result2), sizeof(uintptr_t));
+		DBGPTR((void *)result);
+		remote_write(ctx, RCALL_FIELD_ADDR(rcall, result), &result, sizeof(uintptr_t));
+	}
+	return 0;
+}
+static void _install_handlers(struct ezinj_ctx *ctx){
+	ctx->rcall_handler_pre = _rcall_handler_pre;
+	ctx->rcall_handler_post = _rcall_handler_post;
+}
+#else
+static void _install_handlers(struct ezinj_ctx *ctx){
+	UNUSED(ctx);
+}
+#endif
+
 static uintptr_t _remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmaddr, int shmflg){
 	uintptr_t remote_shm_ptr = (uintptr_t)MAP_FAILED;
 #ifdef HAVE_SHM_SYSCALLS
 	remote_shm_ptr = CHECK(RSCALL3(ctx, __NR_shmat, shm_id, shmaddr, shmflg));
 #else
-	CHECK(RSCALL3(ctx, __NR_mprotect, ctx->target_codebase, getpagesize(), PROT_READ | PROT_WRITE | PROT_EXEC));
 	/**
 	 * Calling convention for shmat in sys_ipc()
 	 * arg0 - IPCCALL(0, SHMAT)    specifies version 0 of the call format (1 is apparently "iBCS2 emulator")
@@ -32,19 +71,21 @@ static uintptr_t _remote_shmat(struct ezinj_ctx *ctx, key_t shm_id, void *shmadd
 	 *
 	 * We pass shmaddr as arg3 aswell, so that 0 is used as shmaddr and is replaced with the new addr
 	 **/
-	CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, shmflg, ctx->target_codebase + 4));
-	remote_shm_ptr = ptrace(PTRACE_PEEKTEXT, ctx->target, ctx->target_codebase + 4);
-	inj_dbgptr(remote_shm_ptr);
-	CHECK(RSCALL3(ctx, __NR_mprotect, ctx->target_codebase, getpagesize(), PROT_READ | PROT_EXEC));
+	remote_shm_ptr = CHECK(RSCALL6(ctx, __NR_ipc, IPCCALL(0, SHMAT), shm_id, shmflg, 0, 0, 0));
 #endif
 	return remote_shm_ptr;
 }
 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
-	uintptr_t result = _remote_shmat(ctx, ctx->shm_id, NULL, SHM_EXEC);
-	if(result == (uintptr_t)MAP_FAILED){
-		return 0;
-	}
+	uintptr_t result = 0;
+	_install_handlers(ctx);
+	do {
+		result = _remote_shmat(ctx, ctx->shm_id, NULL, SHM_EXEC);
+		if(result == (uintptr_t)MAP_FAILED){
+			result = 0;
+			break;
+		}
+	} while(0);
 	return result;
 }
 
@@ -53,9 +94,8 @@ EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 	#ifdef HAVE_SHM_SYSCALLS
 		result = (int) CHECK(RSCALL1(ctx, __NR_shmdt, remote_shmaddr));
 	#else
-		// skip syscall instruction and apply stack offset (see note about sys_ipc)
-		ctx->syscall_stack.remote = ctx->target_codebase + 4 - 16;
-		result = (int) CHECK(RSCALL4(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, ctx->target_codebase + 4));
+		_install_handlers(ctx);
+		result = (int) CHECK(RSCALL6(ctx, __NR_ipc, IPCCALL(0, SHMDT), 0, 0, 0, remote_shmaddr, 0));
 	#endif
 	return result;
 }

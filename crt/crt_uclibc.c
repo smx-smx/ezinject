@@ -1,3 +1,7 @@
+#include "config.h"
+#include <unistd.h>
+#include <sys/mman.h>
+
 extern void ret_start(void);
 extern void ret_end(void);
 

@@ -18,7 +18,7 @@ static uintptr_t r_sc_base;
 #ifdef EZ_TARGET_DARWIN
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){ return 0; }
 EZAPI remote_sc_free(struct ezinj_ctx *ctx){ return 0; }
-EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call){ return 0; }
+EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){ return 0; }
 #else
 
 static void *code_data(void *code){
@@ -131,7 +131,7 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call){
+EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
 	call->trampoline.fn_addr = r_sc_base + sc_offsets[call->argc];
 	DBGPTR(call->trampoline.fn_addr);
 	return 0;

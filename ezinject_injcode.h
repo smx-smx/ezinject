@@ -102,10 +102,11 @@ struct injcode_trampoline {
 	uintptr_t fn_addr;
 };
 
-struct injcode_sc {
+struct injcode_call {
 	long (*libc_syscall)(long number, ...);
 	int argc;
 	uintptr_t result;
+	uintptr_t result2;
 	uintptr_t argv[SC_MAX_ARGS];
 	/**
 	 * since we are skipping the prologue of the trampoline
@@ -117,6 +118,9 @@ struct injcode_sc {
 	uintptr_t scratch[8];
 	struct injcode_trampoline trampoline;
 };
+
+#define RCALL_FIELD_ADDR(rcall, field) \
+	(((rcall)->trampoline.fn_arg) + offsetof(struct injcode_call, field))
 
 struct injcode_bearing
 {
@@ -131,24 +135,24 @@ struct injcode_bearing
 #endif
 	void *userlib;
 
-#if defined(HAVE_LIBDL_IN_LIBC) \
+#if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
+	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
+		void *tpnt, char *full_libname, int trace_loaded_objects);
+	struct dyn_elf **uclibc_sym_tables;
+	#ifdef UCLIBC_OLD
+	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, int now_flag);
+	#else
+	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
+	#endif
+	#ifdef EZ_ARCH_MIPS
+	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
+	#endif
+	struct elf_resolve_hdr **uclibc_loaded_modules;
+#elif defined(HAVE_LIBDL_IN_LIBC) \
 || defined(HAVE_LIBC_DLOPEN_MODE) \
 || defined(EZ_TARGET_ANDROID) \
 || defined(EZ_TARGET_DARWIN)
 	void *(*libc_dlopen)(const char *name, int mode);
-#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
-	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
-		void *tpnt, char *full_libname, int trace_loaded_objects);
-	struct dyn_elf **uclibc_sym_tables;
-#ifdef UCLIBC_OLD
-	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, int now_flag);
-#else
-	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
-#endif
-#ifdef EZ_ARCH_MIPS
-	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
-#endif
-	struct elf_resolve_hdr **uclibc_loaded_modules;
 #elif defined(EZ_TARGET_WINDOWS)
 	// LdrLoadDll
 	NTSTATUS NTAPI (*libc_dlopen)(
@@ -249,19 +253,19 @@ typedef struct {
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
 #endif
 
-extern intptr_t SCAPI injected_sc0(struct injcode_sc *sc);
-extern intptr_t SCAPI injected_sc1(struct injcode_sc *sc);
-extern intptr_t SCAPI injected_sc2(struct injcode_sc *sc);
-extern intptr_t SCAPI injected_sc3(struct injcode_sc *sc);
-extern intptr_t SCAPI injected_sc4(struct injcode_sc *sc);
-extern intptr_t SCAPI injected_sc5(struct injcode_sc *sc);
-extern intptr_t SCAPI injected_sc6(struct injcode_sc *sc);
+extern intptr_t SCAPI injected_sc0(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc1(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc2(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc3(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc4(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc5(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc6(struct injcode_call *sc);
 
 extern void PLAPI trampoline();
 extern void trampoline_entry();
 extern void trampoline_exit();
 
-extern void injected_fn(struct injcode_sc *sc);
+extern void injected_fn(struct injcode_call *sc);
 
 extern uint8_t __start_payload SECTION_START("payload");
 extern uint8_t __stop_payload SECTION_END("payload");

@@ -1,6 +1,8 @@
 #include "ezinject_injcode.h"
 
-INLINE void *get_libdl(struct injcode_bearing *br){
+INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
+	struct injcode_bearing *br = ctx->br;
+
     char *libdl_name = STR_DATA(BR_STRTBL(br));
 
 	struct elf_resolve_hdr *tpnt;
@@ -12,7 +14,7 @@ INLINE void *get_libdl(struct injcode_bearing *br){
 
 	tpnt = br->libc_dlopen(0, &rpnt, NULL, libdl_name, 0);
 	if(tpnt == NULL){
-		inj_dchar('!');
+		inj_dchar(br, '!');
 		return NULL;
 	}
 
