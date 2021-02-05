@@ -8,12 +8,9 @@
 
 #define REG_PC eip
 #define REG_SP esp
-#define REG_NR eax
-#define REG_RET eax
 
 #define REG(u, reg) (u).CONCAT(r_,reg)
 
-#define EMIT_SC() asm volatile("int $0x80\n")
 #define EMIT_POP(var) asm volatile("pop %0" : "=r"(var))
 
 #define POP_PARAMS(out_br, out_func) \
