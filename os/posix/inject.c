@@ -21,6 +21,14 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx){ return 0; }
 EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_sc *call){ return 0; }
 #else
 
+static void *code_data(void *code){
+#if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
+	return (void *)(UPTR(code) & ~1);
+#else
+	return code;
+#endif
+}
+
 static void _remote_sc_setup_offsets(){
 	sc_offsets[0] = PTRDIFF(&injected_sc0, region_sc_code.start);
 	sc_offsets[1] = PTRDIFF(&injected_sc1, region_sc_code.start);
@@ -44,7 +52,7 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
 
 	off_t trampoline_offset = 0;
 	size_t trampoline_size = ROUND_UP(
-		PTRDIFF(&trampoline_exit, &trampoline),
+		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline)),
 		sizeof(uintptr_t)
 	);
 
@@ -66,8 +74,8 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
 	uint8_t *payload = calloc(1, dataLength);
 	memcpy(
 		payload + trampoline_offset,
-		&trampoline,
-		PTRDIFF(&trampoline_exit, &trampoline)
+		code_data(&trampoline),
+		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline))
 	);
 	memcpy(
 		payload + sc_offset,
@@ -107,7 +115,7 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
 
 	ctx->trampoline_insn.remote = codeBase
 		+ trampoline_offset
-		+ PTRDIFF(&trampoline_entry, &trampoline);
+		+ PTRDIFF(code_data(&trampoline_entry), code_data(&trampoline));
 	return 0;
 }
 
