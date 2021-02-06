@@ -5,6 +5,11 @@
 #include "log.h"
 #include "ezinject_util.h"
 
+#ifdef EZ_TARGET_DARWIN
+EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){ return 0; }
+EZAPI remote_sc_free(struct ezinj_ctx *ctx){ return 0; }
+EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){ return 0; }
+#else
 static ez_region region_sc_code = {
 	.start = (void *)&__start_syscall,
 	.end = (void *)&__stop_syscall
@@ -14,12 +19,6 @@ static ez_region region_sc_code = {
 static off_t sc_offsets[7];
 // remote base of syscall code section
 static uintptr_t r_sc_base;
-
-#ifdef EZ_TARGET_DARWIN
-EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){ return 0; }
-EZAPI remote_sc_free(struct ezinj_ctx *ctx){ return 0; }
-EZAPI remote_sc_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){ return 0; }
-#else
 
 static void *code_data(void *code){
 #if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)

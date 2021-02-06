@@ -37,6 +37,7 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
+#ifdef EZ_TARGET_POSIX
 #define SC_RETURN(sc, retval) do { \
 	(sc)->result = retval; \
 	(sc)->libc_syscall(__NR_kill, \
@@ -93,6 +94,7 @@ void SCAPI injected_sc6(struct injcode_call *sc){
 	);
 	SC_RETURN(sc, ret);
 }
+#endif
 
 //#define PL_EARLYDEBUG
 
