@@ -27,8 +27,10 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 		return -1;
 	}
 
+	int signal = WSTOPSIG(status);
+	DBG("got signal: %d (%s)", signal, strsignal(signal));
+
 	if(expected_signal > 0){
-		int signal = WSTOPSIG(status);
 		if(signal != expected_signal){
 			ERR("remote_wait: %s", strsignal(rc));
 			return -1;

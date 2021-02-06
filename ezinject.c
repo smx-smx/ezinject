@@ -177,111 +177,41 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
-	int status;
-	for(int i=0; i<call->num_wait_calls; i++){
-		int rc;
-		do {
-			if(remote_continue(ctx, 0) < 0){
-				PERROR("ptrace");
-				return -1;
-			}
-			if(remote_wait(ctx, 0) < 0){
-				ERR("remote_wait failed");
-				return -1;
-			}
-
-			// get syscall return value
-			if(remote_getregs(ctx, &new_ctx) < 0){ /* Get return value */
-				PERROR("ptrace");
-				return -1;
-			}
-
-			if(ctx->rcall_handler_post != NULL){
-				if(ctx->rcall_handler_post(ctx, &call->rcall) < 0){
-					ERR("rcall_handler_post failed");
-					return -1;
-				}
-			}
-
-			remote_read(ctx,
-				&call->rcall.result,
-				RCALL_FIELD_ADDR(&call->rcall, result),
-				sizeof(uintptr_t)
-			);
-
-			DBG("[RET] = %zu", call->rcall.result);
-		} while(0);
+	if(remote_continue(ctx, 0) < 0){
+		PERROR("ptrace");
+		return -1;
 	}
 
-	if(call->num_wait_calls == 0){
-		int stopsig = 0;
-		do {
-
-			DBG("continuing...");
-			// pass signal to child
-			if(remote_continue(ctx, stopsig) < 0){
-				PERROR("ptrace");
-				return -1;
-			}
-
-		#ifndef EZ_TARGET_WINDOWS
-			if(ctx->pl_debug){
-				remote_suspend(ctx);
-			}
-		#endif
-
-			// wait for the children to stop
-			status = remote_wait(ctx, 0);
-			if(status < 0){
-				ERR("remote_wait failed");
-				return -1;
-			}
-
-		#ifdef EZ_TARGET_POSIX
-			stopsig = WSTOPSIG(status);
-			DBG("got signal: %d (%s)", stopsig, strsignal(stopsig));
-		#endif
-
-			/**
-			 * if we're debugging payload
-			 * we break early as the target should
-			 * now be in an endless loop
-			 **/
-			if(ctx->pl_debug){
-				return -1;
-			}
-		} while(IS_IGNORED_SIG(stopsig));
-
-		if(remote_getregs(ctx, &new_ctx) < 0){
-			PERROR("ptrace");
-			return -1;
-		}
-
-	#ifdef EZ_TARGET_POSIX
-		if(stopsig != SIGSTOP){
-			ERR("Unexpected signal (expected SIGSTOP)");
-
-			regs_t tmp;
-			remote_getregs(ctx, &tmp);
-			DBG("CRASH @ %p (offset: %i)",
-				(void *)REG(tmp, REG_PC),
-				(signed int)(REG(tmp, REG_PC) - call->insn_addr)
-			);
-		}
-
-		if(stopsig == SIGTRAP || stopsig == SIGSEGV){
-			// child raised a debug event
-			// this is a debug condition, so do a hard exit
-			// $TODO: do it nicer
-			remote_detach(ctx);
-			exit(0);
-			return -1;
-		}
-	#endif
+	if(remote_wait(ctx, 0) < 0){
+		ERR("remote_wait failed");
+		return -1;
 	}
 
-	// the payload is expected to use its own stack
-	// we don't restore stack in that case
+	if(call->num_wait_calls == 0 && ctx->pl_debug){
+		return -1;
+	}
+
+
+	if(ctx->rcall_handler_post != NULL){
+		if(ctx->rcall_handler_post(ctx, &call->rcall) < 0){
+			ERR("rcall_handler_post failed");
+			return -1;
+		}
+	}
+
+	remote_read(ctx,
+		&call->rcall.result,
+		RCALL_FIELD_ADDR(&call->rcall, result),
+		sizeof(uintptr_t)
+	);
+
+	DBG("[RET] = %zu", call->rcall.result);
+
+	/**
+	  * the payload is expected to use its own stack
+	  * so we don't restore stack in that case
+	  * because the stack could be unmapped
+	  */
 	if(call->num_wait_calls > 0){
 		DBG("restoring stack data");
 		if(remote_write(ctx,
@@ -753,7 +683,7 @@ int ezinject_main(
 		#endif
 
 		
-		#if defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS) || defined(EZ_TARGET_DARWIN)
+		#ifndef USE_SHM
 		if(remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
 			PERROR("remote_write failed");
 		}		
@@ -831,28 +761,10 @@ int main(int argc, char *argv[]){
 	INFO("waiting for target to stop...");
 
 	int err = 0;
-	/* Wait for attached process to stop */
-#if defined(EZ_TARGET_POSIX)
-	{
-		int status = 0;
-		for(;;){
-			status = remote_wait(&ctx, 0);
-			if(WIFSTOPPED(status)){
-				int stopsig = WSTOPSIG(status);
-				if(!IS_IGNORED_SIG(stopsig)){
-					break;
-				}
-				INFO("Skipping signal %u", stopsig);
-				CHECK(remote_continue(&ctx, stopsig));
-			}
-		}
-	}
-#elif defined(EZ_TARGET_WINDOWS)
 	if(remote_wait(&ctx, 0) < 0){
 		PERROR("remote_wait");
 		return 1;
 	}
-#endif
 
 	if(libc_init(&ctx) != 0){
 		return 1;

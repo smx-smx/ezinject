@@ -253,19 +253,19 @@ typedef struct {
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
 #endif
 
-extern intptr_t SCAPI injected_sc0(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc1(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc2(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc3(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc4(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc5(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc6(struct injcode_call *sc);
+extern void SCAPI injected_sc0(struct injcode_call *sc);
+extern void SCAPI injected_sc1(struct injcode_call *sc);
+extern void SCAPI injected_sc2(struct injcode_call *sc);
+extern void SCAPI injected_sc3(struct injcode_call *sc);
+extern void SCAPI injected_sc4(struct injcode_call *sc);
+extern void SCAPI injected_sc5(struct injcode_call *sc);
+extern void SCAPI injected_sc6(struct injcode_call *sc);
 
 extern void PLAPI trampoline();
 extern void trampoline_entry();
 extern void trampoline_exit();
 
-extern void injected_fn(struct injcode_call *sc);
+extern void PLAPI injected_fn(struct injcode_call *sc);
 
 extern uint8_t __start_payload SECTION_START("payload");
 extern uint8_t __stop_payload SECTION_END("payload");

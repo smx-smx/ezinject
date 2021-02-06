@@ -24,5 +24,6 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 }
 
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
-	return (intptr_t) CHECK(RSCALL1(ctx, SYS_shmdt, remote_shmaddr));
+	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
+	return (intptr_t) CHECK(RSCALL2(ctx, SYS_munmap, ctx->mapped_mem.remote, br->mapping_size));
 }

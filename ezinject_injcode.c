@@ -37,47 +37,61 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-intptr_t SCAPI injected_sc0(struct injcode_call *sc){
-	return sc->libc_syscall(sc->argv[0]);
+#define SC_RETURN(sc, retval) do { \
+	(sc)->result = retval; \
+	(sc)->libc_syscall(__NR_kill, \
+		(sc)->libc_syscall(__NR_getpid), SIGTRAP \
+	); \
+} while(0)
+
+void SCAPI injected_sc0(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(sc->argv[0]);
+	SC_RETURN(sc, ret);
 }
-intptr_t SCAPI injected_sc1(struct injcode_call *sc){
-	return sc->libc_syscall(
+void SCAPI injected_sc1(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
 		sc->argv[0], sc->argv[1]
 	);
+	SC_RETURN(sc, ret);
 }
-intptr_t SCAPI injected_sc2(struct injcode_call *sc){
-	return sc->libc_syscall(
+void SCAPI injected_sc2(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2]
 	);
+	SC_RETURN(sc, ret);
 }
-intptr_t SCAPI injected_sc3(struct injcode_call *sc){
-	return sc->libc_syscall(
+void SCAPI injected_sc3(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3]
 	);
+	SC_RETURN(sc, ret);
 }
-intptr_t SCAPI injected_sc4(struct injcode_call *sc){
-	return sc->libc_syscall(
+void SCAPI injected_sc4(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4]
 	);
+	SC_RETURN(sc, ret);
 }
-intptr_t SCAPI injected_sc5(struct injcode_call *sc){
-	return sc->libc_syscall(
+void SCAPI injected_sc5(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4], sc->argv[5]
 	);
+	SC_RETURN(sc, ret);
 }
-intptr_t SCAPI injected_sc6(struct injcode_call *sc){
-	return sc->libc_syscall(
+void SCAPI injected_sc6(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4], sc->argv[5],
 		sc->argv[6]
 	);
+	SC_RETURN(sc, ret);
 }
 
 //#define PL_EARLYDEBUG
@@ -108,18 +122,7 @@ void PLAPI trampoline(){
 	register struct injcode_call *args = NULL;
 	register uintptr_t (*target)(volatile struct injcode_call *) = NULL;
 	POP_PARAMS(args, target);
-
-	// this is used onlyfor Linux and FreeBSD
-	// which use remote syscalls
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
-	args->result = target(args);
-	args->libc_syscall(__NR_kill,
-		args->libc_syscall(__NR_getpid),
-		SIGTRAP
-	);
-#else
 	target(args);
-#endif
 
 	asm volatile(JMP_INSN " .");
 	EMIT_LABEL("trampoline_exit");
@@ -269,7 +272,7 @@ void PLAPI injected_fn(struct injcode_call *sc){
 	ctx->stbl = BR_STRTBL(br);
 
 	if(br->pl_debug){
-		inj_thread_stop(ctx, EXIT_SUCCESS);
+		inj_thread_stop(ctx, EXIT_FAILURE);
 	}
 
 	int signal = EXIT_FAILURE;
@@ -354,5 +357,7 @@ void PLAPI injected_fn(struct injcode_call *sc){
 	// bye
 	inj_dchar(br, 'b');
 
+	sc->result2 = (signal == EXIT_SUCCESS) ? 0 : -1;
 	inj_thread_stop(ctx, signal);
+	while(1);
 }
