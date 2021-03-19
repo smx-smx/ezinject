@@ -89,7 +89,7 @@ linux_android_aarch64_task:
 
 freebsd_x64_task:
   freebsd_instance:
-    image_family: freebsd-12-1
+    image_family: freebsd-12-2
 
   install_script: 
     - pkg update
