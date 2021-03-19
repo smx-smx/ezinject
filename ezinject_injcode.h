@@ -187,9 +187,6 @@ struct injcode_bearing
 	// libdl base address, if already loaded
 	void *libdl_handle;
 	long (*libc_syscall)(long number, ...);
-#ifdef DEBUG
-	int (*libc_printf)(const char *format, ...);
-#endif
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
 	uint8_t loaded_signal;

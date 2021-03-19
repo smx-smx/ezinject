@@ -10,25 +10,6 @@ INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned 
 	return ctx->libdl.dlopen(filename);
 }
 
-INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
-#ifndef DEBUG
-	UNUSED(br);
-	UNUSED(dw);
-#else
-	uintptr_t addr = (uintptr_t)ptr;
-	const int n = sizeof(addr) * 8;
-	char buf[n + 1];
-
-	int i=0;
-	while(i<n){
-		int bit = (addr >> (n-1)) & 1;
-		buf[i++] = (bit) ? '1' : '0';
-		addr <<= 1;
-	}
-	inj_puts(br, buf);
-#endif
-}
-
 INLINE intptr_t inj_thread_wait(
 	struct injcode_ctx *ctx,
 	intptr_t *pExitStatus

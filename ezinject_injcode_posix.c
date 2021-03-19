@@ -1,13 +1,3 @@
-INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
-	volatile uint64_t buf[2] = {
-		str64(0x706C3A7074723A25), /* pl:ptr:% */
-		str64(0x700A000000000000)  /* p\n\0    */
-	};
-	if(br->libc_printf != NULL){
-		br->libc_printf((char *)buf, ptr);
-	}
-}
-
 INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
 	// awake ptrace
 	// success: SIGSTOP

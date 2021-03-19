@@ -143,11 +143,19 @@ INLINE uint64_t str64(uint64_t x){
 	#endif
 }
 
+#include "ezinject_injcode_common.c"
+
 #if defined(EZ_TARGET_POSIX)
 #include "ezinject_injcode_posix_common.c"
 #elif defined(EZ_TARGET_WINDOWS)
 #include "ezinject_injcode_windows_common.c"
 #endif
+
+INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
+	char buf[sizeof(uintptr_t) + 1];
+	itoa16((uintptr_t)ptr, buf);
+	inj_puts(br, buf);
+}
 
 struct injcode_ctx {
 	struct injcode_bearing *br;
