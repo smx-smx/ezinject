@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include "config.h"
 
 extern enum verbosity_level
@@ -25,13 +26,13 @@ extern enum verbosity_level
 
 #define STRINGIFY(x) STRINGIFY2(x)
 #define STRINGIFY2(x) #x
-#ifdef DEBUG
+//#ifdef DEBUG
 #define DBG(fmt, ...) LOG(V_DBG, "[DEBG] " fmt, ##__VA_ARGS__)
 #define LOG_PREFIX "[" __FILE__ ":" STRINGIFY(__LINE__) "] "
-#else
-#define DBG(fmt, ...)
-#define LOG_PREFIX ""
-#endif
+//#else
+//#define DBG(fmt, ...)
+//#define LOG_PREFIX ""
+//#endif
 
 #define DBGPTR(p) DBG("%s=%p", #p, (void *)p)
 
@@ -80,7 +81,17 @@ extern FILE *LOG_RESERVED_HANDLE;
 #define WARN(fmt, ...) LOG(V_WARN, "[WARN] " fmt, ##__VA_ARGS__)
 #define ERR(fmt, ...) LOG(V_ERR, "[ERR ] " fmt, ##__VA_ARGS__)
 
+#if defined(EZ_TARGET_POSIX)
 #define PERROR(str) ERR("%s: %s", str, strerror(errno));
+#elif defined(EZ_TARGET_WINDOWS)
+#include "os/windows/util.h"
+#define PERROR(str) do { \
+    char buf[256]; \
+    DWORD errCode = GetLastError(); \
+    if(win32_errstr(errCode, buf, sizeof(buf))) \
+        ERR("%s: %s (0x%08lX)", str, buf, errCode); \
+} while(0);
+#endif
 #define CHECK(x) ({\
 long _tmp = (x);\
 DBG("%s = %lu", #x, _tmp);\

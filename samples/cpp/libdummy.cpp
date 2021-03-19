@@ -7,7 +7,7 @@
 
 extern "C" {
 	#include "log.h"
-	#include "util.h"
+	#include "ezinject_util.h"
 	#include "interface/if_hook.h"
 	#include "interface/cpu/if_sljit.h"
 

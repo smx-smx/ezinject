@@ -19,7 +19,11 @@ void func2(void)
 
 void onSignal(int sigNum){
 	UNUSED(sigNum);
+	#ifdef HAVE_STRSIGNAL
 	printf("Error: got signal %d (%s)\n", sigNum, strsignal(sigNum));
+	#else
+	printf("Error: got signal %d\n", sigNum);
+	#endif
 	raise(SIGSTOP);
 }
 

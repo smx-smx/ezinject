@@ -1,4 +1,12 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+set -e
+
+if [[ "$OSTYPE" == "freebsd"* ]] || [[ "$OSTYPE" == "darwin"* ]]; then
+	jobs=$(sysctl -n hw.ncpu)
+else
+	jobs=$(nproc)
+fi
+
 cd "$(dirname "$0")"
 if [ "$1" == "clean" ]; then
 	echo "Removing build directory..."
@@ -11,4 +19,4 @@ fi
 [ ! -d build ] && mkdir build
 cd build
 cmake .. ${TOOLCHAINFILE} $*
-cmake --build . -- -j$(nproc)
+cmake --build . -- -j${jobs}

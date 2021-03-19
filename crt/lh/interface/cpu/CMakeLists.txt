@@ -1,10 +1,14 @@
 add_library(lh_ifcpu cpu_common.c)
-target_link_libraries(lh_ifcpu util)
 set_target_properties(lh_ifcpu PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if(EZ_ARCH_ARM)
 	add_subdirectory(arm)
 	target_link_libraries(lh_ifcpu libcpu_arm)
+endif()
+
+if(EZ_ARCH_ARM64)
+	add_subdirectory(arm64)
+	target_link_libraries(lh_ifcpu libcpu_arm64)
 endif()
 
 if(EZ_ARCH_MIPS)

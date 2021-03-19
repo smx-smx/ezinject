@@ -3,25 +3,32 @@
 
 #define REG_PC cp0_epc
 #define REG_SP regs[29]
-#define REG_RET regs[2] //$v0
-#define REG_NR regs[2] //$v0
-#define REG_ARG1 regs[4] //$a0
-#define REG_ARG2 regs[5] //$a1
-#define REG_ARG3 regs[6] //$a2
-#define REG_ARG4 regs[7] //$a3
 
 #define REG(u, r) (u).r
-
-/**
- * zero after syscall used as stack, for arg4 in sys_ipc (used as shmaddr, which must be 0)
- **/
-#define EMIT_SC() asm volatile( \
-	"syscall\n" \
-	".word 0x00\n" \
-)
 
 #define EMIT_POP(var) asm volatile( \
 	"lw %0, 0($sp)\n" \
 	"addiu $sp, $sp, 4\n" \
 	: "=r"(var))
+
+#define POP_PARAMS(out_br, out_func) \
+	EMIT_POP(out_br); \
+	EMIT_POP(out_func)
+
+#define JMP_INSN "j"
+
+// the bundled pt_regs definition is wrong (https://www.linux-mips.org/archives/linux-mips/2014-07/msg00443.html)
+// so we must provide our own
+
+struct pt_regs2 {
+	uint64_t regs[32];
+	uint64_t lo;
+	uint64_t hi;
+	uint64_t cp0_epc;
+	uint64_t cp0_badvaddr;
+	uint64_t cp0_status;
+	uint64_t cp0_cause;
+} __attribute__ ((aligned (8)));
+typedef struct pt_regs2 regs_t;
+
 #endif

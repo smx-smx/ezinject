@@ -9,8 +9,30 @@
 #include <elf.h>
 #include <link.h>
 
-#include "util.h"
+#include "config.h"
+#include "ezinject_util.h"
 
+#if defined(EZ_TARGET_LINUX)
+#define ElfAddr ElfW(Addr)
+#define ElfAddr ElfW(Addr)
+#define ElfEhdr ElfW(Ehdr)
+#define ElfEhdr ElfW(Ehdr)
+#define ElfOff ElfW(Off)
+#define ElfOff ElfW(Off)
+#define ElfPhdr ElfW(Phdr)
+#define ElfPhdr ElfW(Phdr)
+#define ElfShdr ElfW(Shdr)
+#define ElfShdr ElfW(Shdr)
+#define ElfSym ElfW(Sym)
+#define ElfSym ElfW(Sym)
+#elif defined(EZ_TARGET_FREEBSD)
+#define ElfAddr Elf_Addr
+#define ElfEhdr Elf_Ehdr
+#define ElfOff Elf_Off
+#define ElfPhdr Elf_Phdr
+#define ElfShdr Elf_Shdr
+#define ElfSym Elf_Sym
+#endif
 struct elfparse_info
 {
 	char *path;
@@ -18,59 +40,80 @@ struct elfparse_info
 	void *mapping;
 	size_t len;
 
-	ElfW(Ehdr) *ehdr;
+	ElfEhdr *ehdr;
+	ElfShdr *sec;
 
 	char *strtab;
-	ElfW(Sym) *symtab;
+	ElfSym *symtab;
 	int symtab_entries;
 
 	char *dynstr;
-	ElfW(Sym) *dynsym;
+	ElfSym *dynsym;
 	int dynsym_entries;
 };
 
 static void elfparse_parse(struct elfparse_info *hndl);
 
-void *elfparse_createhandle(const char *procpath)
-{
-	struct elfparse_info *hndl = malloc(sizeof(struct elfparse_info));
-	if(!hndl) return 0;
-	memset(hndl, 0, sizeof(struct elfparse_info));
-	hndl->path = strdup(procpath);
-	if(!hndl->path)
-		goto free_mem;
-	hndl->fd = open(hndl->path, O_RDONLY);
-	if(hndl->fd < 0)
-		goto free_path;
-	hndl->len = lseek(hndl->fd, 0, SEEK_END);
-	lseek(hndl->fd, 0, SEEK_SET);
-	hndl->mapping = mmap(0, hndl->len, PROT_READ, MAP_SHARED, hndl->fd, 0);
-	if(hndl->mapping == MAP_FAILED)
-		goto free_path;
-	elfparse_parse(hndl);
+void *elfparse_createhandle(const char *procpath) {
+	struct elfparse_info *hndl = NULL;
+	int rc = -1;
+	do {
+		hndl = calloc(1, sizeof(struct elfparse_info));
+		if(hndl == NULL){
+			break;
+		}
+		hndl->path = strdup(procpath);
+		if(hndl->path == NULL){
+			break;
+		}
+		hndl->fd = open(hndl->path, O_RDONLY);
+		if(hndl->fd < 0){
+			break;
+		}
+
+		struct stat statBuf;
+		if(fstat(hndl->fd, &statBuf) < 0){
+			break;
+		}
+
+		hndl->len = statBuf.st_size;
+		hndl->mapping = mmap(0, hndl->len, PROT_READ, MAP_SHARED, hndl->fd, 0);
+		if(hndl->mapping == MAP_FAILED){
+			break;
+		}
+
+		elfparse_parse(hndl);
+		rc = 0;
+	} while(0);
+
+	if(rc != 0){
+		if(hndl->path != NULL){
+			free(hndl->path);
+		}
+		if(hndl != NULL){
+			free(hndl);
+			hndl = NULL;
+		}
+	}
 	return hndl;
-free_path:
-	free(hndl->path);
-free_mem:
-	free(hndl);
-	return 0;
 }
 
-static void elfparse_parse(struct elfparse_info *hndl)
-{
-	ElfW(Ehdr) *ehdr = hndl->mapping;
+static void elfparse_parse(struct elfparse_info *hndl) {
+	ElfEhdr *ehdr = hndl->mapping;
 	hndl->ehdr = ehdr;
+	ElfShdr *sec = (Elf32_Shdr *)((uint8_t *)ehdr + ehdr->e_shoff);
+	hndl->sec = sec;
 	DBG("e_ident=%s", ehdr->e_ident);
 	DBG("e_phoff=%zu", ehdr->e_phoff);
 	DBG("e_shoff=%zu", ehdr->e_shoff);
 	DBG("e_shentsize=%u", ehdr->e_shentsize);
 	DBG("e_shnum=%u", ehdr->e_shnum);
 
-	ElfW(Shdr) *shdr = hndl->mapping + ehdr->e_shoff;
+	ElfShdr *shdr = hndl->mapping + ehdr->e_shoff;
 	char *strtab = hndl->mapping + shdr[ehdr->e_shstrndx].sh_offset;
 	for(int i = 0; i < ehdr->e_shnum; ++i)
 	{
-		ElfW(Shdr) *cur_shdr = &shdr[i];
+		ElfShdr *cur_shdr = &shdr[i];
 		char *name = &strtab[cur_shdr->sh_name];
 		if(!strcmp(name, ".symtab"))
 		{
@@ -103,33 +146,44 @@ bool elfparse_needs_reloc(void *handle)
 	return hndl->ehdr->e_type != ET_EXEC;
 }
 
-static char *elfparse_findfunction(char *strtab, ElfW(Sym) *symtab, int symtab_entries, const char *funcname)
-{
-	for(int i = 0; i < symtab_entries; ++i)
-	{
-		char *curname = &strtab[symtab[i].st_name];
-		if(!strcmp(curname, funcname))
-			return (char *)symtab[i].st_value;
+static uint8_t *elfparse_findfunction(
+	struct elfparse_info *hndl,
+	char *strtab, ElfSym *symtab,
+	int symtab_entries,
+	const char *funcname
+){
+	for(int i = 0; i < symtab_entries; ++i) {
+		ElfSym *sym = &symtab[i];
+		char *curname = &strtab[sym->st_name];
+		if(!strcmp(curname, funcname)){
+			unsigned offset = (
+				hndl->sec[sym->st_shndx].sh_offset
+				+ sym->st_value - hndl->sec[sym->st_shndx].sh_addr
+			);
+			return (uint8_t *)offset;
+		}
 	}
 	return 0;
 }
 
-char *elfparse_getfuncaddr(void *handle, const char *funcname)
+void *elfparse_getfuncaddr(void *handle, const char *funcname)
 {
 	struct elfparse_info *hndl = (struct elfparse_info*)handle;
-	char *fn = elfparse_findfunction(hndl->strtab, hndl->symtab, hndl->symtab_entries, funcname);
-	if(fn)
-		goto ret;
+	uint8_t *fn = elfparse_findfunction(hndl, hndl->strtab, hndl->symtab, hndl->symtab_entries, funcname);
+	if(fn){
+		return fn;
+	}
 	DBG("Function %s not found in symtab, trying dynsym", funcname);
-	fn = elfparse_findfunction(hndl->dynstr, hndl->dynsym, hndl->dynsym_entries, funcname);
-	if(fn)
-		goto ret;
+	fn = elfparse_findfunction(hndl, hndl->dynstr, hndl->dynsym, hndl->dynsym_entries, funcname);
+	if(fn){
+		return fn;
+	}
 	WARN("Function %s not found in symtab or dynsym", funcname);
 	return 0;
-ret:
+#if 0
 	if(hndl->ehdr->e_machine == EM_ARM) /* apply fix for Thumb functions */
-		fn = (char *)((uintptr_t)fn & ~1);
-	return fn;
+		fn = (uint8_t *)((uintptr_t)fn & ~1);
+#endif
 }
 
 void elfparse_destroyhandle(void *handle)

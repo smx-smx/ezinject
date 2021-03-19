@@ -1,12 +1,27 @@
 #cmakedefine DEBUG
 #cmakedefine EZ_ARCH_ARM
+#cmakedefine EZ_ARCH_ARM64
 #cmakedefine EZ_ARCH_I386
 #cmakedefine EZ_ARCH_AMD64
 #cmakedefine EZ_ARCH_MIPS
+#cmakedefine EZ_TARGET_LINUX
+#cmakedefine EZ_TARGET_FREEBSD
+#cmakedefine EZ_TARGET_POSIX
+#cmakedefine EZ_TARGET_ANDROID
+#cmakedefine EZ_TARGET_WINDOWS
+#cmakedefine EZ_TARGET_DARWIN
+#cmakedefine HAVE_CPU_VLE
 #cmakedefine HAVE_SHM_EXEC
+#cmakedefine HAVE_STRSIGNAL
 #cmakedefine HAVE_LIBC_DLOPEN_MODE
 #cmakedefine HAVE_DL_LOAD_SHARED_LIBRARY
+#cmakedefine HAVE_LIBDL_IN_LIBC
 #cmakedefine HAVE_SHM_SYSCALLS
+#cmakedefine HAVE_RTLD_NOLOAD
+#cmakedefine USE_SHM
+#cmakedefine USE_ANDROID_ASHMEM
+#cmakedefine USE_ARM_THUMB
+#cmakedefine HAVE_SYS_SHM_H
 #cmakedefine UCLIBC_OLD
 #cmakedefine C_LIBRARY_NAME "@C_LIBRARY_NAME@"
 #cmakedefine DYN_LINKER_NAME "@DYN_LINKER_NAME@"

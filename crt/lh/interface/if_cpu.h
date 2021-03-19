@@ -10,6 +10,8 @@
 #endif
 #include <errno.h>
 
+#include "config.h"
+
 #if __android__
 struct user {
 	long uregs[18];
@@ -63,7 +65,7 @@ struct user
 };
 #endif
 
-#if defined(__i386__) || defined(__x86_64__)
+#ifdef HAVE_CPU_VLE
 #include <capstone/capstone.h>
 #endif
 
@@ -72,6 +74,7 @@ struct user
  */
 size_t inj_getjmp_size();
 uint8_t *inj_build_jump(void *dstAddr, void *srcAddr, size_t *jumpSz);
+void *inj_code_addr(void *func_addr);
 
 int inj_getbackup_size(void *codePtr, unsigned int payloadSz);
 int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *destPC);

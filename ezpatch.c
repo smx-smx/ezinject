@@ -14,7 +14,7 @@
 #include <sys/stat.h>
 #include <sys/ptrace.h>
 
-#include "util.h"
+#include "ezinject_util.h"
 #include "elfparse.h"
 
 enum verbosity_level verbosity = V_INFO;
@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 		*(filename++) = 0;
 		char *funcname = cmd;
 
-		char *funcadr = elfparse_getfuncaddr(hndl, funcname);
+		char *funcadr = (char *)elfparse_getfuncaddr(hndl, funcname);
 		if(!funcadr)
 		{
 			WARN("Function %s not found!", funcname);

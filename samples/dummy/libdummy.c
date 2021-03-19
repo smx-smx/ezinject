@@ -2,15 +2,23 @@
 #include <stdlib.h>
 #include <dlfcn.h>
 
+#include "config.h"
 #include "log.h"
-#include "util.h"
 #include "interface/if_hook.h"
 #include "interface/cpu/if_sljit.h"
 
+#include "ezinject_util.h"
 #include "ezinject_injcode.h"
 
 LOG_SETUP(V_DBG);
 
+// $TODO
+#ifndef EZ_TARGET_WINDOWS
+#define USE_SLJIT
+#define USE_LH
+#endif
+
+#ifdef USE_SLJIT
 /**
  * Sample function that demonstrates the use of sljit
  **/
@@ -46,17 +54,28 @@ void *sljit_build_sample(void **ppCodeMem){
 
 	return sljit_code;
 }
+#endif
 
 typedef int(*testFunc_t)(int arg1, int arg2);
 
 static testFunc_t pfnOrigTestFunc = NULL;
 static testFunc_t sljitCode = NULL;
 
+#ifdef UCLIBC_OLD
+int myCustomFn(int arg1, int arg2){
+	UNUSED(arg1);
+	UNUSED(arg2);
+	return 1338;
+}
+#else
 int myCustomFn(int arg1, int arg2){
 	DBG("original arguments: %d, %d", arg1, arg2);
 
+	#ifdef USE_SLJIT
 	// call the sljit code sample
 	arg1 = sljitCode(arg1, arg2);
+	#endif
+
 	arg2 = 0;
 
 	DBG("calling original(%d,%d)", arg1, arg2);
@@ -68,7 +87,9 @@ int myCustomFn(int arg1, int arg2){
 	DBG("return: %d, give %d", origRet, newReturn);
 	return newReturn;
 }
+#endif
 
+#ifdef USE_LH
 void installHooks(){
 	void *self = dlopen(NULL, RTLD_LAZY);
 	if(self == NULL){
@@ -82,11 +103,13 @@ void installHooks(){
 	do {
 		testFunc_t pfnTestFunc = dlsym(self, "func1");
 		if(pfnTestFunc == NULL){
-			ERR("Couldn't locate test function");
+			ERR("Couldn't locate test function: %s", dlerror());
 			break;
 		}
 
+		#ifdef USE_SLJIT
 		sljitCode = sljit_build_sample(&codeMem);
+		#endif
 
 		/**
 		 * create a trampoline to call the original function once the hook is installed
@@ -112,14 +135,17 @@ void installHooks(){
 
 	if(error){
 		INFO("failed to install hooks");
+		#ifdef USE_SLJIT
 		if(codeMem != NULL){
 			sljit_free_exec(codeMem);
 		}
+		#endif
 		dlclose(self);
 	} else {
 		INFO("hooks installed succesfully");
 	}
 }
+#endif
 
 int lib_preinit(struct injcode_user *user){
 	/**
@@ -137,6 +163,8 @@ int lib_main(int argc, char *argv[]){
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
+	#ifdef USE_LH
 	installHooks();
-	return 0;
+	#endif
+return 0;
 }

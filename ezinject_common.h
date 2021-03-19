@@ -3,6 +3,11 @@
 
 #define UNUSED(x) (void)(x)
 #define ALIGNMSK(y) ((y)-1)
+
+#ifdef ALIGN
+#undef ALIGN
+#endif
+
 #define ALIGN(x, y) ((void *)((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y)))
 
 #define ROUND_UP(N, S) ((((N) + (S) - 1) / (S)) * (S))
@@ -27,6 +32,5 @@
 	out = STR_DATA(stbl); \
 	STRTBL_SKIP(stbl); \
 } while(0)
-
 
 #endif

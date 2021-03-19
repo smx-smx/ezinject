@@ -8,6 +8,7 @@
 	} while(0)
 
 #define WRITE8(ptr, v) WRITE(ptr, uint8_t, v)
+#define WRITE16(ptr, v) WRITE(ptr, uint16_t, v)
 #define WRITE32(ptr, v) WRITE(ptr, uint32_t, v)
 
 #endif

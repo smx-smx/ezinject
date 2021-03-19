@@ -1,0 +1,50 @@
+version: 2.0.{build}
+
+image:
+  - Visual Studio 2019
+  - Ubuntu
+  - macos
+
+for:
+  -
+    matrix:
+      only:
+        - image: Ubuntu
+    install:
+      - sudo apt-get update -qq
+      - sudo apt-get install -y libcapstone-dev
+    build_script:
+      ./build.sh
+    test_script:
+      (cd build; sudo ctest -V)
+  -
+    matrix:
+      only:
+        - image: macos
+    install:
+      - brew install capstone
+    build_script:
+      ./build.sh
+    test_script:
+      (cd build; sudo ctest -V)
+  -
+    matrix:
+      only:
+        - image: Visual Studio 2019
+    environment:
+      MSYS: winsymlinks:nativestrict
+      MSYSTEM: MINGW64
+      MSYS2_PACKAGES: "
+        mingw-w64-x86_64-capstone
+        mingw-w64-x86_64-dlfcn
+      "
+      CHERE_INVOKING: 1
+    install:
+      - C:\msys64\usr\bin\bash -lc "pacman --noconfirm -S --needed %MSYS2_PACKAGES%"
+    build_script:
+      - C:\msys64\usr\bin\bash -lc "mkdir build"
+      - C:\msys64\usr\bin\bash -lc "cd build && cmake .. -G 'MSYS Makefiles'"
+      - C:\msys64\usr\bin\bash -lc "cd build && cmake --build . -j $(nproc)"
+      - exit $LastExitCode
+    test_script:
+      - C:\msys64\usr\bin\bash -lc "cd build && ctest -V"

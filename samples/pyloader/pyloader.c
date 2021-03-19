@@ -10,7 +10,7 @@
 #include <unistd.h>
 
 #include "log.h"
-#include "util.h"
+#include "ezinject_util.h"
 #include "ezinject_injcode.h"
 
 #define UNUSED(x) (void)(x)

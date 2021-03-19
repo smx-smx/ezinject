@@ -4,25 +4,48 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <sys/types.h>
-#include <linux/limits.h>
 #include <pthread.h>
-#include <sys/sem.h>
-
 
 #include "config.h"
+
+#ifdef EZ_TARGET_WINDOWS
+#include <windows.h>
+#include <ntdef.h>
+#include <winternl.h>
+#endif
+
+#define SC_MAX_ARGS 8
 #include "ezinject_common.h"
 
-#define EZ_SEM_LIBCTL 0
+#define EZAPI intptr_t
+
+#ifdef EZ_TARGET_DARWIN
+#define SECTION(X) __attribute__((section("__DATA,__" X)))
+#define SECTION_START(X) __asm("section$start$__DATA$__" X)
+#define SECTION_END(X) __asm("section$end$__DATA$__" X)
+#else
+#define SECTION(X) __attribute__((section(X)))
+#define SECTION_START(X)
+#define SECTION_END(X)
+#endif
+
+#define PLAPI SECTION("payload")
+#define SCAPI SECTION("syscall")
 
 #define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
 
 // temporary stack size
-#define PL_STACK_SIZE 64 * 1024
+#define PL_STACK_SIZE 1024 * 1024 * 4
 
+#ifdef EZ_TARGET_DARWIN
+#define LABEL_PREFIX "_"
+#else
+#define LABEL_PREFIX
+#endif
 #define EMIT_LABEL(name) \
 	asm volatile( \
-		".globl "name"\n" \
-		name":\n" \
+		".globl "LABEL_PREFIX name"\n" \
+		LABEL_PREFIX name":\n" \
 	)
 
 
@@ -74,29 +97,89 @@ struct injcode_user {
 	uint8_t persist;
 };
 
+struct injcode_trampoline {
+	uintptr_t fn_arg;
+	uintptr_t fn_addr;
+};
+
+struct injcode_call {
+	long (*libc_syscall)(long number, ...);
+	int argc;
+	uintptr_t result;
+	uintptr_t result2;
+	uintptr_t argv[SC_MAX_ARGS];
+	/**
+	 * since we are skipping the prologue of the trampoline
+	 * we're not doing a proper stack allocation
+	 * this means that calling conventions like cdecl will overwrite a part of this struct
+	 * when pushing
+	 * so we have to reserve enough stack for trampoline here
+	 */
+	uintptr_t scratch[8];
+	struct injcode_trampoline trampoline;
+};
+
+#define RCALL_FIELD_ADDR(rcall, field) \
+	(((rcall)->trampoline.fn_arg) + offsetof(struct injcode_call, field))
+
 struct injcode_bearing
 {
 	size_t mapping_size;
 
 	int pl_debug;
+	off_t stack_offset;
 	pthread_t user_tid;
+#ifdef EZ_TARGET_WINDOWS
+	HANDLE hThread;
+	HANDLE hEvent;
+#endif
 	void *userlib;
 
-#if defined(HAVE_LIBC_DLOPEN_MODE)
-	void *(*libc_dlopen)(const char *name, int mode);
-#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
+#if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
 		void *tpnt, char *full_libname, int trace_loaded_objects);
 	struct dyn_elf **uclibc_sym_tables;
-#ifdef UCLIBC_OLD
+	#ifdef UCLIBC_OLD
 	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, int now_flag);
-#else
+	#else
 	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
-#endif
-#ifdef EZ_ARCH_MIPS
+	#endif
+	#ifdef EZ_ARCH_MIPS
 	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
-#endif
+	#endif
 	struct elf_resolve_hdr **uclibc_loaded_modules;
+#elif defined(HAVE_LIBDL_IN_LIBC) \
+|| defined(HAVE_LIBC_DLOPEN_MODE) \
+|| defined(EZ_TARGET_ANDROID) \
+|| defined(EZ_TARGET_DARWIN)
+	void *(*libc_dlopen)(const char *name, int mode);
+#elif defined(EZ_TARGET_WINDOWS)
+	// LdrLoadDll
+	NTSTATUS NTAPI (*libc_dlopen)(
+		PWSTR SearchPath,
+		PULONG DllCharacteristics,
+		PUNICODE_STRING DllName,
+		PVOID *BaseAddress
+	);
+	NTSTATUS NTAPI (*NtQueryInformationProcess)(
+		HANDLE           ProcessHandle,
+		PROCESSINFOCLASS ProcessInformationClass,
+		PVOID            ProcessInformation,
+		ULONG            ProcessInformationLength,
+		PULONG           ReturnLength
+	);
+	PPEB NTAPI (*RtlGetCurrentPeb)();
+	NTSTATUS NTAPI (*NtWriteFile)(
+		HANDLE           FileHandle,
+		HANDLE           Event,
+		PIO_APC_ROUTINE  ApcRoutine,
+		PVOID            ApcContext,
+		PIO_STATUS_BLOCK IoStatusBlock,
+		PVOID            Buffer,
+		ULONG            Length,
+		PLARGE_INTEGER   ByteOffset,
+		PULONG           Key
+	);
 #endif
 	off_t dlopen_offset;
 	off_t dlclose_offset;
@@ -104,11 +187,12 @@ struct injcode_bearing
 	// libdl base address, if already loaded
 	void *libdl_handle;
 	long (*libc_syscall)(long number, ...);
-	int (*libc_semop)(int semid, struct sembuf *sops, size_t nsops);
-#ifdef DEBUG
-	int (*libc_printf)(const char *format, ...);
-#endif
+	pthread_mutex_t mutex;
+	pthread_cond_t cond;
+	uint8_t loaded_signal;
 	struct injcode_user user;
+	int num_strings;
+	off_t argv_offset;
 	int argc;
 	int dyn_size;
 	char *argv[];
@@ -119,17 +203,70 @@ enum userlib_return_action {
 	userlib_persist = 1
 };
 
-#define PL_STACK(br) (uintptr_t *)((uintptr_t)((br) + MAPPINGSIZE))
 
-extern void injected_sc_start();
-extern void injected_sc_end();
+#ifdef EZ_TARGET_WINDOWS
+typedef struct _CURDIR {
+     UNICODE_STRING DosPath;
+     PVOID Handle;
+} CURDIR, *PCURDIR;
 
+typedef struct _RTL_DRIVE_LETTER_CURDIR {
+     WORD Flags;
+     WORD Length;
+     ULONG TimeStamp;
+     STRING DosPath;
+} RTL_DRIVE_LETTER_CURDIR, *PRTL_DRIVE_LETTER_CURDIR;
+
+typedef struct {
+     ULONG MaximumLength;
+     ULONG Length;
+     ULONG Flags;
+     ULONG DebugFlags;
+     PVOID ConsoleHandle;
+     ULONG ConsoleFlags;
+     PVOID StandardInput;
+     PVOID StandardOutput;
+     PVOID StandardError;
+     CURDIR CurrentDirectory;
+     UNICODE_STRING DllPath;
+     UNICODE_STRING ImagePathName;
+     UNICODE_STRING CommandLine;
+     PVOID Environment;
+     ULONG StartingX;
+     ULONG StartingY;
+     ULONG CountX;
+     ULONG CountY;
+     ULONG CountCharsX;
+     ULONG CountCharsY;
+     ULONG FillAttribute;
+     ULONG WindowFlags;
+     ULONG ShowWindowFlags;
+     UNICODE_STRING WindowTitle;
+     UNICODE_STRING DesktopInfo;
+     UNICODE_STRING ShellInfo;
+     UNICODE_STRING RuntimeData;
+     RTL_DRIVE_LETTER_CURDIR CurrentDirectores[32];
+     ULONG EnvironmentSize;
+} INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
+#endif
+
+extern void SCAPI injected_sc0(struct injcode_call *sc);
+extern void SCAPI injected_sc1(struct injcode_call *sc);
+extern void SCAPI injected_sc2(struct injcode_call *sc);
+extern void SCAPI injected_sc3(struct injcode_call *sc);
+extern void SCAPI injected_sc4(struct injcode_call *sc);
+extern void SCAPI injected_sc5(struct injcode_call *sc);
+extern void SCAPI injected_sc6(struct injcode_call *sc);
+
+extern void PLAPI trampoline();
 extern void trampoline_entry();
-extern void injected_fn(struct injcode_bearing *br);
+extern void trampoline_exit();
 
-extern void injected_clone();
+extern void PLAPI injected_fn(struct injcode_call *sc);
 
-extern void injected_code_start();
-extern void injected_code_end();
+extern uint8_t __start_payload SECTION_START("payload");
+extern uint8_t __stop_payload SECTION_END("payload");
+extern uint8_t __start_syscall SECTION_START("syscall");
+extern uint8_t __stop_syscall SECTION_END("syscall");
 
 #endif

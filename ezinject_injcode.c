@@ -1,24 +1,34 @@
 #define _GNU_SOURCE
+#define EZINJECT_INJCODE
+
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <sched.h>
 #include <pthread.h>
-#include <link.h>
 #include <sys/stat.h>
-#include <sys/shm.h>
-#include <sys/wait.h>
-#include <sys/syscall.h>
-#include <sys/prctl.h>
 
 #include "config.h"
+
+#ifdef EZ_TARGET_POSIX
+#include <signal.h>
+#include <sys/wait.h>
+#include <sys/syscall.h>
+#endif
+
+#if defined(EZ_TARGET_LINUX)
+#include <sys/prctl.h>
+#endif
+
+#include "ezinject_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
-#ifndef HAVE_SHM_SYSCALLS
-#include <asm-generic/ipc.h>
+#ifdef EZ_TARGET_WINDOWS
+// for BYTE_ORDER
+#include <sys/param.h>
 #endif
 
 #define UNUSED(x) (void)(x)
@@ -27,40 +37,103 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-#define BR_USERDATA(br) ((char *)br + SIZEOF_BR(*br))
-
-//pl:x\n\0
-#ifdef DEBUG
-#define DBG(ch) do { \
-	const uint64_t str = str64(0x706C3A000A000000 | (((uint64_t)ch << 32) & 0xFF00000000)); \
-	br->libc_syscall(__NR_write, STDOUT_FILENO, &str, 5); \
+#ifdef EZ_TARGET_POSIX
+#define SC_RETURN(sc, retval) do { \
+	(sc)->result = retval; \
+	(sc)->libc_syscall(__NR_kill, \
+		(sc)->libc_syscall(__NR_getpid), SIGTRAP \
+	); \
 } while(0)
 
-#else
-#define DBG(ch)
+void SCAPI injected_sc0(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(sc->argv[0]);
+	SC_RETURN(sc, ret);
+}
+void SCAPI injected_sc1(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
+		sc->argv[0], sc->argv[1]
+	);
+	SC_RETURN(sc, ret);
+}
+void SCAPI injected_sc2(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2]
+	);
+	SC_RETURN(sc, ret);
+}
+void SCAPI injected_sc3(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3]
+	);
+	SC_RETURN(sc, ret);
+}
+void SCAPI injected_sc4(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4]
+	);
+	SC_RETURN(sc, ret);
+}
+void SCAPI injected_sc5(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4], sc->argv[5]
+	);
+	SC_RETURN(sc, ret);
+}
+void SCAPI injected_sc6(struct injcode_call *sc){
+	uintptr_t ret = sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4], sc->argv[5],
+		sc->argv[6]
+	);
+	SC_RETURN(sc, ret);
+}
 #endif
 
-void injected_code_start(void){}
+//#define PL_EARLYDEBUG
 
-void injected_sc(){
-	EMIT_LABEL("injected_sc_start");
-	EMIT_SC();
-	EMIT_LABEL("injected_sc_end");
-}
+void PLAPI trampoline(){
+	/**
+	 * if the process was blocked in a system call
+	 * the program counter will be subtracted by sizeof(instruction)
+	 * upon detach
+	 * https://stackoverflow.com/a/38009680/11782802
+	 *
+	 * this is a problem because we risk running the prologue of this function
+	 * and cause a stack misalignment
+	 * we must emit NOPs that are at least as big as the syscall instruction
+	 * 
+	 **/
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
 
-void trampoline(){
 	EMIT_LABEL("trampoline_entry");
 
-	register volatile struct injcode_bearing *br;
-	register void (*target)(volatile struct injcode_bearing *);
+	#ifdef PL_EARLYDEBUG
+	asm volatile(JMP_INSN " .");
+	#endif
 
-	EMIT_POP(br);
-	EMIT_POP(target);
-	target(br);
-	while(1);
+	register struct injcode_call *args = NULL;
+	register uintptr_t (*target)(volatile struct injcode_call *) = NULL;
+	POP_PARAMS(args, target);
+	target(args);
+
+	asm volatile(JMP_INSN " .");
+	EMIT_LABEL("trampoline_exit");
 }
 
 INLINE uint64_t str64(uint64_t x){
+	#ifndef BYTE_ORDER
+		#error "BYTE_ORDER not defined"
+	#endif
 	#if BYTE_ORDER == BIG_ENDIAN
 		return x;
 	#elif BYTE_ORDER == LITTLE_ENDIAN
@@ -70,234 +143,231 @@ INLINE uint64_t str64(uint64_t x){
 	#endif
 }
 
-INLINE int br_semget(struct injcode_bearing *br, key_t key, int nsems, int semflg){
-#ifdef HAVE_SHM_SYSCALLS
-	return br->libc_syscall(__NR_semget, key, nsems, semflg);
-#else
-	return br->libc_syscall(__NR_ipc, IPCCALL(0, SEMGET), key, nsems, semflg);
-#endif
-}
+#include "ezinject_injcode_common.c"
 
-INLINE int br_semop(struct injcode_bearing *br, int sema, int idx, int op){
-	struct sembuf sem_op = {
-		.sem_num = idx,
-		.sem_op = op,
-		.sem_flg = 0
-	};
-	return br->libc_semop( sema, &sem_op, 1);
-}
-
-#ifdef HAVE_LIBC_DLOPEN_MODE
-INLINE void *get_libdl(struct injcode_bearing *br){
-	char *libdl_name = STR_DATA(BR_STRTBL(br));
-	struct link_map *libdl = (struct link_map *) br->libc_dlopen(libdl_name, RTLD_NOW | __RTLD_DLOPEN);
-	return (void *)libdl->l_addr;
-}
+#if defined(EZ_TARGET_POSIX)
+#include "ezinject_injcode_posix_common.c"
+#elif defined(EZ_TARGET_WINDOWS)
+#include "ezinject_injcode_windows_common.c"
 #endif
 
-#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
-INLINE void *memset(void *s, int c, unsigned int n){
-    unsigned char* p=s;
-    while(n--){
-        *p++ = (unsigned char)c;
+INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
+	char buf[sizeof(uintptr_t) + 1];
+	itoa16((uintptr_t)ptr, buf);
+	inj_puts(br, buf);
+}
+
+struct injcode_ctx {
+	struct injcode_bearing *br;
+
+	struct dl_api libdl;
+	struct thread_api libthread;
+	char *stbl;
+	
+	char *libdl_name;
+	char *libpthread_name;
+	char *userlib_name;
+
+	/** handle to the library providing dynamic linkage **/
+	void *h_libdl;
+	/** handle to the library providing threads **/
+	void *h_libthread;
+};
+
+#include "ezinject_injcode_util.c"
+
+INLINE intptr_t fetch_sym(
+	struct injcode_ctx *ctx,
+	void *handle, void **sym
+){
+	char *sym_name;
+	// advances stbl in ctx
+	STRTBL_FETCH(ctx->stbl, sym_name);
+#ifdef DEBUG
+	inj_puts(ctx->br, sym_name);
+#endif
+	inj_cacheflush(ctx->br, &sym_name, (void *)(UPTR(&sym_name) + sizeof(sym_name)));
+	*sym = ctx->libdl.dlsym(handle, sym_name);
+	if(*sym == NULL){
+		inj_dchar(ctx->br, '!');
+		inj_dchar(ctx->br, 's');
+		inj_puts(ctx->br, sym_name);
+		return -1;
 	}
-    return s;
+	return 0;
 }
 
-INLINE void *get_libdl(struct injcode_bearing *br){
-    char *libdl_name = STR_DATA(BR_STRTBL(br));
-
-	struct elf_resolve_hdr *tpnt;
-
-	struct dyn_elf *rpnt;
-	for (rpnt = *(br->uclibc_sym_tables); rpnt && rpnt->next; rpnt = rpnt->next){
-		continue;
-	}
-
-	tpnt = br->libc_dlopen(0, &rpnt, NULL, libdl_name, 0);
-	if(tpnt == NULL){
-		return NULL;
-	}
-
-#ifdef EZ_ARCH_MIPS
-	br->uclibc_mips_got_reloc(tpnt, 0);
+#ifdef EZ_TARGET_POSIX
+#include "ezinject_injcode_posix.c"
 #endif
 
-#ifndef UCLIBC_OLD
-#define GDB_SHARED_SIZE (5 * sizeof(void *))
-#define SYMBOL_SCOPE_OFFSET (10 * sizeof(void *))
-	struct r_scope_elem *global_scope = (struct r_scope_elem *)(
-		(uintptr_t)*(br->uclibc_loaded_modules) + GDB_SHARED_SIZE +
-		SYMBOL_SCOPE_OFFSET
-	);
-#endif
-
-	struct dyn_elf dyn;
-	memset(&dyn, 0x00, sizeof(dyn));
-	dyn.dyn = tpnt;
-
-	/**
-	  * FIXME: we are not handling init/fini arrays
- 	  * This means the call will likely warn about 'dl_cleanup' being unresolved, but it will work anyways.
- 	  * -- symbol 'dl_cleanup': can't resolve symbol
- 	  */
-#ifdef UCLIBC_OLD
-	br->uclibc_dl_fixup(&dyn, RTLD_NOW);
-#else
-	br->uclibc_dl_fixup(&dyn, global_scope, RTLD_NOW);
-#endif
-
-	return (void *)tpnt->loadaddr;
+#if defined(EZ_TARGET_LINUX) && !defined(EZ_TARGET_ANDROID)
+	#if defined(HAVE_LIBC_DLOPEN_MODE)
+		#include "ezinject_injcode_glibc.c"
+	#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
+		#include "ezinject_injcode_uclibc.c"
+	#endif
+#elif defined(EZ_TARGET_WINDOWS)
+	#include "ezinject_injcode_windows.c"
+#else // FreeBSD || Android
+INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
+	return ctx->br->libdl_handle;
 }
 #endif
 
-void injected_fn(struct injcode_bearing *br){
-	int sema = -1;
+#ifdef EZ_TARGET_POSIX
+#undef EXIT_FAILURE
+#undef EXIT_SUCCESS
+#define EXIT_FAILURE SIGTRAP
+#define EXIT_SUCCESS SIGSTOP
+#endif
 
-	void *h_pthread = NULL;
-	int had_pthread = 0;
+INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
+	struct injcode_bearing *br = ctx->br;
+	struct dl_api *libdl = &ctx->libdl;
 
-	void *(*dlopen)(const char *filename, int flag) = NULL;
-	void *(*dlsym)(void *handle, const char *symbol) = NULL;
-	int (*dlclose)(void *handle) = NULL;
-	int (*pthread_join)(pthread_t thread, void **retval) = NULL;
+	void *libdl_handle = br->libdl_handle;
+	// acquire libdl
+	if(libdl_handle == NULL){
+		inj_dchar(br, 'l');
 
-	int signal = SIGTRAP;
+		libdl_handle = inj_get_libdl(ctx);
+		inj_dbgptr(br, libdl_handle);
+		if(libdl_handle == NULL){
+			inj_dchar(br, '!');
+			return -1;
+		}
+	}
+	libdl->dlopen = (void *)PTRADD(libdl_handle, br->dlopen_offset);
+	libdl->dlclose = (void *)PTRADD(libdl_handle, br->dlclose_offset);
+	libdl->dlsym = (void *)PTRADD(libdl_handle, br->dlsym_offset);
+	return 0;
+}
+
+INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
+	struct injcode_bearing *br = ctx->br;
+
+	int (*crt_init)(struct injcode_bearing *br);
+	char *sym_crt_init = NULL;
+	STRTBL_FETCH(ctx->stbl, sym_crt_init);
+
+	// fetch argv[0], the library absolute path
+	char *stbl_argv = BR_STRTBL(br) + br->argv_offset;
+	STRTBL_FETCH(stbl_argv, ctx->userlib_name);
+
+	br->userlib = inj_dlopen(ctx, ctx->userlib_name, RTLD_NOW);
+
+	//inj_dbgptr(br, br->userlib);
+	if(br->userlib == NULL){
+		return -1;
+	}
+	crt_init = ctx->libdl.dlsym(br->userlib, sym_crt_init);
+	inj_dbgptr(br, crt_init);
+	if(crt_init == NULL){
+		return -2;
+	}
+	if(crt_init(br) != 0){
+		return -3;
+	}
+	return 0;
+}
+
+void PLAPI injected_fn(struct injcode_call *sc){
+	struct injcode_bearing *br = (struct injcode_baring *)(sc->argv[0]);
+
+	struct injcode_ctx stack_ctx;
+	struct injcode_ctx *ctx = &stack_ctx;
+	inj_memset(ctx, 0x00, sizeof(*ctx));
+	ctx->br = br;
+	ctx->stbl = BR_STRTBL(br);
+
+	if(br->pl_debug){
+		inj_thread_stop(ctx, EXIT_FAILURE);
+	}
+
+	int signal = EXIT_FAILURE;
 
 	do {
-
-		if(br->pl_debug){
-			inj_halt: goto inj_halt;
-		}
-
 		// entry
-		DBG('e');
+		inj_dchar(br, 'e');
 
-		// acquire semaphores
-		DBG('s');
-		{
-			pid_t pid = br->libc_syscall(__NR_getpid);
-			sema = br_semget(br, pid, 1, 0);
-			if(sema < 0){
-				DBG('!');
-				break;
-			}
+		STRTBL_FETCH(ctx->stbl, ctx->libdl_name);
+		STRTBL_FETCH(ctx->stbl, ctx->libpthread_name);
 
-			// initialize signal
-			br_semop(br, sema, EZ_SEM_LIBCTL, 1);
-		}
-
-		void *libdl_handle = br->libdl_handle;
-		// acquire libdl
-		if(libdl_handle == NULL){
-			DBG('l');
-			{
-				libdl_handle = get_libdl(br);
-				if(libdl_handle == NULL){
-					DBG('!');
-					break;
-				}
-			}
-		}
-		dlopen = (void *)PTRADD(libdl_handle, br->dlopen_offset);
-		dlclose = (void *)PTRADD(libdl_handle, br->dlclose_offset);
-		dlsym = (void *)PTRADD(libdl_handle, br->dlsym_offset);
-
-		char *libdl_name = NULL;
-		char *libpthread_name = NULL;
-		char *sym_pthread_join = NULL;
-		char *userlib_name = NULL;
-
-		do {
-			char *stbl = BR_STRTBL(br);
-			STRTBL_FETCH(stbl, libdl_name);
-			STRTBL_FETCH(stbl, libpthread_name);
-			STRTBL_FETCH(stbl, sym_pthread_join);
-			STRTBL_FETCH(stbl, userlib_name);
-		} while(0);
-
-
-		// just to make sure it's really loaded
-		void *h_libdl = dlopen(libdl_name, RTLD_NOLOAD);
-		if(h_libdl == NULL){
-			dlopen(libdl_name, RTLD_NOW | RTLD_GLOBAL);
+		if(inj_libdl_init(ctx) != 0){
+			inj_dchar(br, '!');
+			break;
 		}
 
 		// acquire libpthread
-		DBG('p');
-		{
-			had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
+		inj_dchar(br, 'p');
 
-			h_pthread = dlopen(libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
-			if(!h_pthread){
-				DBG('!');
-				break;
+		//had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
+		inj_puts(br, ctx->libpthread_name);
+		ctx->h_libthread = inj_dlopen(ctx, ctx->libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
+		if(!ctx->h_libthread){
+			inj_dchar(br, '!');
+			inj_dchar(br, '1');
+			char *errstr = NULL;
+			if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
+				inj_puts(br, errstr);
 			}
+			break;
+		}
+		inj_dbgptr(br, ctx->h_libthread);
 
-			pthread_join = dlsym(h_pthread, sym_pthread_join);
-			if(!pthread_join){
-				DBG('!');
-				break;
-			}
+		if(inj_api_init(ctx) != 0){
+			inj_dchar(br, '!');
+			inj_dchar(br, '2');
+			break;
+		}
+
+		// setup
+		inj_dchar(br, 's');
+		if(inj_load_prepare(ctx) != 0){
+			inj_dchar(br, '!');
 		}
 
 		// dlopen
-		DBG('d');
-		{
-			br->userlib = dlopen(userlib_name, RTLD_NOW);
-			if(br->userlib == NULL){
-				DBG('!');
-				break;
-			}
-
-			#ifdef DEBUG
-			const uint64_t buf[2] = {
-				str64(0x706C3A757365726C), //pl:userl
-				str64(0x69623A25700A0000)  //ib:%p\n\0
-			};
-			br->libc_printf((char *)buf, br->userlib);
-			#endif
+		inj_dchar(br, 'd');
+		if(inj_load_library(ctx) != 0){
+			inj_dchar(br, '!');
+			break;
 		}
 
 		// wait for the thread to notify us
-		DBG('w');
-		br_semop(br, sema, EZ_SEM_LIBCTL, 0);
-
-		void *result;
-
-		// wait for user thread to die
-		DBG('j');
-		pthread_join(br->user_tid, &result);
+		inj_dchar(br, 'w');
+		intptr_t result = 0;
+		if(inj_thread_wait(ctx, &result) != 0){
+			inj_dchar(br, '!');
+		}
+		result = 1;
 
 		if((enum userlib_return_action)result != userlib_persist){
 			// cleanup
-			DBG('c');
+			inj_dchar(br, 'c');
 			{
 				/**
 				 * NOTE: uclibc old might trigger segfaults in the user library while doing this (sigh)
 				 **/
-				dlclose(br->userlib);
+				ctx->libdl.dlclose(br->userlib);
 
 				#ifndef UCLIBC_OLD
-				if(!had_pthread){
+				/*if(!had_pthread){
 					dlclose(h_pthread);
-				}
+				}*/
 				#endif
 			}
 		}
 
-		signal = SIGSTOP;
+		signal = EXIT_SUCCESS;
 	} while(0);
 
 
 	// bye
-	DBG('b');
+	inj_dchar(br, 'b');
 
-	// awake ptrace
-	// success: SIGSTOP
-	// failure: anything else
-	br->libc_syscall(__NR_kill, br->libc_syscall(__NR_getpid), signal);
+	sc->result2 = (signal == EXIT_SUCCESS) ? 0 : -1;
+	inj_thread_stop(ctx, signal);
 	while(1);
 }
-
-void injected_code_end(void){}
