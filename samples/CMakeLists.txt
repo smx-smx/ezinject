@@ -22,3 +22,7 @@ if(EZ_TARGET_LINUX)
 		add_subdirectory(memloader)
 	endif()
 endif()
+
+if(ENABLE_PHP_SAMPLE)
+	add_subdirectory(php)
+endif()
