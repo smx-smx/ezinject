@@ -1,6 +1,6 @@
 linux_x64_task:
   container:
-    image: gcc:latest
+    image: gcc:10.3.0-buster
 
   env:
     PATH: /usr/local/bin:${PATH}
@@ -17,7 +17,7 @@ linux_x64_task:
 
 linux_android_armel_task:
   container:
-    image: gcc:latest
+    image: gcc:10.3.0-buster
 
   env:
     PATH: /usr/local/bin:/opt/android-ndk-r14b-android-9/bin:${PATH}
@@ -58,7 +58,7 @@ linux_android_armel_task:
 
 linux_android_aarch64_task:
   container:
-    image: gcc:latest
+    image: gcc:10.3.0-buster
 
   env:
     PATH: /usr/local/bin:/opt/android-ndk-r14b-android-21-arm64/bin:${PATH}
