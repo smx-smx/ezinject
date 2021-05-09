@@ -11,6 +11,7 @@ find_library(PHP_EMBED_LIBRARY
 message("=> ${PHP_EMBED_LIBRARY}")
 
 add_ezinject_library(php
+	USE_LH
 	SOURCES
 		php_embed.c
 )

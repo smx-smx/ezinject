@@ -438,6 +438,13 @@ function(add_ezinject_library target)
 	endif()
 
 	if(LIB_USE_LH)
+		# force a dependency on the hook library
+		# even if user code doesn't use it
+		target_link_options(${target} PUBLIC
+			-Wl,--whole-archive
+				$<TARGET_FILE:lh_hook_linux>
+			-Wl,--no-whole-archive
+		)
 		target_link_libraries(${target}
 			lh_ifcpu
 			lh_sljitmod
