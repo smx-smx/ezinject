@@ -160,7 +160,7 @@ windows_x64_task:
         taskkill /F /FI "MODULES eq msys-2.0.dll"
         tasklist
         C:\tools\msys64\usr\bin\bash.exe -lc "mv -f /etc/pacman.conf.pacnew /etc/pacman.conf || true"
-        C:\tools\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -Suu --overwrite=*"
+        C:\tools\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -Syyuu --overwrite=*"
         Write-Output "Core install time taken: $((Get-Date).Subtract($start_time))"
         $start_time = Get-Date
         C:\tools\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -S --needed $env:MSYS2_PACKAGES"
