@@ -58,6 +58,15 @@ if(EZ_TARGET_LINUX)
 	endif()
 endif()
 
+set(USING_GNU_LD FALSE)
+
+if(APPLE AND (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang"))
+elseif(MSVC)
+else()
+	# assume gcc + binutils
+	# $TODO: could use CheckLinkerFlag in CMake 3.18
+	set(USING_GNU_LD TRUE)
+endif()
 
 include_directories(
 	${CMAKE_SOURCE_DIR}
@@ -440,11 +449,13 @@ function(add_ezinject_library target)
 	if(LIB_USE_LH)
 		# force a dependency on the hook library
 		# even if user code doesn't use it
-		target_link_options(${target} PUBLIC
-			-Wl,--whole-archive
-				$<TARGET_FILE:lh_hook_linux>
-			-Wl,--no-whole-archive
-		)
+		if(USING_GNU_LD)
+			target_link_options(${target} PUBLIC
+				-Wl,--whole-archive
+					$<TARGET_FILE:lh_hook_linux>
+				-Wl,--no-whole-archive
+			)
+		endif()
 		target_link_libraries(${target}
 			lh_ifcpu
 			lh_sljitmod
