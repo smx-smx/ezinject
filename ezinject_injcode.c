@@ -81,6 +81,12 @@ intptr_t SCAPI injected_sc6(struct injcode_call *sc){
 }
 
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+/**
+ * On ARM/Linux + glibc, making system calls and writing their results in the same function
+ * seems to cause a very subtle stack corruption bug that ultimately causes dlopen/dlsym to segfault
+ * to work around that, we use a wrapper so that the system call is executed in a different subroutine
+ * than the one setting the result.
+ **/
 void SCAPI injected_sc_wrapper(struct injcode_call *args){
 	args->result = args->wrapper.target(args);
 	args->libc_syscall(__NR_kill,

@@ -136,7 +136,6 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx){
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
 	call->wrapper.target = r_sc_base + sc_offsets[call->argc];
 	DBGPTR(call->wrapper.target);
-	//call->trampoline.fn_addr = r_sc_base + sc_offsets[call->argc];
 	call->trampoline.fn_addr = r_sc_base + sc_wrapper_offset;
 	DBGPTR(call->trampoline.fn_addr);
 	return 0;
