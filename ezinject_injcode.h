@@ -97,6 +97,11 @@ struct injcode_user {
 	uint8_t persist;
 };
 
+struct injcode_sc_wrapper {
+	// pointer to the actual function to call
+	uintptr_t (*target)(struct injcode_call *args);
+};
+
 struct injcode_trampoline {
 	uintptr_t fn_arg;
 	uintptr_t fn_addr;
@@ -108,6 +113,7 @@ struct injcode_call {
 	uintptr_t result;
 	uintptr_t result2;
 	uintptr_t argv[SC_MAX_ARGS];
+	struct injcode_sc_wrapper wrapper;
 	/**
 	 * since we are skipping the prologue of the trampoline
 	 * we're not doing a proper stack allocation
@@ -250,19 +256,20 @@ typedef struct {
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
 #endif
 
-extern void SCAPI injected_sc0(struct injcode_call *sc);
-extern void SCAPI injected_sc1(struct injcode_call *sc);
-extern void SCAPI injected_sc2(struct injcode_call *sc);
-extern void SCAPI injected_sc3(struct injcode_call *sc);
-extern void SCAPI injected_sc4(struct injcode_call *sc);
-extern void SCAPI injected_sc5(struct injcode_call *sc);
-extern void SCAPI injected_sc6(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc0(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc1(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc2(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc3(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc4(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc5(struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc6(struct injcode_call *sc);
+void SCAPI injected_sc_wrapper(struct injcode_call *args);
 
 extern void PLAPI trampoline();
 extern void trampoline_entry();
 extern void trampoline_exit();
 
-extern void PLAPI injected_fn(struct injcode_call *sc);
+extern void injected_fn(struct injcode_call *sc);
 
 extern uint8_t __start_payload SECTION_START("payload");
 extern uint8_t __stop_payload SECTION_END("payload");
