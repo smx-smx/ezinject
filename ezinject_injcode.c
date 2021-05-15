@@ -341,7 +341,6 @@ void PLAPI injected_fn(struct injcode_call *sc){
 		if(inj_thread_wait(ctx, &result) != 0){
 			inj_dchar(br, '!');
 		}
-		result = 1;
 
 		if((enum userlib_return_action)result != userlib_persist){
 			// cleanup
