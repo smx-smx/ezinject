@@ -17,7 +17,6 @@
 #include <mach/mach.h>
 #endif
 
-#include "ezinject_compat.h"
 #include "ezinject_injcode.h"
 
 typedef struct {
@@ -44,6 +43,8 @@ struct ezinj_pl {
 };
 
 struct ezinj_ctx;
+
+#define PL_REMOTE(ctx, addr) (ctx->mapped_mem.remote + PTRDIFF(addr, ctx->mapped_mem.local))
 
 typedef EZAPI (*pfnCallHandler)(struct ezinj_ctx *ctx, struct injcode_call *rcall);
 
@@ -75,6 +76,7 @@ struct ezinj_ctx {
 	pfnCallHandler rcall_handler_post;
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
+	ez_addr libc_mmap;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	ez_addr uclibc_sym_tables;
 	ez_addr uclibc_loaded_modules;
@@ -170,6 +172,7 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 
 /** injection api **/ 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);
+EZAPI remote_pl_copy(struct ezinj_ctx *ctx);
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
 
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx);

@@ -109,6 +109,10 @@ struct injcode_trampoline {
 
 struct injcode_call {
 	long (*libc_syscall)(long number, ...);
+#ifdef EZ_TARGET_LINUX
+	void *(*libc_mmap)(void *addr, size_t length, int prot, int flags,
+                  int fd, off_t offset);
+#endif
 	int argc;
 	uintptr_t result;
 	uintptr_t result2;
@@ -121,9 +125,12 @@ struct injcode_call {
 	 * when pushing
 	 * so we have to reserve enough stack for trampoline here
 	 */
-	uintptr_t scratch[8];
+	uintptr_t scratch[10];
 	struct injcode_trampoline trampoline;
 };
+
+//static char PL_FILEPATH[] = "/tmp/ezinject_pl.bin";
+static char PL_FILEPATH[] = "/mnt/sdcard/ezinject/ezinject_pl.bin";
 
 #define RCALL_FIELD_ADDR(rcall, field) \
 	(((rcall)->trampoline.fn_arg) + offsetof(struct injcode_call, field))
@@ -140,6 +147,10 @@ struct injcode_bearing
 	HANDLE hEvent;
 #endif
 	void *userlib;
+
+#ifdef EZ_TARGET_LINUX
+	char pl_filepath[sizeof(PL_FILEPATH)];
+#endif
 
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,

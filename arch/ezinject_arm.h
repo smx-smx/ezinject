@@ -6,7 +6,7 @@
 
 #define REG(u, r) (u).regs.r
 
-#define EMIT_POP(var) asm volatile("pop {%0}" : "=r"(var))
+#define EMIT_POP(var) asm volatile("ldr %0, [sp], #4" : "=r"(var))
 
 #define POP_PARAMS(out_br, out_func) \
 	EMIT_POP(out_br); \

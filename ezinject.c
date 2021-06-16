@@ -32,13 +32,8 @@
 
 #include <sys/stat.h>
 
-#if defined(EZ_TARGET_LINUX) && !defined(HAVE_SHM_SYSCALLS)
-#include <asm-generic/ipc.h>
-#endif
-
 #include "ezinject_util.h"
 #include "ezinject.h"
-#include "ezinject_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
@@ -85,6 +80,7 @@ intptr_t setregs_syscall(
 	rcall->result = 0;
 	memcpy(&rcall->argv, &call->argv, sizeof(call->argv));
 	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
+	rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
 	rcall->trampoline.fn_arg = r_call_args;
 
 	// skip syscall nr
@@ -137,7 +133,7 @@ intptr_t setregs_syscall(
 	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
 	DBGPTR((void *)REG(*new_ctx, REG_SP));
 
-#ifdef EZ_ARCH_ARM
+#if defined(EZ_ARCH_ARM) && defined(HAVE_PSR_T_BIT)
 	#ifdef USE_ARM_THUMB
 	REG(*new_ctx, ARM_cpsr) = REG(*new_ctx, ARM_cpsr) | PSR_T_BIT;
 	#else
@@ -458,6 +454,10 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 	br->pl_debug = ctx->pl_debug;
 
+#ifdef EZ_TARGET_LINUX
+	memcpy(br->pl_filepath, PL_FILEPATH, sizeof(PL_FILEPATH));
+#endif
+
 	br->libdl_handle = (void *)ctx->libdl.remote;
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	br->uclibc_sym_tables = (void *)ctx->uclibc_sym_tables.remote;
@@ -518,23 +518,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	DBG("stack_offset=%zu", stack_offset);
 	DBG("mapping_size=%zu", mapping_size);
 
-	#ifdef USE_SHM
-	int shm_id;
-	if((shm_id = shmget(ctx->target, mapping_size, IPC_CREAT | IPC_EXCL | S_IRWXU | S_IRWXG | S_IRWXO)) < 0){
-		PERROR("shmget");
-		return 1;
-	}
-	INFO("SHM id: %u", shm_id);
-	ctx->shm_id = shm_id;
-
-	void *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
-	if(mapped_mem == MAP_FAILED){
-		PERROR("shmat");
-		return 1;
-	}
-	#else
 	void *mapped_mem = calloc(1, mapping_size);
-	#endif
 
 	ctx->mapped_mem.local = (uintptr_t)mapped_mem;
 
@@ -564,24 +548,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 }
 
 void cleanup_mem(struct ezinj_ctx *ctx){
-	#ifdef USE_SHM
-	if(ctx->mapped_mem.local != 0){
-		if(shmdt((void *)ctx->mapped_mem.local) < 0){
-			PERROR("shmdt");
-		} else {
-			ctx->mapped_mem.local = 0;
-		}
-	}
-	if(ctx->shm_id > -1){
-		if(shmctl(ctx->shm_id, IPC_RMID, NULL) < 0){
-			PERROR("shmctl (IPC_RMID)");
-		} else {
-			ctx->shm_id = -1;
-		}
-	}
-	#else
 	free((void *)ctx->mapped_mem.local);
-	#endif
 }
 
 void sigint_handler(int signum){
@@ -648,7 +615,7 @@ int ezinject_main(
 		#ifdef EZ_TARGET_WINDOWS
 			PERROR("VirtualAllocEx failed");
 		#else
-			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
+			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
 		#endif
 			break;
 		}
@@ -658,27 +625,18 @@ int ezinject_main(
 
 		struct ezinj_pl *pl = &ctx->pl;
 
-		#define PL_REMOTE(pl_addr) \
-			UPTR(remote_shm_ptr + PTRDIFF(pl_addr, ctx->mapped_mem.local))
-
 		#define PL_REMOTE_CODE(addr) \
-			PL_REMOTE(pl->code_start) + PTRDIFF(addr, region_pl_code.start)
+			PL_REMOTE(ctx, pl->code_start) + PTRDIFF(addr, region_pl_code.start)
 
-		#ifdef __GNUC__
-		{
-			void *flush_start = br;
-			void *flush_end = (void *)(UPTR(br) + br->mapping_size);
-			__builtin___clear_cache(flush_start, flush_end);
+		#if defined(EZ_TARGET_LINUX)
+		if(remote_pl_copy(ctx) != 0){
+			ERR("remote_pl_copy failed");
+			break;
 		}
 		#else
-		usleep(50000);
-		#endif
-
-		
-		#ifndef USE_SHM
 		if(remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
 			PERROR("remote_write failed");
-		}		
+		}
 		#endif
 
 		// switch to SIGSTOP wait mode
@@ -686,12 +644,12 @@ int ezinject_main(
 
 		// switch to user stack
 		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
-		ctx->syscall_stack.remote = (uintptr_t)PL_REMOTE(target_sp);
+		ctx->syscall_stack.remote = (uintptr_t)PL_REMOTE(ctx, target_sp);
 
 		// set trampoline parameters
 		ctx->syscall_insn.remote = PL_REMOTE_CODE(&injected_fn);
 		ctx->trampoline_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
-		CHECK(RSCALL0(ctx, PL_REMOTE(pl->br_start)));
+		CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
 
 		/**
 		 * if payload debugging is on, skip any cleanup

@@ -29,12 +29,11 @@ if(NOT EZ_TARGET_WINDOWS AND NOT EZ_TARGET_DARWIN)
 endif()
 
 include(CheckIncludeFile)
-check_include_file(sys/shm.h HAVE_SYS_SHM_H)
 
 include(CheckSymbolExists)
-check_symbol_exists("__NR_shmget" "asm/unistd.h" HAVE_SHM_SYSCALLS)
-check_symbol_exists("__NR_ipc" "asm/unistd.h" HAVE_SC_IPC)
-check_symbol_exists("SHM_EXEC" "sys/shm.h" HAVE_SHM_EXEC)
+check_symbol_exists("PT_GETREGS" "sys/ptrace.h" HAVE_PTRACE_GETREGS)
+check_symbol_exists("PT_SETREGS" "sys/ptrace.h" HAVE_PTRACE_SETREGS)
+check_symbol_exists("PSR_T_BIT" "asm/ptrace.h" HAVE_PSR_T_BIT)
 check_symbol_exists("strsignal" "string.h" HAVE_STRSIGNAL)
 check_symbol_exists("RTLD_NOLOAD" "dlfcn.h" HAVE_RTLD_NOLOAD)
 check_symbol_exists("__arm__" "" EZ_ARCH_ARM)
@@ -51,10 +50,6 @@ endif()
 if(EZ_TARGET_LINUX)
 	if(NOT EZ_TARGET_ANDROID)
 		add_definitions(-Wl,--no-undefined)
-	else()
-		if(NOT DEFINED USE_ANDROID_ASHMEM)
-			set(USE_ANDROID_ASHMEM ON)
-		endif()
 	endif()
 endif()
 
@@ -81,8 +76,26 @@ add_definitions(
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Werror=implicit-function-declaration")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+
+include(CheckCCompilerFlag)
+check_c_compiler_flag("-Wextra" HAVE_WEXTRA)
+check_c_compiler_flag("-Werror=implicit-function-declaration" HAVE_WERROR_IMPLICIT_FN)
+check_c_compiler_flag("-std=gnu99" HAVE_STDGNU)
+
+if(HAVE_WEXTRA)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+endif()
+if(HAVE_WERROR_IMPLICIT_FN)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration")
+endif()
+# for gcc 3.x
+if(HAVE_STDGNU)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
+endif()
 
 if(CMAKE_TOOLCHAIN_FILE)
 	message(STATUS "Using toolchain file: ${CMAKE_TOOLCHAIN_FILE}")
@@ -359,11 +372,10 @@ elseif(EZ_LIBC STREQUAL "bionic")
 endif()
 
 if( NOT EZ_TARGET_WINDOWS
-	AND NOT HAVE_SHM_SYSCALLS
-	AND NOT HAVE_SC_IPC
-	AND NOT USE_ANDROID_ASHMEM
 	AND NOT HAVE_LIBDL_IN_LIBC
 	AND NOT EZ_TARGET_DARWIN
+	AND NOT EZ_TARGET_LINUX
+	AND NOT EZ_TARGET_FREEBSD
 )
 	message(FATAL_ERROR "Unsupported system")
 endif()
@@ -392,12 +404,6 @@ if(HAVE_CPU_VLE)
 	endif()
 endif()
 
-if(EZ_TARGET_FREEBSD OR EZ_TARGET_DARWIN OR EZ_TARGET_WINDOWS)
-	set(USE_SHM FALSE)
-else()
-	set(USE_SHM TRUE)
-endif()
-
 configure_file(
 	config.h.in
 	${CMAKE_BINARY_DIR}/config.h
@@ -407,12 +413,6 @@ function(add_ezinject_library target)
 	cmake_parse_arguments(LIB "USE_LH;USE_LOG" "" "SOURCES" ${ARGN})
 
 	set(sources "${LIB_SOURCES}")
-
-	if(NOT EZ_TARGET_WINDOWS)
-		list(APPEND sources
-			${CMAKE_SOURCE_DIR}/ezinject_compat.c
-		)
-	endif()
 
 	list(APPEND sources
 		${CMAKE_SOURCE_DIR}/crt/crt.c
@@ -462,12 +462,6 @@ function(add_ezinject_library target)
 			lh_hook_linux
 		)
 	endif()
-
-	if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
-		target_link_options(${target} PUBLIC
-			-Wl,--whole-archive $<TARGET_FILE:ashmem> -Wl,--no-whole-archive
-		)
-	endif()
 endfunction()
 
 set(os_sources "")
@@ -478,21 +472,10 @@ if(EZ_TARGET_POSIX)
 	)
 	if(EZ_TARGET_LINUX)
 		list(APPEND os_sources
+			os/linux/inject.c
 			os/linux/remote.c
 			os/linux/util.c
 		)
-
-		# Android with ashmem + mmap
-		if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
-			list(APPEND os_sources
-				os/android/inject.c
-			)
-		# SysV IPC with executable SHM
-		else()
-			list(APPEND os_sources
-				os/linux/inject.c
-			)
-		endif()
 
 		# bionic
 		if(EZ_TARGET_ANDROID)
@@ -553,13 +536,6 @@ set(ezinject_sources
 	${os_sources}
 )
 
-# not android, or android without ashmem
-if((EZ_TARGET_ANDROID AND NOT USE_ANDROID_ASHMEM) OR NOT HAVE_SYS_SHM_H
-AND NOT EZ_TARGET_WINDOWS
-AND NOT EZ_TARGET_DARWIN)
-	list(APPEND ezinject_sources ezinject_compat.c)
-endif()
-
 add_executable(ezinject ${ezinject_sources})
 
 
@@ -571,11 +547,18 @@ if(ENABLE_STATIC)
 	target_link_options(ezinject PUBLIC -static)
 endif()
 
-include(CheckCCompilerFlag)
-check_c_compiler_flag("-mno-stack-arg-probe" HAVE_STACK_ARG_PROBE)
+check_c_compiler_flag("-mno-stack-arg-probe" HAVE_CFLAG_STACK_ARG_PROBE)
+check_c_compiler_flag("-fno-jump-tables" HAVE_CFLAG_NO_JUMP_TABLES)
+check_c_compiler_flag("-fno-stack-protector" HAVE_CFLAG__NO_STACK_PROTECTOR)
 
-set(injcode_cflags "-Os -fno-jump-tables -fno-stack-check -fno-stack-protector -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
-if(HAVE_STACK_ARG_PROBE)
+set(injcode_cflags "-Os -fno-stack-check  -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
+if(HAVE_CFLAG_NO_JUMP_TABLES)
+	set(injcode_cflags "${injcode_cflags} -fno-jump-tables")
+endif()
+if(HAVE_CFLAG_NO_STACK_PROTECTOR)
+	set(injcode_cflags "${injcode_cflags} -fno-stack-protector")
+endif()
+if(HAVE_CFLAG_STACK_ARG_PROBE)
 	set(injcode_cflags "${injcode_cflags} -mno-stack-arg-probe")
 endif()
 
@@ -587,14 +570,6 @@ endif()
 # -fno-stack-check,-mno-stack-arg-probe: don't emit ___chkstk_ms calls
 set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "${injcode_cflags}")
 target_link_libraries(ezinject dl)
-
-if(EZ_TARGET_ANDROID AND USE_ANDROID_ASHMEM)
-	add_subdirectory(android-shmem)
-	add_dependencies(ezinject ashmem)
-	target_link_options(ezinject PUBLIC
-		-Wl,--whole-archive $<TARGET_FILE:ashmem> -Wl,--no-whole-archive
-	)
-endif()
 
 add_subdirectory(crt)
 add_subdirectory(samples)

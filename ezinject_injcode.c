@@ -21,7 +21,6 @@
 #include <sys/prctl.h>
 #endif
 
-#include "ezinject_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
@@ -72,6 +71,19 @@ intptr_t SCAPI injected_sc5(struct injcode_call *sc){
 	);
 }
 intptr_t SCAPI injected_sc6(struct injcode_call *sc){
+	#ifdef EZ_TARGET_LINUX
+		/**
+	 	  * Old glibc has broken syscall(3) argument handling for mmap
+          * We must use the libc's mmap(3) instead, which handles them properly
+	 	  **/
+		if(sc->argv[0] == __NR_mmap2){
+			return sc->libc_mmap(
+				(void *)sc->argv[1], (size_t)sc->argv[2],
+				(int)sc->argv[3], (int)sc->argv[4],
+				(int)sc->argv[5], (off_t)sc->argv[6]
+			);
+		}
+	#endif
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
@@ -130,6 +142,17 @@ void PLAPI trampoline(){
 	EMIT_LABEL("trampoline_exit");
 }
 
+INLINE uint64_t _bswap64(uint64_t x){
+	return  ( (x << 56) & 0xff00000000000000UL ) |
+		( (x << 40) & 0x00ff000000000000UL ) |
+		( (x << 24) & 0x0000ff0000000000UL ) |
+		( (x <<  8) & 0x000000ff00000000UL ) |
+		( (x >>  8) & 0x00000000ff000000UL ) |
+		( (x >> 24) & 0x0000000000ff0000UL ) |
+		( (x >> 40) & 0x000000000000ff00UL ) |
+		( (x >> 56) & 0x00000000000000ffUL );
+}
+
 INLINE uint64_t str64(uint64_t x){
 	#ifndef BYTE_ORDER
 		#error "BYTE_ORDER not defined"
@@ -137,7 +160,7 @@ INLINE uint64_t str64(uint64_t x){
 	#if BYTE_ORDER == BIG_ENDIAN
 		return x;
 	#elif BYTE_ORDER == LITTLE_ENDIAN
-		return __builtin_bswap64(x);
+		return _bswap64(x);
 	#else
 		#error "Unknown endianness"
 	#endif
