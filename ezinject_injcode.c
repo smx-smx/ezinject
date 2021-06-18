@@ -22,6 +22,7 @@
 #endif
 
 #include "ezinject_common.h"
+#include "ezinject_compat.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 

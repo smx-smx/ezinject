@@ -7,7 +7,7 @@
 #include <sys/mman.h>
 #include <sys/ptrace.h>
 
-
+#include "ezinject_compat.h"
 #include "ezinject.h"
 
 #include "log.h"

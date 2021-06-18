@@ -129,8 +129,7 @@ struct injcode_call {
 	struct injcode_trampoline trampoline;
 };
 
-//static char PL_FILEPATH[] = "/tmp/ezinject_pl.bin";
-static char PL_FILEPATH[] = "/mnt/sdcard/ezinject/ezinject_pl.bin";
+static char PL_FILEPATH[] = "/tmp/ezinject_pl.bin";
 
 #define RCALL_FIELD_ADDR(rcall, field) \
 	(((rcall)->trampoline.fn_arg) + offsetof(struct injcode_call, field))
