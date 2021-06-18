@@ -143,7 +143,7 @@ void PLAPI trampoline(){
 	EMIT_LABEL("trampoline_exit");
 }
 
-INLINE uint64_t _bswap64(uint64_t x){
+INLINE uint64_t inj_bswap64(uint64_t x){
 	return  ( (x << 56) & 0xff00000000000000UL ) |
 		( (x << 40) & 0x00ff000000000000UL ) |
 		( (x << 24) & 0x0000ff0000000000UL ) |
@@ -161,7 +161,7 @@ INLINE uint64_t str64(uint64_t x){
 	#if BYTE_ORDER == BIG_ENDIAN
 		return x;
 	#elif BYTE_ORDER == LITTLE_ENDIAN
-		return _bswap64(x);
+		return inj_bswap64(x);
 	#else
 		#error "Unknown endianness"
 	#endif
