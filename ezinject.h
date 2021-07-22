@@ -82,9 +82,12 @@ struct ezinj_ctx {
 	ez_addr uclibc_dl_fixup;
 #endif
 #ifdef EZ_TARGET_WINDOWS
+	ez_addr alloc_console;
 	ez_addr nt_get_peb;
 	ez_addr nt_query_proc;
 	ez_addr nt_write_file;
+	ez_addr nt_register_dll_noti;
+	ez_addr nt_unregister_dll_noti;
 #endif
 	ptrdiff_t dlopen_offset;
 	ptrdiff_t dlclose_offset;

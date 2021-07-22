@@ -5,6 +5,28 @@
 #include "ezinject_util.h"
 #include "log.h"
 
+static int chrome_remove_sandbox(struct ezinj_ctx *ctx){
+	void *h_ntdll = GetModuleHandleA("ntdll.dll");
+	if(!h_ntdll){
+		ERR("Failed to locate ntdll.dll");
+		return 1;
+	}
+
+	ez_addr ntdll = {
+		.local = UPTR(h_ntdll),
+		.remote = (uintptr_t) get_base(ctx->target, "ntdll.dll", NULL)
+	};
+
+	ez_addr nt_map_viewsection = sym_addr(h_ntdll, "NtMapViewOfSection", ntdll);
+	ez_addr ldr_load_dll = sym_addr(h_ntdll, "LdrLoadDll", ntdll);
+
+	int written = remote_write(ctx, nt_map_viewsection.remote, nt_map_viewsection.local, 64);
+	DBG("written: %d", written);
+	written = remote_write(ctx, ldr_load_dll.remote, ldr_load_dll.local, 64);
+	DBG("written: %d", written);
+	return 0;
+}
+
 int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	void *h_ntdll = GetModuleHandleA("ntdll.dll");
 	if(!h_ntdll){
@@ -31,7 +53,10 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ez_addr nt_query_proc = sym_addr(h_ntdll, "NtQueryInformationProcess", ctx->libc);
 	ez_addr nt_write_file = sym_addr(h_ntdll, "NtWriteFile", ctx->libc);
 	ez_addr libc_dlopen = sym_addr(h_ntdll, "LdrLoadDll", ctx->libc);
-	
+
+	ez_addr nt_register_dll_noti = sym_addr(h_ntdll, "LdrRegisterDllNotification", ctx->libc);
+	ez_addr nt_unregister_dll_noti = sym_addr(h_ntdll, "LdrUnregisterDllNotification", ctx->libc);
+
 	DBGPTR(libc_dlopen.local);
 	DBGPTR(libc_dlopen.remote);
 
@@ -39,6 +64,11 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ctx->nt_query_proc = nt_query_proc;
 	ctx->nt_write_file = nt_write_file;
 	ctx->libc_dlopen = libc_dlopen;
+	ctx->nt_register_dll_noti = nt_register_dll_noti;
+	ctx->nt_unregister_dll_noti = nt_unregister_dll_noti;
+
+	ez_addr alloc_console = sym_addr(h_kernel32, "AllocConsole", kernel32);
+	ctx->alloc_console = alloc_console;
 
 	ez_addr load_library = sym_addr(h_kernel32, "LoadLibraryA", kernel32);
 	ez_addr free_library = sym_addr(h_kernel32, "FreeLibrary", kernel32);
@@ -51,5 +81,6 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ctx->dlclose_offset = PTRDIFF(free_library.local, kernel32.local);
 	ctx->dlsym_offset = PTRDIFF(get_procaddr.local, kernel32.local);
 
+	chrome_remove_sandbox(ctx);
 	return 0;
 }

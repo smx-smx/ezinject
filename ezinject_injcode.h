@@ -186,6 +186,17 @@ struct injcode_bearing
 		PLARGE_INTEGER   ByteOffset,
 		PULONG           Key
 	);
+	NTSTATUS NTAPI (*LdrRegisterDllNotification)(
+  		ULONG   Flags,
+		PVOID	NotificationFunction,
+		PVOID   Context,
+		PVOID   *Cookie
+	);
+	NTSTATUS NTAPI (*LdrUnregisterDllNotification)(
+  		PVOID Cookie
+	);
+	BOOL WINAPI (*AllocConsole)(void);
+	uintptr_t ntdll_base;
 #endif
 	off_t dlopen_offset;
 	off_t dlclose_offset;

@@ -28,10 +28,14 @@ INLINE intptr_t inj_thread_wait(
 		return -1;
 	}
 
-	DWORD exitStatus;
-	if(api->GetExitCodeThread(br->hThread, &exitStatus) == FALSE){
-		return -1;
-	}
+	DWORD exitStatus = 0;
+
+	do {
+		api->WaitForSingleObject(br->hThread, INFINITE);
+		result = api->GetExitCodeThread(br->hThread, &exitStatus);
+	} while(result != FALSE && exitStatus == STILL_ACTIVE);
+
+	inj_dbgptr(br, exitStatus);
 	
 	*pExitStatus = exitStatus;
 	return 0;
@@ -84,12 +88,37 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	return _inj_get_kernel32(ctx->br);
 }
 
+INLINE intptr_t inj_remove_chrome_sandbox(struct injcode_ctx *ctx){
+	struct injcode_bearing *br = ctx->br;
+
+	PVOID cookie = NULL;
+	// register a dummy invalid CB to get the list tail
+	br->LdrRegisterDllNotification(0, ctx, ctx, &cookie);
+
+	// this is not documented, but cookie is actually a PLIST_ENTRY
+	// in the internal NTDLL linked list for registered callbacks
+	PLIST_ENTRY our_cb = (PLIST_ENTRY)cookie;
+	PLIST_ENTRY head = our_cb->Flink;
+
+	// unregister the CB first
+	br->LdrUnregisterDllNotification(cookie);
+
+	// now modify the head
+	head->Flink = head;
+	head->Blink = head;
+	return 0;
+}
+
 INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
+
+	//br->AllocConsole();
 
 	br->hEvent = ctx->libthread.CreateEventA(NULL, TRUE, FALSE, NULL);
 	if(br->hEvent == INVALID_HANDLE_VALUE){
 		return -1;
 	}
+
+	inj_remove_chrome_sandbox(ctx);
 	return 0;
 }

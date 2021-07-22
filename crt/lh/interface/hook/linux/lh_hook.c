@@ -4,7 +4,9 @@
 #include <stdint.h>
 #include <string.h>
 #include <dlfcn.h>
+#ifdef EZ_TARGET_POSIX
 #include <sys/mman.h>
+#endif
 #include <unistd.h>
 
 #include "config.h"
@@ -15,6 +17,7 @@
 #include "interface/if_hook.h"
 
 int unprotect(void *addr) {
+#if defined(EZ_TARGET_POSIX)
 	// Move the pointer to the page boundary
 	int page_size = getpagesize();
 	addr -= (unsigned long)addr % page_size;
@@ -23,6 +26,20 @@ int unprotect(void *addr) {
 		PERROR("mprotect");
 	    return -1;
 	}
+#elif defined(EZ_TARGET_WINDOWS)
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+
+	DWORD page_size = si.dwPageSize;
+
+	DWORD oldProtect = 0;
+	if(!VirtualProtect(addr, page_size, PAGE_EXECUTE_READWRITE, &oldProtect)){
+		ERR("VirtualProtect failed");
+		return -1;
+	}
+#else
+#error "Unsupported Target
+#endif
 
 	return 0;
 }
