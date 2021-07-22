@@ -110,6 +110,10 @@ int run_on_return1(void *state, void *arg){
 	ctx->ezinjectRunner = std::thread([=](){
 		FILE *hCmd = popen(cmd, "r");
 		free(cmd);
+		char buf[255];
+		while(fgets(buf, sizeof(buf), hCmd) != NULL){
+			//fputs(buf, stdout);
+		}
 		pclose(hCmd);
 		ctx->ezinjectRunner.detach();
 	});
