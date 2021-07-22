@@ -146,7 +146,7 @@ int run(struct test_state *ctx){
 		}
 
 		puts("[+] waiting for injection...");
-		if(expect(hTarget, "[INFO] library loaded!", 20, NULL) != 0){
+		if(expect(hTarget, "[INFO] library loaded!", 40, NULL) != 0){
 			break;
 		}
 		rc = 0;
