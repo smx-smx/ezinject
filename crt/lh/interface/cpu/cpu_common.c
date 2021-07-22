@@ -3,10 +3,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#ifdef EZ_TARGET_POSIX
-#include <sys/mman.h>
-#endif
-
 #include "log.h"
 #include "ezinject_util.h"
 
@@ -15,6 +11,10 @@
 
 #include "ezinject_common.h"
 #include "config.h"
+
+#ifdef EZ_TARGET_POSIX
+#include <sys/mman.h>
+#endif
 
 size_t inj_getjmp_size(){
 	#ifdef LH_JUMP_ABS

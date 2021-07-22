@@ -4,17 +4,19 @@
 #include <stdint.h>
 #include <string.h>
 #include <dlfcn.h>
-#ifdef EZ_TARGET_POSIX
-#include <sys/mman.h>
-#endif
 #include <unistd.h>
 
 #include "config.h"
+
 #include "log.h"
 #include "ezinject_util.h"
 
 #include "interface/if_cpu.h"
 #include "interface/if_hook.h"
+
+#ifdef EZ_TARGET_POSIX
+#include <sys/mman.h>
+#endif
 
 int unprotect(void *addr) {
 #if defined(EZ_TARGET_POSIX)
