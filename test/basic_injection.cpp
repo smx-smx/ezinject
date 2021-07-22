@@ -14,6 +14,8 @@
 #include <windows.h>
 #endif
 
+#include <thread>
+
 #ifdef EZ_TARGET_POSIX
 #define EXE_SUFFIX ""
 #define DIR_SEPARATOR "/"
@@ -85,6 +87,7 @@ struct test_state {
 	char *ezinject;
 	char *library;
 	pid_t pid;
+	std::thread ezinjectRunner;
 };
 
 int run_on_pid(void *state, void *arg){
@@ -103,10 +106,14 @@ int run_on_return1(void *state, void *arg){
 	UNUSED(arg);
 
 	struct test_state *ctx = (struct test_state *)state;
-	char *cmd = asprintf_ex("%s %u"" %s 1 2 3 4 5 6", ctx->ezinject, ctx->pid, ctx->library);
-	int rc = system(cmd);
-	free(cmd);
-	return rc;
+	char *cmd = asprintf_ex("%s %u %s 1 2 3 4 5 6", ctx->ezinject, ctx->pid, ctx->library);
+	ctx->ezinjectRunner = std::thread([=](){
+		FILE *hCmd = popen(cmd, "r");
+		free(cmd);
+		pclose(hCmd);
+		ctx->ezinjectRunner.detach();
+	});
+	return 0;
 }
 
 int run(struct test_state *ctx){
@@ -140,6 +147,12 @@ int run(struct test_state *ctx){
 		}
 		rc = 0;
 	} while(0);
+
+	char buf[255];
+	while(ctx->ezinjectRunner.joinable()){
+		// consume buffer, to unblock ezinject until it completes
+		fgets(buf, sizeof(buf), hTarget);
+	}
 
 	if(ctx->pid > 0){
 	#if defined(EZ_TARGET_POSIX)

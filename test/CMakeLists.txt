@@ -1,4 +1,4 @@
-add_executable(test_basic_injection basic_injection.c)
+add_executable(test_basic_injection basic_injection.cpp)
 add_dependencies(test_basic_injection ezinject target dummy)
 
 add_test(
