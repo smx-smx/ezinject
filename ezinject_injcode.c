@@ -37,62 +37,62 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-#ifdef EZ_TARGET_POSIX
-#define SC_RETURN(sc, retval) do { \
-	(sc)->result = retval; \
-	(sc)->libc_syscall(__NR_kill, \
-		(sc)->libc_syscall(__NR_getpid), SIGTRAP \
-	); \
-} while(0)
-
-void SCAPI injected_sc0(struct injcode_call *sc){
-	uintptr_t ret = sc->libc_syscall(sc->argv[0]);
-	SC_RETURN(sc, ret);
+intptr_t SCAPI injected_sc0(struct injcode_call *sc){
+	return sc->libc_syscall(sc->argv[0]);
 }
-void SCAPI injected_sc1(struct injcode_call *sc){
-	uintptr_t ret = sc->libc_syscall(
+intptr_t SCAPI injected_sc1(struct injcode_call *sc){
+	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1]
 	);
-	SC_RETURN(sc, ret);
 }
-void SCAPI injected_sc2(struct injcode_call *sc){
-	uintptr_t ret = sc->libc_syscall(
+intptr_t SCAPI injected_sc2(struct injcode_call *sc){
+	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2]
 	);
-	SC_RETURN(sc, ret);
 }
-void SCAPI injected_sc3(struct injcode_call *sc){
-	uintptr_t ret = sc->libc_syscall(
+intptr_t SCAPI injected_sc3(struct injcode_call *sc){
+	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3]
 	);
-	SC_RETURN(sc, ret);
 }
-void SCAPI injected_sc4(struct injcode_call *sc){
-	uintptr_t ret = sc->libc_syscall(
+intptr_t SCAPI injected_sc4(struct injcode_call *sc){
+	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4]
 	);
-	SC_RETURN(sc, ret);
 }
-void SCAPI injected_sc5(struct injcode_call *sc){
-	uintptr_t ret = sc->libc_syscall(
+intptr_t SCAPI injected_sc5(struct injcode_call *sc){
+	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4], sc->argv[5]
 	);
-	SC_RETURN(sc, ret);
 }
-void SCAPI injected_sc6(struct injcode_call *sc){
-	uintptr_t ret = sc->libc_syscall(
+intptr_t SCAPI injected_sc6(struct injcode_call *sc){
+	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4], sc->argv[5],
 		sc->argv[6]
 	);
-	SC_RETURN(sc, ret);
+}
+
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+/**
+ * On ARM/Linux + glibc, making system calls and writing their results in the same function
+ * seems to cause a very subtle stack corruption bug that ultimately causes dlopen/dlsym to segfault
+ * to work around that, we use a wrapper so that the system call is executed in a different subroutine
+ * than the one setting the result.
+ **/
+void SCAPI injected_sc_wrapper(struct injcode_call *args){
+	args->result = args->wrapper.target(args);
+	args->libc_syscall(__NR_kill,
+		args->libc_syscall(__NR_getpid),
+		SIGTRAP
+	);
 }
 #endif
 
@@ -121,8 +121,8 @@ void PLAPI trampoline(){
 	asm volatile(JMP_INSN " .");
 	#endif
 
-	register struct injcode_call *args = NULL;
-	register uintptr_t (*target)(volatile struct injcode_call *) = NULL;
+	register volatile struct injcode_call *args = NULL;
+	register volatile uintptr_t (*target)(volatile struct injcode_call *) = NULL;
 	POP_PARAMS(args, target);
 	target(args);
 
@@ -282,7 +282,7 @@ void PLAPI injected_fn(struct injcode_call *sc){
 	ctx->stbl = BR_STRTBL(br);
 
 	if(br->pl_debug){
-		inj_thread_stop(ctx, EXIT_FAILURE);
+		inj_thread_stop(ctx, EXIT_SUCCESS);
 	}
 
 	int signal = EXIT_FAILURE;
@@ -366,7 +366,5 @@ void PLAPI injected_fn(struct injcode_call *sc){
 	// bye
 	inj_dchar(br, 'b');
 
-	sc->result2 = (signal == EXIT_SUCCESS) ? 0 : -1;
 	inj_thread_stop(ctx, signal);
-	while(1);
 }

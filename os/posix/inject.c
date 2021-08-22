@@ -20,6 +20,8 @@ static off_t sc_offsets[7];
 // remote base of syscall code section
 static uintptr_t r_sc_base;
 
+static off_t sc_wrapper_offset;
+
 static void *code_data(void *code){
 #if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
 	return (void *)(UPTR(code) & ~1);
@@ -36,6 +38,7 @@ static void _remote_sc_setup_offsets(){
 	sc_offsets[4] = PTRDIFF(&injected_sc4, region_sc_code.start);
 	sc_offsets[5] = PTRDIFF(&injected_sc5, region_sc_code.start);
 	sc_offsets[6] = PTRDIFF(&injected_sc6, region_sc_code.start);
+	sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
 }
 
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
@@ -131,7 +134,9 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx){
 }
 
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
-	call->trampoline.fn_addr = r_sc_base + sc_offsets[call->argc];
+	call->wrapper.target = r_sc_base + sc_offsets[call->argc];
+	DBGPTR(call->wrapper.target);
+	call->trampoline.fn_addr = r_sc_base + sc_wrapper_offset;
 	DBGPTR(call->trampoline.fn_addr);
 	return 0;
 }
