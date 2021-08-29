@@ -122,7 +122,10 @@ intptr_t setregs_syscall(
 	rcall->argc = 0;
 	rcall->result = 0;
 	memcpy(&rcall->argv, &call->argv, sizeof(call->argv));
+
+#ifdef EZ_TARGET_POSIX
 	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
+#endif
 
 	// skip syscall nr
 	for(int i=1; i<SC_MAX_ARGS; i++){

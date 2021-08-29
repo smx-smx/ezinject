@@ -263,6 +263,7 @@ typedef struct {
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
 #endif
 
+#ifdef EZ_TARGET_POSIX
 extern intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc1(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc2(volatile struct injcode_call *sc);
@@ -270,6 +271,8 @@ extern intptr_t SCAPI injected_sc3(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc4(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc5(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc);
+#endif
+
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args);
 
 extern void PLAPI trampoline();

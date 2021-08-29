@@ -37,6 +37,7 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
+#ifdef EZ_TARGET_POSIX
 intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc){
 	return sc->libc_syscall(sc->argv[0]);
 }
@@ -79,6 +80,7 @@ intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc){
 		sc->argv[6]
 	);
 }
+#endif
 
 /**
  * On ARM/Linux + glibc, making system calls and writing their results in the same function
