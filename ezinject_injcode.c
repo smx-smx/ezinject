@@ -37,6 +37,7 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
+#ifdef EZ_TARGET_POSIX
 intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc){
 	return sc->libc_syscall(sc->argv[0]);
 }
@@ -79,6 +80,7 @@ intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc){
 		sc->argv[6]
 	);
 }
+#endif
 
 /**
  * On ARM/Linux + glibc, making system calls and writing their results in the same function
@@ -226,6 +228,19 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 #define EXIT_SUCCESS SIGSTOP
 #endif
 
+#if defined(EZ_TARGET_POSIX)
+#define PL_RETURN(sc, x) return (x)
+#elif defined(EZ_TARGET_WINDOWS)
+#define PL_RETURN(sc, x) do { \
+	((sc)->result = (x)); \
+	asm volatile("int $3\n"); \
+	return 0; \
+} while(0)
+#else
+#error "Unsupported platform"
+#endif
+
+
 INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 	struct dl_api *libdl = &ctx->libdl;
@@ -297,7 +312,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	if(inj_libdl_init(ctx) != 0){
 		inj_dchar(br, '!');
-		return INJ_ERR_LIBDL;
+		PL_RETURN(sc, INJ_ERR_LIBDL);
 	}
 
 	// acquire libpthread
@@ -313,14 +328,14 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
 			inj_puts(br, errstr);
 		}
-		return INJ_ERR_LIBPTHREAD;
+		PL_RETURN(sc, INJ_ERR_LIBPTHREAD);
 	}
 	inj_dbgptr(br, ctx->h_libthread);
 
 	if(inj_api_init(ctx) != 0){
 		inj_dchar(br, '!');
 		inj_dchar(br, '2');
-		return INJ_ERR_API;
+		PL_RETURN(sc, INJ_ERR_API);
 	}
 
 	// setup
@@ -333,7 +348,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	inj_dchar(br, 'd');
 	if(inj_load_library(ctx) != 0){
 		inj_dchar(br, '!');
-		return INJ_ERR_DLOPEN;
+		PL_RETURN(sc, INJ_ERR_DLOPEN);
 	}
 
 	// wait for the thread to notify us
@@ -341,6 +356,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	intptr_t result = 0;
 	if(inj_thread_wait(ctx, &result) != 0){
 		inj_dchar(br, '!');
+		PL_RETURN(sc, INJ_ERR_WAIT);
 	}
 
 	if((enum userlib_return_action)result != userlib_persist){
@@ -363,5 +379,5 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	// bye
 	inj_dchar(br, 'b');
-	return 0;
+	PL_RETURN(sc, 0);
 }
