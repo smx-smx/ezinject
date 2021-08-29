@@ -138,8 +138,9 @@ intptr_t setregs_syscall(
 	 * set trampoline params
 	 **/
 	rcall->trampoline.fn_arg = r_call_args;
-	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
 
+	#ifdef EZ_TARGET_POSIX
+	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
 	if(call->syscall_mode){	
 		/**
 		 * set the branch target
@@ -153,6 +154,9 @@ intptr_t setregs_syscall(
 		// set the user supplied branch target
 		rcall->wrapper.target = ctx->branch_target.remote;
 	}
+	#else
+	rcall->trampoline.fn_addr = ctx->branch_target.remote;
+	#endif
 
 	if(ctx->rcall_handler_pre != NULL){
 		if(ctx->rcall_handler_pre(ctx, &call->rcall) < 0){
@@ -741,6 +745,16 @@ int ezinject_main(
 		// set trampoline parameters
 		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
 		ctx->trampoline_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
+
+		DBG("\n"
+			"==== call chain:\n"
+			"0: %p [trampoline]\n"
+			"1: %p [wrapper]\n" 
+			"2: %p [target]\n",
+			ctx->trampoline_insn.remote,
+			get_wrapper_address(ctx),
+			ctx->branch_target.remote
+		);
 
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(pl->br_start)));
 

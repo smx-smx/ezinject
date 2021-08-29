@@ -228,6 +228,13 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 #define EXIT_SUCCESS SIGSTOP
 #endif
 
+#ifdef EZ_TARGET_POSIX
+#define PL_RETURN(sc, x) return (x)
+#else
+#define PL_RETURN(sc, x) ((sc)->result = (x))
+#endif
+
+
 INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 	struct dl_api *libdl = &ctx->libdl;
@@ -299,7 +306,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	if(inj_libdl_init(ctx) != 0){
 		inj_dchar(br, '!');
-		return INJ_ERR_LIBDL;
+		PL_RETURN(sc, INJ_ERR_LIBDL);
 	}
 
 	// acquire libpthread
@@ -315,14 +322,14 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
 			inj_puts(br, errstr);
 		}
-		return INJ_ERR_LIBPTHREAD;
+		PL_RETURN(sc, INJ_ERR_LIBPTHREAD);
 	}
 	inj_dbgptr(br, ctx->h_libthread);
 
 	if(inj_api_init(ctx) != 0){
 		inj_dchar(br, '!');
 		inj_dchar(br, '2');
-		return INJ_ERR_API;
+		PL_RETURN(sc, INJ_ERR_API);
 	}
 
 	// setup
@@ -335,7 +342,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	inj_dchar(br, 'd');
 	if(inj_load_library(ctx) != 0){
 		inj_dchar(br, '!');
-		return INJ_ERR_DLOPEN;
+		PL_RETURN(sc, INJ_ERR_DLOPEN);
 	}
 
 	// wait for the thread to notify us
@@ -365,5 +372,5 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	// bye
 	inj_dchar(br, 'b');
-	return 0;
+	PL_RETURN(sc, 0);
 }
