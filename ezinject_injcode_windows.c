@@ -1,10 +1,3 @@
-INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
-	UNUSED(ctx);
-	UNUSED(signal);
-	asm volatile("int $3\n");
-	while(1);
-}
-
 INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned flags){
 	UNUSED(flags);
 	return ctx->libdl.dlopen(filename);

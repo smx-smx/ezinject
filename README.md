@@ -1,5 +1,5 @@
 # ezinject
-Modular binary injection framework
+Modular binary injection framework [![Join us on Discord](https://img.shields.io/static/v1?link=https://discord.gg/wsZhBCEJsX&message=Join%20Discord&logo=discord&style=flat&color=107090&labelColor=5E5E5E&label=&logoColor=white)](https://discord.gg/wsZhBCEJsX)
 
 ## Supported Architectures:
 - Linux:
