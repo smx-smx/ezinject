@@ -228,10 +228,16 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 #define EXIT_SUCCESS SIGSTOP
 #endif
 
-#ifdef EZ_TARGET_POSIX
+#if defined(EZ_TARGET_POSIX)
 #define PL_RETURN(sc, x) return (x)
+#elif defined(EZ_TARGET_WINDOWS)
+#define PL_RETURN(sc, x) do { \
+	((sc)->result = (x)); \
+	asm volatile("int $3\n"); \
+	return 0; \
+} while(0)
 #else
-#define PL_RETURN(sc, x) ((sc)->result = (x))
+#error "Unsupported platform"
 #endif
 
 
@@ -350,6 +356,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	intptr_t result = 0;
 	if(inj_thread_wait(ctx, &result) != 0){
 		inj_dchar(br, '!');
+		PL_RETURN(sc, INJ_ERR_WAIT);
 	}
 
 	if((enum userlib_return_action)result != userlib_persist){

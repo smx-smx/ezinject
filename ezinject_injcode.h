@@ -290,5 +290,6 @@ extern uint8_t __stop_syscall SECTION_END("syscall");
 #define INJ_ERR_LIBPTHREAD 2
 #define INJ_ERR_API 3
 #define INJ_ERR_DLOPEN 4
+#define INJ_ERR_WAIT 5
 
 #endif

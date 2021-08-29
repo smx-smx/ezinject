@@ -21,6 +21,11 @@ INLINE intptr_t inj_thread_wait(
 		return -1;
 	}
 
+	result = api->WaitForSingleObject(br->hThread, INFINITE);
+	if(result != WAIT_OBJECT_0){
+		return -1;
+	}
+
 	DWORD exitStatus;
 	if(api->GetExitCodeThread(br->hThread, &exitStatus) == FALSE){
 		return -1;
