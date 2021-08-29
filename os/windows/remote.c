@@ -99,6 +99,9 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 			return -1;
 		}
 		DBG("Received Debug Event: %lu", ev->dwDebugEventCode);
+		if(ev->dwDebugEventCode == EXIT_PROCESS_DEBUG_EVENT){
+			return -1;
+		}
 		if(ev->dwDebugEventCode == LOAD_DLL_DEBUG_EVENT){
 			LPVOID ptrAddr = ev->u.LoadDll.lpImageName;
 			do {

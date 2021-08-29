@@ -115,7 +115,6 @@ int run_on_return1(void *state, void *arg){
 			//fputs(buf, stdout);
 		}
 		pclose(hCmd);
-		ctx->ezinjectRunner.detach();
 	});
 	return 0;
 }
@@ -152,12 +151,6 @@ int run(struct test_state *ctx){
 		rc = 0;
 	} while(0);
 
-	char buf[255];
-	while(ctx->ezinjectRunner.joinable()){
-		// consume buffer, to unblock ezinject until it completes
-		fgets(buf, sizeof(buf), hTarget);
-	}
-
 	if(ctx->pid > 0){
 	#if defined(EZ_TARGET_POSIX)
 		kill(ctx->pid, SIGKILL);
@@ -171,6 +164,11 @@ int run(struct test_state *ctx){
 	}
 
 	pclose(hTarget);
+
+	if(ctx->ezinjectRunner.joinable()){
+		ctx->ezinjectRunner.join();
+	}
+
 	return rc;
 }
 
