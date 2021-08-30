@@ -139,7 +139,7 @@ intptr_t setregs_syscall(
 	 **/
 	rcall->trampoline.fn_arg = r_call_args;
 
-	#ifdef EZ_TARGET_POSIX
+	#if defined(EZ_TARGET_POSIX) && !defined(EZ_TARGET_DARWIN)
 	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
 	if(call->syscall_mode){	
 		/**

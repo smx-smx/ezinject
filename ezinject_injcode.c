@@ -95,6 +95,7 @@ void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
 		args->libc_syscall(__NR_getpid),
 		SIGTRAP
 	);
+	while(1);
 #elif defined(EZ_TARGET_WINDOWS)
 	asm volatile("int $3\n");
 #else
@@ -228,7 +229,16 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 #define EXIT_SUCCESS SIGSTOP
 #endif
 
-#if defined(EZ_TARGET_POSIX)
+#if defined(EZ_TARGET_DARWIN)
+#define PL_RETURN(sc, x) do { \
+	((sc)->result = (x)); \
+	sc->libc_syscall(__NR_kill, \
+		sc->libc_syscall(__NR_getpid), \
+		SIGSTOP \
+	); \
+	while(1); \
+} while(0)
+#elif defined(EZ_TARGET_POSIX)
 #define PL_RETURN(sc, x) return (x)
 #elif defined(EZ_TARGET_WINDOWS)
 #define PL_RETURN(sc, x) do { \
@@ -380,4 +390,5 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	// bye
 	inj_dchar(br, 'b');
 	PL_RETURN(sc, 0);
+	return 0;
 }
