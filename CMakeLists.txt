@@ -571,4 +571,9 @@ target_link_libraries(ezinject dl)
 
 add_subdirectory(crt)
 add_subdirectory(samples)
-add_subdirectory(test)
+
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-std=c++11" COMPILER_SUPPORTS_CXX11)
+if(COMPILER_SUPPORTS_CXX11)
+	add_subdirectory(test)
+endif()
