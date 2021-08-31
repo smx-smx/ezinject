@@ -9,9 +9,7 @@
 #include <sched.h>
 #include <pthread.h>
 #include <unistd.h>
-#ifdef HAVE_SYS_SHM_H
-#include <sys/shm.h>
-#endif
+
 #ifdef EZ_TARGET_LINUX
 #include <sys/prctl.h>
 #endif

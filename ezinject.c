@@ -15,11 +15,6 @@
 #include <dlfcn.h>
 #include <sched.h>
 
-
-#ifdef HAVE_SYS_SHM_H
-#include <sys/shm.h>
-#endif
-
 #ifdef EZ_TARGET_POSIX
 #include <sys/types.h>
 #include <sys/mman.h>

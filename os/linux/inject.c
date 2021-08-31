@@ -2,7 +2,6 @@
 
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/shm.h>
 #include <sys/syscall.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
