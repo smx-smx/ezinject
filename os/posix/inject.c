@@ -5,6 +5,7 @@
 #include "ezinject.h"
 #include "log.h"
 #include "ezinject_util.h"
+#include "ezinject_compat.h"
 
 #ifdef EZ_TARGET_DARWIN
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){ return 0; }

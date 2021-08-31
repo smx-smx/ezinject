@@ -41,10 +41,12 @@
 #endif
 
 #if defined(EZ_TARGET_LINUX)
-#ifndef __NR_mmap2
-#define __NR_mmap2 __NR_mmap
-#endif
-#endif
+  #if !defined(__NR_mmap2) && !defined(__NR_mmap)
+  #error "Unsupported platform"
+  #elif !defined(__NR_mmap2)
+  #define __NR_mmap2 __NR_mmap
+  #endif
+#endif // EZ_TARGET_LINUX
 
 
 #endif
