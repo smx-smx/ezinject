@@ -77,11 +77,6 @@ intptr_t setregs_syscall(
 	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
 #ifdef EZ_TARGET_LINUX
 	rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
-	DBGPTR(rcall->libc_mmap);
-
-	if(rcall->libc_mmap == NULL){
-		WARN("couldn't resolve mmap(3), will use mmap(2)");
-	}
 #endif
 	rcall->trampoline.fn_arg = r_call_args;
 

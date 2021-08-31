@@ -149,10 +149,16 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 	 * if available,
 	 * use mmap(3) instead of mmap(2)
 	 **/
-	if(call->libc_mmap != NULL
-	&& call->argc > 0
-	&& call->argv[0] == __NR_mmap2
-	){
+	int is_mmap = call->argc > 0 && call->argv[0] == __NR_mmap2;
+
+	if(is_mmap){
+		DBGPTR(call->libc_mmap);
+		if(call->libc_mmap == NULL){
+			WARN("couldn't resolve mmap(3), will use mmap(2)");
+		}
+	}
+
+	if(is_mmap && call->libc_mmap != NULL){
 		return r_sc_base + sc_mmap_offset;
 	} else {
 		return r_sc_base + sc_offsets[call->argc];
