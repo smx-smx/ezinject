@@ -125,7 +125,7 @@ struct injcode_call {
 	 * when pushing
 	 * so we have to reserve enough stack for trampoline here
 	 */
-	uintptr_t scratch[10];
+	uint8_t sc_stack[256];
 	struct injcode_trampoline trampoline;
 };
 
@@ -273,6 +273,7 @@ extern intptr_t SCAPI injected_sc3(struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc4(struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc5(struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc6(struct injcode_call *sc);
+extern intptr_t SCAPI injected_mmap(struct injcode_call *sc);
 void SCAPI injected_sc_wrapper(struct injcode_call *args);
 
 extern void PLAPI trampoline();
