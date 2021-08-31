@@ -63,7 +63,15 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 
 	intptr_t rc = -1;
 	do {
-		int r_fd = RSCALL2(ctx, __NR_open, r_remote_filepath, O_RDONLY);
+		int r_fd = -1;
+		#if defined(__NR_open)
+		r_fd = RSCALL2(ctx, __NR_open, r_remote_filepath, O_RDONLY);
+		#elif defined(__NR_openat)
+		r_fd = RSCALL3(ctx, __NR_openat, AT_FDCWD, r_remote_filepath, O_RDONLY);
+		#else
+		#error "Unsupported platform"
+		#endif
+
 		if(r_fd <= 0){
 			ERR("remote open(2) failed");
 			break;
