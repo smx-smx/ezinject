@@ -19,4 +19,4 @@ fi
 [ ! -d build ] && mkdir build
 cd build
 cmake .. ${TOOLCHAINFILE} $*
-cmake --build . -- -j${jobs}
+cmake --build . -- -j${jobs} -k

@@ -145,7 +145,14 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx){
 
 #ifdef EZ_TARGET_LINUX
 static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
-	if(call->argc > 0 && call->argv[0] == __NR_mmap2){
+	/**
+	 * if available,
+	 * use mmap(3) instead of mmap(2)
+	 **/
+	if(call->libc_mmap != NULL
+	&& call->argc > 0
+	&& call->argv[0] == __NR_mmap2
+	){
 		return r_sc_base + sc_mmap_offset;
 	} else {
 		return r_sc_base + sc_offsets[call->argc];

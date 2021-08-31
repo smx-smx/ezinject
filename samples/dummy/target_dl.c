@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <dlfcn.h>
+#include "config.h"
 
 #define UNUSED(x) (void)x
 
