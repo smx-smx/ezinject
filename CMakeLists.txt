@@ -31,8 +31,6 @@ endif()
 include(CheckIncludeFile)
 
 include(CheckSymbolExists)
-check_symbol_exists("PT_GETREGS" "sys/ptrace.h" HAVE_PTRACE_GETREGS)
-check_symbol_exists("PT_SETREGS" "sys/ptrace.h" HAVE_PTRACE_SETREGS)
 check_symbol_exists("PSR_T_BIT" "asm/ptrace.h" HAVE_PSR_T_BIT)
 check_symbol_exists("strsignal" "string.h" HAVE_STRSIGNAL)
 check_symbol_exists("RTLD_NOLOAD" "dlfcn.h" HAVE_RTLD_NOLOAD)

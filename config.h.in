@@ -18,7 +18,6 @@
 #cmakedefine HAVE_LIBDL_IN_LIBC
 #cmakedefine HAVE_SHM_SYSCALLS
 #cmakedefine HAVE_RTLD_NOLOAD
-#cmakedefine HAVE_PTRACE_GETREGS
 #cmakedefine HAVE_PTRACE_SETREGS
 #cmakedefine HAVE_PSR_T_BIT
 #cmakedefine USE_ANDROID_ASHMEM
