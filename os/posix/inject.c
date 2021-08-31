@@ -22,8 +22,11 @@ static off_t sc_offsets[7];
 // remote base of syscall code section
 static uintptr_t r_sc_base;
 
-static off_t sc_mmap_offset;
 static off_t sc_wrapper_offset;
+
+#ifdef EZ_TARGET_LINUX
+static off_t sc_mmap_offset;
+#endif
 
 static void *code_data(void *code){
 #if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
@@ -41,8 +44,11 @@ static void _remote_sc_setup_offsets(){
 	sc_offsets[4] = PTRDIFF(&injected_sc4, region_sc_code.start);
 	sc_offsets[5] = PTRDIFF(&injected_sc5, region_sc_code.start);
 	sc_offsets[6] = PTRDIFF(&injected_sc6, region_sc_code.start);
-	sc_mmap_offset = PTRDIFF(&injected_mmap, region_sc_code.start);
 	sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
+
+#ifdef EZ_TARGET_LINUX
+	sc_mmap_offset = PTRDIFF(&injected_mmap, region_sc_code.start);
+#endif
 }
 
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
@@ -137,16 +143,25 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
+#ifdef EZ_TARGET_LINUX
+static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 	if(call->argc > 0 && (
 		call->argv[0] == __NR_mmap
 	 || call->argv[0] == __NR_mmap2
 	)){
-		call->wrapper.target = r_sc_base + sc_mmap_offset;
+		return r_sc_base + sc_mmap_offset;
 	} else {
-		call->wrapper.target = r_sc_base + sc_offsets[call->argc];
+		return r_sc_base + sc_offsets[call->argc];
 	}
+}
+#else
+static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
+	return r_sc_base + sc_offsets[call->argc];
+}
+#endif
 
+EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
+	call->wrapper.target = _get_wrapper_target(call);
 	DBGPTR(call->wrapper.target);
 	call->trampoline.fn_addr = r_sc_base + sc_wrapper_offset;
 	DBGPTR(call->trampoline.fn_addr);

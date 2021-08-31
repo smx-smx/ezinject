@@ -81,7 +81,7 @@ intptr_t SCAPI injected_sc6(struct injcode_call *sc){
 	);
 }
 
-
+#ifdef EZ_TARGET_LINUX
 /**
  * Old glibc has broken syscall(3) argument handling for mmap
  * We must use the libc's mmap(3) instead, which handles them properly
@@ -93,6 +93,7 @@ intptr_t SCAPI injected_mmap(struct injcode_call *sc){
 		(int)sc->argv[5], (off_t)sc->argv[6]
 	);
 }
+#endif
 
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
 /**
