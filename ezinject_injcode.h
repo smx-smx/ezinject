@@ -129,12 +129,6 @@ struct injcode_call {
 	struct injcode_trampoline trampoline;
 };
 
-#ifdef EZ_TARGET_ANDROID
-static char PL_FILEPATH[] = "/data/local/tmp/ezinject_pl.bin";
-#else
-static char PL_FILEPATH[] = "/tmp/ezinject_pl.bin";
-#endif
-
 #define RCALL_FIELD_ADDR(rcall, field) \
 	(((rcall)->trampoline.fn_arg) + offsetof(struct injcode_call, field))
 
@@ -150,10 +144,6 @@ struct injcode_bearing
 	HANDLE hEvent;
 #endif
 	void *userlib;
-
-#ifdef EZ_TARGET_LINUX
-	char pl_filepath[sizeof(PL_FILEPATH)];
-#endif
 
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
@@ -213,6 +203,9 @@ struct injcode_bearing
 	struct injcode_user user;
 	int num_strings;
 	off_t argv_offset;
+#ifdef EZ_TARGET_LINUX
+	off_t pl_filename_offset;
+#endif
 	int argc;
 	int dyn_size;
 	char *argv[];

@@ -430,6 +430,23 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	for(int i=1; i < argc; i++){
 		PUSH_STRING(argv[i]);
 	}
+
+#ifdef EZ_TARGET_LINUX
+	off_t pl_filename_offset = dyn_str_size;
+	/**
+	 * construct tempory payload filename
+	 * yes, we use tempnam as we don't know
+	 * the system temporary directory
+	 **/
+	char *pl_filename = tempnam(NULL, "ezpl");
+	if(pl_filename == NULL){
+		PERROR("tmpnam");
+		return NULL;
+	}
+
+	PUSH_STRING(pl_filename);
+#endif
+
 #undef PUSH_STRING
 
 	size_t dyn_total_size = dyn_ptr_size + dyn_str_size;
@@ -450,10 +467,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->mapping_size = mapping_size;
 
 	br->pl_debug = ctx->pl_debug;
-
-#ifdef EZ_TARGET_LINUX
-	memcpy(br->pl_filepath, PL_FILEPATH, sizeof(PL_FILEPATH));
-#endif
 
 	br->libdl_handle = (void *)ctx->libdl.remote;
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
@@ -489,6 +502,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->dyn_size = dyn_total_size;
 	br->num_strings = num_strings;
 	br->argv_offset = argv_offset;
+#ifdef EZ_TARGET_LINUX
+	br->pl_filename_offset = pl_filename_offset;
+#endif
 
 	char *stringData = (char *)br + sizeof(*br) + dyn_ptr_size;
 	for(int i=0; i<num_strings; i++){
@@ -497,7 +513,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 	// copy code
 	memcpy(ctx->pl.code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
-
 	return br;
 }
 
@@ -545,6 +560,17 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 }
 
 void cleanup_mem(struct ezinj_ctx *ctx){
+#ifdef EZ_TARGET_LINUX
+	{
+		struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
+		// if pl_filename_offset was set, tempnam has been called
+		if(br->pl_filename_offset > 0){
+			char *stbl = BR_STRTBL(br) + br->pl_filename_offset;
+			char *pl_filename = STR_DATA(stbl);
+			free(pl_filename);
+		}
+	}
+#endif
 	free((void *)ctx->mapped_mem.local);
 }
 

@@ -24,36 +24,36 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 }
 
 static EZAPI _export_pl(struct ezinj_ctx *ctx){
-	unlink(PL_FILEPATH);
-	int fd = open(PL_FILEPATH, O_WRONLY | O_SYNC | O_CREAT, (mode_t)0666);
+	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
+
+	if(br->pl_filename_offset == 0){
+		ERR("pl_filename_offset is not set!");
+		return -1;
+	}
+
+	char *stbl = BR_STRTBL(br) + br->pl_filename_offset;
+	char *pl_filename = STR_DATA(stbl);
+
+	INFO("exporting payload to %s", pl_filename);
+
+	unlink(pl_filename);
+	int fd = open(pl_filename, O_WRONLY | O_SYNC | O_CREAT, (mode_t)0666);
 	if(fd <= 0){
 		PERROR("open");
 		return -1;
 	}
 
-	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
 	if(write(fd, ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
 		PERROR("write");
 		return -1;
 	}
 
 	close(fd);
-
 	return 0;
 }
 
 EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
-	uintptr_t br_remote = PL_REMOTE(ctx, br);
-
-	uintptr_t r_remote_filepath = br_remote + offsetof(struct injcode_bearing, pl_filepath);
-	size_t filepath_size = WORDALIGN(sizeof(br->pl_filepath));
-
-	// write pl_filepath only
-	if(remote_write(ctx, r_remote_filepath, br->pl_filepath, filepath_size) != filepath_size){
-		ERR("remote_write: failed to write pl_filepath");
-		return -1;
-	}
 
 	// write payload to file
 	if(_export_pl(ctx) != 0){
@@ -61,13 +61,35 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 		return -1;
 	}
 
+	/**
+	 * Copy the string table entry for the remote filename
+	 * [entry size][pl filename (NULL terminated)]
+	 **/
+
+	char *stbl_entry = BR_STRTBL(br) + br->pl_filename_offset;
+	// remote_write always writes in word units
+	size_t stbl_entry_size = WORDALIGN(STR_SIZE(stbl_entry));
+	uintptr_t r_stbl_entry = PL_REMOTE(ctx, stbl_entry);
+
+	/** write the payload filename string table entry */
+	size_t written = remote_write(ctx, r_stbl_entry, stbl_entry, stbl_entry_size);
+	if(written != stbl_entry_size){
+		ERR("remote_write: failed to write pl_filename (%zu != %zu)", written, stbl_entry_size);
+		return -1;
+	}
+
+	char *pl_filename = STR_DATA(stbl_entry);
+
+	// address of the stbl data entry we just wrote
+	uintptr_t r_pl_filename = PL_REMOTE(ctx, pl_filename);
+
 	intptr_t rc = -1;
 	do {
 		int r_fd = -1;
 		#if defined(__NR_open)
-		r_fd = RSCALL2(ctx, __NR_open, r_remote_filepath, O_RDONLY);
+		r_fd = RSCALL2(ctx, __NR_open, r_pl_filename, O_RDONLY);
 		#elif defined(__NR_openat)
-		r_fd = RSCALL3(ctx, __NR_openat, AT_FDCWD, r_remote_filepath, O_RDONLY);
+		r_fd = RSCALL3(ctx, __NR_openat, AT_FDCWD, r_pl_filename, O_RDONLY);
 		#else
 		#error "Unsupported platform"
 		#endif
@@ -90,7 +112,7 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 		rc = 0;
 	} while(0);
 
-	unlink(PL_FILEPATH);
+	unlink(pl_filename);
 	return rc;
 }
 
