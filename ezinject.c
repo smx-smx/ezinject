@@ -511,6 +511,10 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 		strPush(&stringData, args[i]);
 	}
 
+#ifdef EZ_TARGET_LINUX
+	free(pl_filename);
+#endif
+
 	// copy code
 	memcpy(ctx->pl.code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
 	return br;
@@ -560,17 +564,6 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 }
 
 void cleanup_mem(struct ezinj_ctx *ctx){
-#ifdef EZ_TARGET_LINUX
-	{
-		struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
-		// if pl_filename_offset was set, tempnam has been called
-		if(br->pl_filename_offset > 0){
-			char *stbl = BR_STRTBL(br) + br->pl_filename_offset;
-			char *pl_filename = STR_DATA(stbl);
-			free(pl_filename);
-		}
-	}
-#endif
 	free((void *)ctx->mapped_mem.local);
 }
 
