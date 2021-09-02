@@ -43,6 +43,11 @@ check_symbol_exists("__i386__" "" EZ_ARCH_I386)
 check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
 check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
 check_symbol_exists("__ANDROID__" "" EZ_TARGET_ANDROID)
+check_symbol_exists("_GNU_SOURCE" "" HAVE_GNU_SOURCE)
+
+if(NOT HAVE_GNU_SOURCE)
+	add_definitions(-D_GNU_SOURCE)
+endif()
 
 if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD OR EZ_TARGET_DARWIN)
 	set(EZ_TARGET_POSIX TRUE)

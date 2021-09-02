@@ -1,7 +1,6 @@
 /**
  * Copyright (C) 2020 Stefano Moioli <smxdev4@gmail.com>
  */
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>

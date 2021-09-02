@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include "ezinject_util.h"
 #include <stdbool.h>
 #include <string.h>

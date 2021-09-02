@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #define EZINJECT_INJCODE
 
 #include <dlfcn.h>
