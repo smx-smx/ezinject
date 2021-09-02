@@ -64,7 +64,7 @@ struct ezinj_ctx {
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
 	// holds the overwritten ELF header
 	uint8_t *saved_sc_data;
-	size_t saved_sc_size;
+	ssize_t saved_sc_size;
 #endif
 	uintptr_t target_codebase;
 	ez_addr libc;
@@ -142,7 +142,7 @@ struct call_req {
 
 	uintptr_t backup_addr;
 	uint8_t *backup_data;
-	size_t backup_size;
+	ssize_t backup_size;
 
 	struct injcode_call rcall;
 };
@@ -154,7 +154,7 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 
 #include "ezinject_arch.h"
 
-uintptr_t remote_call(
+EZAPI remote_call(
 	struct ezinj_ctx *ctx,
 	unsigned int argmask, ...
 );

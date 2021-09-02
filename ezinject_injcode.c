@@ -87,7 +87,7 @@ intptr_t SCAPI injected_sc6(struct injcode_call *sc){
  * We must use the libc's mmap(3) instead, which handles them properly
  **/
 intptr_t SCAPI injected_mmap(struct injcode_call *sc){
-	return sc->libc_mmap(
+	return (intptr_t)sc->libc_mmap(
 		(void *)sc->argv[1], (size_t)sc->argv[2],
 		(int)sc->argv[3], (int)sc->argv[4],
 		(int)sc->argv[5], (off_t)sc->argv[6]
@@ -137,7 +137,7 @@ void PLAPI trampoline(){
 	#endif
 
 	register volatile struct injcode_call *args = NULL;
-	register volatile uintptr_t (*target)(volatile struct injcode_call *) = NULL;
+	register uintptr_t (*target)(volatile struct injcode_call *) = NULL;
 	POP_PARAMS(args, target);
 	target(args);
 
@@ -178,7 +178,7 @@ INLINE uint64_t str64(uint64_t x){
 #endif
 
 INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
-	char buf[sizeof(uintptr_t) + 1];
+	char buf[(sizeof(uintptr_t) * 2) + 1];
 	itoa16((uintptr_t)ptr, buf);
 	inj_puts(br, buf);
 }
@@ -299,7 +299,7 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 }
 
 void PLAPI injected_fn(struct injcode_call *sc){
-	struct injcode_bearing *br = (struct injcode_baring *)(sc->argv[0]);
+	struct injcode_bearing *br = (struct injcode_bearing *)(sc->argv[0]);
 
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;

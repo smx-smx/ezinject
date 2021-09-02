@@ -104,7 +104,7 @@ intptr_t setregs_syscall(
 		}
 	}
 
-	size_t backupSize = ROUND_UP(sizeof(*rcall), sizeof(uintptr_t));
+	ssize_t backupSize = (ssize_t)WORDALIGN(sizeof(*rcall));
 	
 	uint8_t *saved_stack = calloc(backupSize, 1);
 	if(remote_read(ctx, saved_stack, r_call_args, backupSize) != backupSize){
@@ -163,7 +163,7 @@ intptr_t remote_call_setup(struct ezinj_ctx *ctx, struct call_req *call, regs_t 
 	return 0;
 }
 
-uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
+intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	regs_t orig_ctx, new_ctx;
 	if(remote_call_setup(ctx, call, &orig_ctx, &new_ctx) < 0){
 		ERR("remote_call_setup failed");
@@ -229,7 +229,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	return call->rcall.result;
 }
 
-uintptr_t remote_call(
+intptr_t remote_call(
 	struct ezinj_ctx *ctx,
 	unsigned int argmask, ...
 ){

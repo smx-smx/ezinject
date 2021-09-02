@@ -43,7 +43,7 @@ static EZAPI _export_pl(struct ezinj_ctx *ctx){
 		return -1;
 	}
 
-	if(write(fd, ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
+	if(write(fd, (void *)ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
 		PERROR("write");
 		return -1;
 	}
@@ -68,7 +68,7 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 
 	char *stbl_entry = BR_STRTBL(br) + br->pl_filename_offset;
 	// remote_write always writes in word units
-	size_t stbl_entry_size = WORDALIGN(STR_SIZE(stbl_entry));
+	size_t stbl_entry_size = (size_t)WORDALIGN(STR_ENTSIZE(stbl_entry));
 	uintptr_t r_stbl_entry = PL_REMOTE(ctx, stbl_entry);
 
 	/** write the payload filename string table entry */
@@ -100,7 +100,7 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 		}
 		DBG("remote fd: %d", r_fd);
 
-		if(RSCALL3(ctx, __NR_read, r_fd, ctx->mapped_mem.remote, br->mapping_size) != br->mapping_size){
+		if((ssize_t)RSCALL3(ctx, __NR_read, r_fd, ctx->mapped_mem.remote, br->mapping_size) != br->mapping_size){
 			ERR("remote read(2) failed");
 			break;
 		}
@@ -117,6 +117,8 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 }
 
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
+	UNUSED(remote_shmaddr);
+
 	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
 	return (intptr_t) CHECK(RSCALL2(ctx, __NR_munmap, ctx->mapped_mem.remote, br->mapping_size));
 }

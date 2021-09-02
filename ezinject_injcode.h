@@ -97,6 +97,8 @@ struct injcode_user {
 	uint8_t persist;
 };
 
+struct injcode_call;
+
 struct injcode_sc_wrapper {
 	// pointer to the actual function to call
 	uintptr_t (*target)(struct injcode_call *args);
@@ -134,7 +136,7 @@ struct injcode_call {
 
 struct injcode_bearing
 {
-	size_t mapping_size;
+	ssize_t mapping_size;
 
 	int pl_debug;
 	off_t stack_offset;

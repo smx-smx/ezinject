@@ -4,6 +4,7 @@
 #include "config.h"
 #include "ezinject.h"
 #include "log.h"
+
 #include "ezinject_util.h"
 #include "ezinject_compat.h"
 
@@ -63,18 +64,16 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
 	_remote_sc_setup_offsets();
 
 	off_t trampoline_offset = 0;
-	size_t trampoline_size = ROUND_UP(
-		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline)),
-		sizeof(uintptr_t)
+	size_t trampoline_size = (size_t)WORDALIGN(
+		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline))
 	);
 
 	off_t sc_offset = trampoline_offset + trampoline_size;
-	size_t sc_size = ROUND_UP(
-		REGION_LENGTH(region_sc_code),
-		sizeof(uintptr_t)
+	size_t sc_size = (size_t)WORDALIGN(
+		REGION_LENGTH(region_sc_code)
 	);
 
-	size_t dataLength = sc_size + trampoline_size;
+	ssize_t dataLength = sc_size + trampoline_size;
 	ctx->saved_sc_data = calloc(dataLength, 1);
 	ctx->saved_sc_size = dataLength;
 	
@@ -171,7 +170,9 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 #endif
 
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
-	call->wrapper.target = _get_wrapper_target(call);
+	UNUSED(ctx);
+
+	call->wrapper.target = (void *)_get_wrapper_target(call);
 	DBGPTR(call->wrapper.target);
 	call->trampoline.fn_addr = r_sc_base + sc_wrapper_offset;
 	DBGPTR(call->trampoline.fn_addr);

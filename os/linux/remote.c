@@ -70,7 +70,7 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 	size_t written;
 	for(written=0; written < size; written+=sizeof(uintptr_t), sourceWords++){
 		if(ptrace(PTRACE_POKETEXT, ctx->target, dest + written, *sourceWords) < 0){
-			ERR("ptrace write failed at %p: %s", dest + written, strerror(errno));
+			ERR("ptrace write failed at %p: %s", VPTR(dest + written), strerror(errno));
 		}
 	}
 	return written;
