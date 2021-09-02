@@ -156,11 +156,11 @@ static uint8_t *elfparse_findfunction(
 		ElfSym *sym = &symtab[i];
 		char *curname = &strtab[sym->st_name];
 		if(!strcmp(curname, funcname)){
-			unsigned offset = (
+			uint8_t *offset = (uint8_t *)(
 				hndl->sec[sym->st_shndx].sh_offset
 				+ sym->st_value - hndl->sec[sym->st_shndx].sh_addr
 			);
-			return (uint8_t *)offset;
+			return offset;
 		}
 	}
 	return 0;
