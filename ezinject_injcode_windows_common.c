@@ -1,22 +1,22 @@
 struct dl_api {
 	/** LoadLibraryA **/
-	void *(*dlopen)(const char *filename);
+	void *(WINAPI *dlopen)(const char *filename);
 	/** GetProcAddress **/
-	void *(*dlsym)(void *handle, const char *symbol);
+	void *(WINAPI *dlsym)(void *handle, const char *symbol);
 	/** FreeLibrary **/
-	int (*dlclose)(void *handle);
+	int (WINAPI *dlclose)(void *handle);
 	/** always NULL **/
 	char *(*dlerror)(void);
 };
 
 struct thread_api {
-	HANDLE (*CreateEventA)(
+	HANDLE (WINAPI *CreateEventA)(
 		LPSECURITY_ATTRIBUTES lpEventAttributes,
 		BOOL                  bManualReset,
 		BOOL                  bInitialState,
 		LPCSTR                lpName
 	);
-	HANDLE (*CreateThread)(
+	HANDLE (WINAPI *CreateThread)(
 		LPSECURITY_ATTRIBUTES   lpThreadAttributes,
 		SIZE_T                  dwStackSize,
 		LPTHREAD_START_ROUTINE  lpStartAddress,
@@ -24,14 +24,14 @@ struct thread_api {
 		DWORD                   dwCreationFlags,
 		LPDWORD                 lpThreadId
 	);
-	BOOL (*CloseHandle)(
+	BOOL (WINAPI *CloseHandle)(
   		HANDLE hObject
 	);
-	DWORD (*WaitForSingleObject)(
+	DWORD (WINAPI *WaitForSingleObject)(
 		HANDLE hHandle,
 		DWORD  dwMilliseconds
 	);
-	BOOL (*GetExitCodeThread)(
+	BOOL (WINAPI *GetExitCodeThread)(
 		HANDLE  hThread,
 		LPDWORD lpExitCode
 	);

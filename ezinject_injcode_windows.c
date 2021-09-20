@@ -68,15 +68,14 @@ INLINE void *_inj_get_kernel32(struct injcode_bearing *br){
 }
 
 INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
+	//asm volatile(JMP_INSN " .");
 	intptr_t result = 0;
 	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.CreateEventA);
 	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.CreateThread);
 	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.CloseHandle);
 	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.WaitForSingleObject);
 	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.GetExitCodeThread);
-	if(result != 0){
-		return -1;
-	}
+	if(result != 0) return -1;
 	return 0;
 }
 

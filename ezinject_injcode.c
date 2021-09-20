@@ -299,7 +299,7 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 }
 
 void PLAPI injected_fn(struct injcode_call *sc){
-	struct injcode_bearing *br = (struct injcode_baring *)(sc->argv[0]);
+	struct injcode_bearing *br = (struct injcode_bearing *)(sc->argv[0]);
 
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;

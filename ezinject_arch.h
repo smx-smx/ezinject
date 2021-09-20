@@ -36,6 +36,8 @@
 #elif defined(EZ_TARGET_WINDOWS)
 #if defined(EZ_ARCH_AMD64)
 #include "arch/ezinject_windows_amd64.h"
+#elif defined(EZ_ARCH_I386)
+#include "arch/ezinject_windows_i386.h"
 #else
 #error "Unsupported architecture"
 #endif
