@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <limits.h>
 #include <unistd.h>
+#include <inttypes.h>
 
 #include "config.h"
 
@@ -47,10 +48,47 @@ enum verbosity_level verbosity = V_DBG;
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
-ez_region region_pl_code = {
+static ez_region region_pl_code = {
 	.start = (void *)&__start_payload,
 	.end = (void *)&__stop_payload
 };
+
+static ez_region region_sc_code = {
+	.start = (void *)&__start_syscall,
+	.end = (void *)&__stop_syscall
+};
+
+static void *code_data(void *code){
+#if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
+	return (void *)(UPTR(code) & ~1);
+#else
+	return code;
+#endif
+}
+
+/**
+ * Get the address of the call wrapper
+ **/
+uintptr_t get_wrapper_address(struct ezinj_ctx *ctx){
+	uintptr_t codeBase = (uintptr_t) get_base(ctx->target, NULL, NULL);
+	if(codeBase == 0){
+		ERR("Could not obtain code base");
+		return 0;
+	}
+	DBGPTR(codeBase);
+
+	off_t trampoline_offset = 0;
+	size_t trampoline_size = ROUND_UP(
+		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline)),
+		sizeof(uintptr_t)
+	);
+
+	off_t sc_offset = trampoline_offset + trampoline_size;
+	uintptr_t r_sc_base = codeBase + sc_offset;
+
+	uintptr_t sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
+	return r_sc_base + sc_wrapper_offset;
+}
 
 int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size);
 int resolve_libc_symbols(struct ezinj_ctx *ctx);
@@ -84,8 +122,10 @@ intptr_t setregs_syscall(
 	rcall->argc = 0;
 	rcall->result = 0;
 	memcpy(&rcall->argv, &call->argv, sizeof(call->argv));
+
+#ifdef EZ_TARGET_POSIX
 	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
-	rcall->trampoline.fn_arg = r_call_args;
+#endif
 
 	// skip syscall nr
 	for(int i=1; i<SC_MAX_ARGS; i++){
@@ -94,15 +134,29 @@ intptr_t setregs_syscall(
 		}
 	}
 
-	if(call->num_wait_calls > 0){
-		// set rcall.trampoline.fn_addr
+	/**
+	 * set trampoline params
+	 **/
+	rcall->trampoline.fn_arg = r_call_args;
+
+	#if defined(EZ_TARGET_POSIX) && !defined(EZ_TARGET_DARWIN)
+	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
+	if(call->syscall_mode){	
+		/**
+		 * set the branch target
+		 * (based on the number of syscall arguments)
+		 **/
 		if(remote_call_prepare(ctx, rcall) < 0){
 			ERR("remote_call_prepare failed");
 			return -1;
 		}
 	} else {
-		rcall->trampoline.fn_addr = ctx->syscall_insn.remote;
+		// set the user supplied branch target
+		rcall->wrapper.target = ctx->branch_target.remote;
 	}
+	#else
+	rcall->trampoline.fn_addr = ctx->branch_target.remote;
+	#endif
 
 	if(ctx->rcall_handler_pre != NULL){
 		if(ctx->rcall_handler_pre(ctx, &call->rcall) < 0){
@@ -187,7 +241,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
-	if(call->num_wait_calls == 0 && ctx->pl_debug){
+	if(call->syscall_mode == 0 && ctx->pl_debug){
 		return -1;
 	}
 
@@ -205,14 +259,14 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		sizeof(uintptr_t)
 	);
 
-	DBG("[RET] = %zu", call->rcall.result);
+	DBG("[RET] = %"PRIdPTR, call->rcall.result);
 
 	/**
 	  * the payload is expected to use its own stack
 	  * so we don't restore stack in that case
 	  * because the stack could be unmapped
 	  */
-	if(call->num_wait_calls > 0){
+	if(call->syscall_mode){
 		DBG("restoring stack data");
 		if(remote_write(ctx,
 			call->backup_addr,
@@ -242,8 +296,8 @@ uintptr_t remote_call(
 ){
 	struct call_req call = {
 		.insn_addr = ctx->trampoline_insn.remote,
-		.stack_addr = ctx->syscall_stack.remote,
-		.num_wait_calls = ctx->num_wait_calls,
+		.stack_addr = ctx->pl_stack.remote,
+		.syscall_mode = ctx->syscall_mode,
 		.argmask = argmask
 	};
 
@@ -633,7 +687,7 @@ int ezinject_main(
 	}
 
 	// wait for a single syscall
-	ctx->num_wait_calls = 1;
+	ctx->syscall_mode = 1;
 
 	/* Verify that remote_call works correctly */
 	if(remote_sc_check(ctx) != 0){
@@ -641,7 +695,7 @@ int ezinject_main(
 		return -1;
 	}
 
-	int err = 1;
+	intptr_t err = -1;
 	do {
 		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
 		if(remote_shm_ptr == 0){
@@ -682,16 +736,27 @@ int ezinject_main(
 		#endif
 
 		// switch to SIGSTOP wait mode
-		ctx->num_wait_calls = 0;
+		ctx->syscall_mode = 0;
 
 		// switch to user stack
 		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
-		ctx->syscall_stack.remote = (uintptr_t)PL_REMOTE(target_sp);
+		ctx->pl_stack.remote = (uintptr_t)PL_REMOTE(target_sp);
 
 		// set trampoline parameters
-		ctx->syscall_insn.remote = PL_REMOTE_CODE(&injected_fn);
+		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
 		ctx->trampoline_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
-		CHECK(RSCALL0(ctx, PL_REMOTE(pl->br_start)));
+
+		DBG("\n"
+			"==== call chain:\n"
+			"0: %p [trampoline]\n"
+			"1: %p [wrapper]\n" 
+			"2: %p [target]\n",
+			ctx->trampoline_insn.remote,
+			get_wrapper_address(ctx),
+			ctx->branch_target.remote
+		);
+
+		err = CHECK(RSCALL0(ctx, PL_REMOTE(pl->br_start)));
 
 		/**
 		 * if payload debugging is on, skip any cleanup
@@ -701,16 +766,14 @@ int ezinject_main(
 		}
 
 		// restore syscall behavior (to call shmdt, if needed by the target)
-		ctx->num_wait_calls = 1;
-		ctx->syscall_stack.remote = 0;
+		ctx->syscall_mode = 1;
+		ctx->pl_stack.remote = 0;
 		remote_pl_free(ctx, remote_shm_ptr);
 
 		if(remote_sc_free(ctx) != 0){
 			ERR("remote_sc_free failed!");
-			break;
+			return -1;
 		}
-
-		err = 0;
 	} while(0);
 
 	return err;
@@ -763,6 +826,20 @@ int main(int argc, char *argv[]){
 	}
 
 	err = ezinject_main(&ctx, argc - optind, &argv[optind]);
+	/**
+	 * due to an eglibc bug, libdl loading will fail even tho it actually worked
+	 * if we're targeting linux, try again
+	 */
+	#ifdef EZ_TARGET_LINUX
+	if(err == INJ_ERR_LIBDL){
+		cleanup_mem(&ctx);
+		if(libc_init(&ctx) != 0){
+			return 1;
+		}
+		err = ezinject_main(&ctx, argc - optind, &argv[optind]);
+	}
+	#endif
+
 
 	INFO("detaching...");
 	if(remote_detach(&ctx) < 0){
@@ -782,5 +859,5 @@ int main(int argc, char *argv[]){
 	}
 
 	cleanup_mem(&ctx);
-	return err;
+	return (err == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

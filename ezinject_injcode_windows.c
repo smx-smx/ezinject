@@ -1,10 +1,3 @@
-INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
-	UNUSED(ctx);
-	UNUSED(signal);
-	asm volatile("int $3\n");
-	while(1);
-}
-
 INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned flags){
 	UNUSED(flags);
 	return ctx->libdl.dlopen(filename);
@@ -24,6 +17,11 @@ INLINE intptr_t inj_thread_wait(
 	DWORD result = api->WaitForSingleObject(br->hEvent, INFINITE);
 	api->CloseHandle(br->hEvent);
 	
+	if(result != WAIT_OBJECT_0){
+		return -1;
+	}
+
+	result = api->WaitForSingleObject(br->hThread, INFINITE);
 	if(result != WAIT_OBJECT_0){
 		return -1;
 	}

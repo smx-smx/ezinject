@@ -14,6 +14,8 @@
 #include <windows.h>
 #endif
 
+#include <thread>
+
 #ifdef EZ_TARGET_POSIX
 #define EXE_SUFFIX ""
 #define DIR_SEPARATOR "/"
@@ -85,6 +87,7 @@ struct test_state {
 	char *ezinject;
 	char *library;
 	pid_t pid;
+	std::thread ezinjectRunner;
 };
 
 int run_on_pid(void *state, void *arg){
@@ -103,10 +106,17 @@ int run_on_return1(void *state, void *arg){
 	UNUSED(arg);
 
 	struct test_state *ctx = (struct test_state *)state;
-	char *cmd = asprintf_ex("%s %u"" %s 1 2 3 4 5 6", ctx->ezinject, ctx->pid, ctx->library);
-	int rc = system(cmd);
-	free(cmd);
-	return rc;
+	char *cmd = asprintf_ex("%s %u %s 1 2 3 4 5 6", ctx->ezinject, ctx->pid, ctx->library);
+	ctx->ezinjectRunner = std::thread([=](){
+		FILE *hCmd = popen(cmd, "r");
+		free(cmd);
+		char buf[255];
+		while(fgets(buf, sizeof(buf), hCmd) != NULL){
+			//fputs(buf, stdout);
+		}
+		pclose(hCmd);
+	});
+	return 0;
 }
 
 int run(struct test_state *ctx){
@@ -135,7 +145,7 @@ int run(struct test_state *ctx){
 		}
 
 		puts("[+] waiting for injection...");
-		if(expect(hTarget, "[INFO] library loaded!", 20, NULL) != 0){
+		if(expect(hTarget, "[INFO] library loaded!", 40, NULL) != 0){
 			break;
 		}
 		rc = 0;
@@ -154,6 +164,11 @@ int run(struct test_state *ctx){
 	}
 
 	pclose(hTarget);
+
+	if(ctx->ezinjectRunner.joinable()){
+		ctx->ezinjectRunner.join();
+	}
+
 	return rc;
 }
 

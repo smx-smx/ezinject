@@ -1,12 +1,3 @@
-INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
-	// awake ptrace
-	// success: SIGSTOP
-	// failure: anything else
-	struct injcode_bearing *br = ctx->br;
-	br->libc_syscall(__NR_kill, br->libc_syscall(__NR_getpid), signal);
-	while(1);
-}
-
 INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned flags){
 	return ctx->libdl.dlopen(filename, flags);
 }

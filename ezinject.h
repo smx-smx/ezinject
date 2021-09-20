@@ -49,7 +49,7 @@ typedef EZAPI (*pfnCallHandler)(struct ezinj_ctx *ctx, struct injcode_call *rcal
 
 struct ezinj_ctx {
 	int pl_debug;
-	int num_wait_calls;
+	int syscall_mode;
 	pid_t target;
 #ifdef EZ_TARGET_WINDOWS
 	DEBUG_EVENT ev;
@@ -69,8 +69,8 @@ struct ezinj_ctx {
 	ez_addr libc;
 	ez_addr libdl;
 	ez_addr trampoline_insn;
-	ez_addr syscall_insn;
-	ez_addr syscall_stack;
+	ez_addr branch_target;
+	ez_addr pl_stack;
 	pfnCallHandler rcall_handler_pre;
 	pfnCallHandler rcall_handler_post;
 	ez_addr libc_syscall;
@@ -134,7 +134,7 @@ struct call_req {
 	
 	unsigned int argmask;
 	uintptr_t argv[CALL_MAX_ARGS];
-	int num_wait_calls;
+	int syscall_mode;
 
 	uintptr_t backup_addr;
 	uint8_t *backup_data;

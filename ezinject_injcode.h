@@ -97,9 +97,10 @@ struct injcode_user {
 	uint8_t persist;
 };
 
+struct injcode_call;
 struct injcode_sc_wrapper {
 	// pointer to the actual function to call
-	uintptr_t (*target)(struct injcode_call *args);
+	intptr_t (*target)(volatile struct injcode_call *args);
 };
 
 struct injcode_trampoline {
@@ -108,10 +109,12 @@ struct injcode_trampoline {
 };
 
 struct injcode_call {
+#ifdef EZ_TARGET_POSIX
 	long (*libc_syscall)(long number, ...);
+#endif
 	int argc;
-	uintptr_t result;
-	uintptr_t result2;
+	intptr_t result;
+	intptr_t result2;
 	uintptr_t argv[SC_MAX_ARGS];
 	struct injcode_sc_wrapper wrapper;
 	/**
@@ -121,10 +124,14 @@ struct injcode_call {
 	 * when pushing
 	 * so we have to reserve enough stack for trampoline here
 	 */
-	uintptr_t scratch[8];
+	uint8_t scratch[256];
 	struct injcode_trampoline trampoline;
 };
 
+/**
+ * fn_args points to the remote injcode_call
+ * get the remote address to the given field
+ */
 #define RCALL_FIELD_ADDR(rcall, field) \
 	(((rcall)->trampoline.fn_arg) + offsetof(struct injcode_call, field))
 
@@ -256,24 +263,33 @@ typedef struct {
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
 #endif
 
-extern intptr_t SCAPI injected_sc0(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc1(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc2(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc3(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc4(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc5(struct injcode_call *sc);
-extern intptr_t SCAPI injected_sc6(struct injcode_call *sc);
-void SCAPI injected_sc_wrapper(struct injcode_call *args);
+#ifdef EZ_TARGET_POSIX
+extern intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc1(volatile struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc2(volatile struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc3(volatile struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc4(volatile struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc5(volatile struct injcode_call *sc);
+extern intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc);
+#endif
+
+void SCAPI injected_sc_wrapper(volatile struct injcode_call *args);
 
 extern void PLAPI trampoline();
 extern void trampoline_entry();
 extern void trampoline_exit();
 
-extern void injected_fn(struct injcode_call *sc);
+extern intptr_t injected_fn(struct injcode_call *sc);
 
 extern uint8_t __start_payload SECTION_START("payload");
 extern uint8_t __stop_payload SECTION_END("payload");
 extern uint8_t __start_syscall SECTION_START("syscall");
 extern uint8_t __stop_syscall SECTION_END("syscall");
+
+#define INJ_ERR_LIBDL 1
+#define INJ_ERR_LIBPTHREAD 2
+#define INJ_ERR_API 3
+#define INJ_ERR_DLOPEN 4
+#define INJ_ERR_WAIT 5
 
 #endif

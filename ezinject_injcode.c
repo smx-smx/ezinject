@@ -37,41 +37,42 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-intptr_t SCAPI injected_sc0(struct injcode_call *sc){
+#ifdef EZ_TARGET_POSIX
+intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc){
 	return sc->libc_syscall(sc->argv[0]);
 }
-intptr_t SCAPI injected_sc1(struct injcode_call *sc){
+intptr_t SCAPI injected_sc1(volatile struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1]
 	);
 }
-intptr_t SCAPI injected_sc2(struct injcode_call *sc){
+intptr_t SCAPI injected_sc2(volatile struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2]
 	);
 }
-intptr_t SCAPI injected_sc3(struct injcode_call *sc){
+intptr_t SCAPI injected_sc3(volatile struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3]
 	);
 }
-intptr_t SCAPI injected_sc4(struct injcode_call *sc){
+intptr_t SCAPI injected_sc4(volatile struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4]
 	);
 }
-intptr_t SCAPI injected_sc5(struct injcode_call *sc){
+intptr_t SCAPI injected_sc5(volatile struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4], sc->argv[5]
 	);
 }
-intptr_t SCAPI injected_sc6(struct injcode_call *sc){
+intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc){
 	return sc->libc_syscall(
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
@@ -79,22 +80,28 @@ intptr_t SCAPI injected_sc6(struct injcode_call *sc){
 		sc->argv[6]
 	);
 }
+#endif
 
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
 /**
  * On ARM/Linux + glibc, making system calls and writing their results in the same function
  * seems to cause a very subtle stack corruption bug that ultimately causes dlopen/dlsym to segfault
  * to work around that, we use a wrapper so that the system call is executed in a different subroutine
  * than the one setting the result.
  **/
-void SCAPI injected_sc_wrapper(struct injcode_call *args){
+void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
 	args->result = args->wrapper.target(args);
+#if defined(EZ_TARGET_POSIX)
 	args->libc_syscall(__NR_kill,
 		args->libc_syscall(__NR_getpid),
 		SIGTRAP
 	);
-}
+	while(1);
+#elif defined(EZ_TARGET_WINDOWS)
+	asm volatile("int $3\n");
+#else
+#error "Unsupported target"
 #endif
+}
 
 //#define PL_EARLYDEBUG
 
@@ -122,7 +129,7 @@ void PLAPI trampoline(){
 	#endif
 
 	register volatile struct injcode_call *args = NULL;
-	register volatile uintptr_t (*target)(volatile struct injcode_call *) = NULL;
+	register uintptr_t (*target)(volatile struct injcode_call *) = NULL;
 	POP_PARAMS(args, target);
 	target(args);
 
@@ -222,6 +229,28 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 #define EXIT_SUCCESS SIGSTOP
 #endif
 
+#if defined(EZ_TARGET_DARWIN)
+#define PL_RETURN(sc, x) do { \
+	((sc)->result = (x)); \
+	sc->libc_syscall(__NR_kill, \
+		sc->libc_syscall(__NR_getpid), \
+		SIGSTOP \
+	); \
+	while(1); \
+} while(0)
+#elif defined(EZ_TARGET_POSIX)
+#define PL_RETURN(sc, x) return (x)
+#elif defined(EZ_TARGET_WINDOWS)
+#define PL_RETURN(sc, x) do { \
+	((sc)->result = (x)); \
+	asm volatile("int $3\n"); \
+	return 0; \
+} while(0)
+#else
+#error "Unsupported platform"
+#endif
+
+
 INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 	struct dl_api *libdl = &ctx->libdl;
@@ -272,8 +301,8 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	return 0;
 }
 
-void PLAPI injected_fn(struct injcode_call *sc){
-	struct injcode_bearing *br = (struct injcode_baring *)(sc->argv[0]);
+intptr_t PLAPI injected_fn(struct injcode_call *sc){
+	struct injcode_bearing *br = (struct injcode_bearing *)(sc->argv[0]);
 
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;
@@ -282,89 +311,84 @@ void PLAPI injected_fn(struct injcode_call *sc){
 	ctx->stbl = BR_STRTBL(br);
 
 	if(br->pl_debug){
-		inj_thread_stop(ctx, EXIT_SUCCESS);
+		return 0;
 	}
 
-	int signal = EXIT_FAILURE;
+	// entry
+	inj_dchar(br, 'e');
 
-	do {
-		// entry
-		inj_dchar(br, 'e');
+	STRTBL_FETCH(ctx->stbl, ctx->libdl_name);
+	STRTBL_FETCH(ctx->stbl, ctx->libpthread_name);
 
-		STRTBL_FETCH(ctx->stbl, ctx->libdl_name);
-		STRTBL_FETCH(ctx->stbl, ctx->libpthread_name);
+	if(inj_libdl_init(ctx) != 0){
+		inj_dchar(br, '!');
+		PL_RETURN(sc, INJ_ERR_LIBDL);
+	}
 
-		if(inj_libdl_init(ctx) != 0){
-			inj_dchar(br, '!');
-			break;
+	// acquire libpthread
+	inj_dchar(br, 'p');
+
+	//had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
+	inj_puts(br, ctx->libpthread_name);
+	ctx->h_libthread = inj_dlopen(ctx, ctx->libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
+	if(!ctx->h_libthread){
+		inj_dchar(br, '!');
+		inj_dchar(br, '1');
+		char *errstr = NULL;
+		if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
+			inj_puts(br, errstr);
 		}
+		PL_RETURN(sc, INJ_ERR_LIBPTHREAD);
+	}
+	inj_dbgptr(br, ctx->h_libthread);
 
-		// acquire libpthread
-		inj_dchar(br, 'p');
+	if(inj_api_init(ctx) != 0){
+		inj_dchar(br, '!');
+		inj_dchar(br, '2');
+		PL_RETURN(sc, INJ_ERR_API);
+	}
 
-		//had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
-		inj_puts(br, ctx->libpthread_name);
-		ctx->h_libthread = inj_dlopen(ctx, ctx->libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
-		if(!ctx->h_libthread){
-			inj_dchar(br, '!');
-			inj_dchar(br, '1');
-			char *errstr = NULL;
-			if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
-				inj_puts(br, errstr);
-			}
-			break;
+	// setup
+	inj_dchar(br, 's');
+	if(inj_load_prepare(ctx) != 0){
+		inj_dchar(br, '!');
+	}
+
+	// dlopen
+	inj_dchar(br, 'd');
+	if(inj_load_library(ctx) != 0){
+		inj_dchar(br, '!');
+		PL_RETURN(sc, INJ_ERR_DLOPEN);
+	}
+
+	// wait for the thread to notify us
+	inj_dchar(br, 'w');
+	intptr_t result = 0;
+	if(inj_thread_wait(ctx, &result) != 0){
+		inj_dchar(br, '!');
+		PL_RETURN(sc, INJ_ERR_WAIT);
+	}
+
+	if((enum userlib_return_action)result != userlib_persist){
+		// cleanup
+		inj_dchar(br, 'c');
+		{
+			/**
+			 * NOTE: uclibc old might trigger segfaults in the user library while doing this (sigh)
+			 **/
+			ctx->libdl.dlclose(br->userlib);
+
+			#ifndef UCLIBC_OLD
+			/*if(!had_pthread){
+				dlclose(h_pthread);
+			}*/
+			#endif
 		}
-		inj_dbgptr(br, ctx->h_libthread);
-
-		if(inj_api_init(ctx) != 0){
-			inj_dchar(br, '!');
-			inj_dchar(br, '2');
-			break;
-		}
-
-		// setup
-		inj_dchar(br, 's');
-		if(inj_load_prepare(ctx) != 0){
-			inj_dchar(br, '!');
-		}
-
-		// dlopen
-		inj_dchar(br, 'd');
-		if(inj_load_library(ctx) != 0){
-			inj_dchar(br, '!');
-			break;
-		}
-
-		// wait for the thread to notify us
-		inj_dchar(br, 'w');
-		intptr_t result = 0;
-		if(inj_thread_wait(ctx, &result) != 0){
-			inj_dchar(br, '!');
-		}
-
-		if((enum userlib_return_action)result != userlib_persist){
-			// cleanup
-			inj_dchar(br, 'c');
-			{
-				/**
-				 * NOTE: uclibc old might trigger segfaults in the user library while doing this (sigh)
-				 **/
-				ctx->libdl.dlclose(br->userlib);
-
-				#ifndef UCLIBC_OLD
-				/*if(!had_pthread){
-					dlclose(h_pthread);
-				}*/
-				#endif
-			}
-		}
-
-		signal = EXIT_SUCCESS;
-	} while(0);
+	}
 
 
 	// bye
 	inj_dchar(br, 'b');
-
-	inj_thread_stop(ctx, signal);
+	PL_RETURN(sc, 0);
+	return 0;
 }
