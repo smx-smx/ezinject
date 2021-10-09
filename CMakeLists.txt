@@ -555,7 +555,7 @@ endif()
 
 check_c_compiler_flag("-mno-stack-arg-probe" HAVE_CFLAG_STACK_ARG_PROBE)
 check_c_compiler_flag("-fno-jump-tables" HAVE_CFLAG_NO_JUMP_TABLES)
-check_c_compiler_flag("-fno-stack-protector" HAVE_CFLAG__NO_STACK_PROTECTOR)
+check_c_compiler_flag("-fno-stack-protector" HAVE_CFLAG_NO_STACK_PROTECTOR)
 
 set(injcode_cflags "-Os -fno-stack-check  -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 if(HAVE_CFLAG_NO_JUMP_TABLES)
