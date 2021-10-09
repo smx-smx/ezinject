@@ -45,7 +45,7 @@
 // temporary stack size
 #define PL_STACK_SIZE 1024 * 1024 * 4
 
-#ifdef EZ_TARGET_DARWIN
+#if defined(EZ_TARGET_DARWIN) || (defined(EZ_TARGET_WINDOWS) && defined(EZ_ARCH_I386))
 #define LABEL_PREFIX "_"
 #else
 #define LABEL_PREFIX
