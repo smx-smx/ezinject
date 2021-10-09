@@ -50,11 +50,6 @@ static ez_region region_pl_code = {
 	.end = (void *)&__stop_payload
 };
 
-static ez_region region_sc_code = {
-	.start = (void *)&__start_syscall,
-	.end = (void *)&__stop_syscall
-};
-
 static void *code_data(void *code){
 #if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
 	return (void *)(UPTR(code) & ~1);
@@ -64,6 +59,11 @@ static void *code_data(void *code){
 }
 
 #if defined(EZ_TARGET_POSIX) && !defined(EZ_TARGET_DARWIN)
+static ez_region region_sc_code = {
+	.start = (void *)&__start_syscall,
+	.end = (void *)&__stop_syscall
+};
+
 /**
  * Get the address of the call wrapper
  **/
