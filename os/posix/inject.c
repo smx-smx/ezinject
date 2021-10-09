@@ -132,7 +132,7 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){
 
 	r_sc_base = codeBase + sc_offset;
 
-	ctx->trampoline_insn.remote = codeBase
+	ctx->entry_insn.remote = codeBase
 		+ trampoline_offset
 		+ PTRDIFF(code_data(&trampoline_entry), code_data(&trampoline));
 	return 0;

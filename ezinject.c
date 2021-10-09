@@ -143,6 +143,13 @@ intptr_t setregs_syscall(
 	rcall->trampoline.fn_arg = r_call_args;
 
 	#if defined(EZ_TARGET_POSIX) && !defined(EZ_TARGET_DARWIN)
+	/**
+	 * this target supports true system calls
+	 * use a wrapper in-between to avoid stack corruption
+	 * in some scenarios
+	 * 
+	 * trampoline -> wrapper -> syscall
+	 **/
 	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
 	if(call->syscall_mode){	
 		/**
@@ -298,7 +305,7 @@ intptr_t remote_call(
 	unsigned int argmask, ...
 ){
 	struct call_req call = {
-		.insn_addr = ctx->trampoline_insn.remote,
+		.insn_addr = ctx->entry_insn.remote,
 		.stack_addr = ctx->pl_stack.remote,
 		.syscall_mode = ctx->syscall_mode,
 		.argmask = argmask
@@ -728,7 +735,7 @@ int ezinject_main(
 
 		// set trampoline parameters
 		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
-		ctx->trampoline_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
+		ctx->entry_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
 
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
 

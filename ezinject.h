@@ -77,7 +77,7 @@ struct ezinj_ctx {
 	uintptr_t target_codebase;
 	ez_addr libc;
 	ez_addr libdl;
-	ez_addr trampoline_insn;
+	ez_addr entry_insn;
 	ez_addr branch_target;
 	ez_addr pl_stack;
 	pfnCallHandler rcall_handler_pre;

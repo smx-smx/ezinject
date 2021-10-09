@@ -111,11 +111,20 @@ struct injcode_sc_wrapper {
 	intptr_t (*target)(volatile struct injcode_call *args);
 };
 
+/**
+ * the trampoline parameters
+ * these are pushed at the top of the stack
+ * and will be POP'd by the trampoline
+ **/
 struct injcode_trampoline {
 	uintptr_t fn_arg;
 	uintptr_t fn_addr;
 };
 
+/**
+ * this structure is pushed on the stack
+ * within the target process
+ **/
 struct injcode_call {
 #ifdef EZ_TARGET_POSIX
 	long (*libc_syscall)(long number, ...);
@@ -129,15 +138,24 @@ struct injcode_call {
 	intptr_t result;
 	intptr_t result2;
 	uintptr_t argv[SC_MAX_ARGS];
-	struct injcode_sc_wrapper wrapper;
+
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
 	/**
-	 * since we are skipping the prologue of the trampoline
-	 * we're not doing a proper stack allocation
-	 * this means that calling conventions like cdecl will overwrite a part of this struct
-	 * when pushing
-	 * so we have to reserve enough stack for trampoline here
+	 * syscall wrapper parameters
+	 **/
+	struct injcode_sc_wrapper wrapper;
+#endif
+
+	/**
+	 * this field acts as the stack for the entry point (trampoline)
 	 */
-	uint8_t sc_stack[256];
+	uint8_t entry_stack[256];
+
+	/**
+	 * trampoline parameters
+	 * these *MUST* be at the bottom of the struct
+	 * because this structure will be pushed on the stack
+	 **/
 	struct injcode_trampoline trampoline;
 };
 
