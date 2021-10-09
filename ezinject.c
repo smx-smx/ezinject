@@ -63,6 +63,7 @@ static void *code_data(void *code){
 #endif
 }
 
+#if defined(EZ_TARGET_POSIX) && !defined(EZ_TARGET_DARWIN)
 /**
  * Get the address of the call wrapper
  **/
@@ -86,6 +87,7 @@ uintptr_t get_wrapper_address(struct ezinj_ctx *ctx){
 	uintptr_t sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
 	return r_sc_base + sc_wrapper_offset;
 }
+#endif
 
 int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size);
 int resolve_libc_symbols(struct ezinj_ctx *ctx);
