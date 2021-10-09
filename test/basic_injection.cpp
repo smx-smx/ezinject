@@ -107,8 +107,11 @@ int run_on_return1(void *state, void *arg){
 	struct test_state *ctx = (struct test_state *)state;
 	char *cmd = asprintf_ex("%s %u %s 1 2 3 4 5 6", ctx->ezinject, ctx->pid, ctx->library);
 	printf("[+] running ezinject: %s\n", cmd);
-	system(cmd);
-	free(cmd);
+	ctx->ezinjectRunner = std::thread([=](){
+		system(cmd);
+		free(cmd);
+	});
+
 	return 0;
 }
 
