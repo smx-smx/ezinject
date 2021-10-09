@@ -730,16 +730,6 @@ int ezinject_main(
 		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
 		ctx->trampoline_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
 
-		DBG("\n"
-			"==== call chain:\n"
-			"0: %p [trampoline]\n"
-			"1: %p [wrapper]\n" 
-			"2: %p [target]\n",
-			ctx->trampoline_insn.remote,
-			get_wrapper_address(ctx),
-			ctx->branch_target.remote
-		);
-
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
 
 		/**
