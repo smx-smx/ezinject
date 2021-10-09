@@ -6,34 +6,12 @@
  *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
-INLINE void inj_dchar(struct injcode_bearing *br, char ch){
-	//pl:x\n\0
-	volatile uint64_t str = str64(0x706C3A0000000000 | (((uint64_t)ch << 32) & 0xFF00000000));
-	inj_puts(br, (char *)&str);
-}
 
-INLINE void *inj_memset(void *s, int c, size_t n){
-	volatile unsigned char* p=s;
-	while(n--){
-		*p++ = (unsigned char)c;
-	}
-    return s;
-}
-
-#ifdef EZ_ARCH_ARM
-INLINE void inj_cacheflush(struct injcode_bearing *br, void *from, void *to){
-	br->libc_syscall(__ARM_NR_cacheflush, from, to, 0);
-}
-#else
-INLINE void inj_cacheflush(struct injcode_bearing *br, void *from, void *to){
-	UNUSED(br);
-	UNUSED(from);
-	UNUSED(to);
-}
-#endif
-
-INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
-	char buf[(sizeof(uintptr_t) * 2) + 1];
-	itoa16((uintptr_t)ptr, buf);
-	inj_puts(br, buf);
-}
+#define PL_RETURN(sc, x) do { \
+	((sc)->result = (x)); \
+	sc->libc_syscall(__NR_kill, \
+		sc->libc_syscall(__NR_getpid), \
+		SIGSTOP \
+	); \
+	while(1); \
+} while(0)

@@ -6,6 +6,52 @@
  *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
+
+#define PL_RETURN(sc, x) return (x)
+
+intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc){
+	return sc->libc_syscall(sc->argv[0]);
+}
+intptr_t SCAPI injected_sc1(volatile struct injcode_call *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1]
+	);
+}
+intptr_t SCAPI injected_sc2(volatile struct injcode_call *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2]
+	);
+}
+intptr_t SCAPI injected_sc3(volatile struct injcode_call *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3]
+	);
+}
+intptr_t SCAPI injected_sc4(volatile struct injcode_call *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4]
+	);
+}
+intptr_t SCAPI injected_sc5(volatile struct injcode_call *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4], sc->argv[5]
+	);
+}
+intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc){
+	return sc->libc_syscall(
+		sc->argv[0], sc->argv[1],
+		sc->argv[2], sc->argv[3],
+		sc->argv[4], sc->argv[5],
+		sc->argv[6]
+	);
+}
+
 INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
 	// awake ptrace
 	// success: SIGSTOP

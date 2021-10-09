@@ -44,51 +44,6 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
-#ifdef EZ_TARGET_POSIX
-intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc){
-	return sc->libc_syscall(sc->argv[0]);
-}
-intptr_t SCAPI injected_sc1(volatile struct injcode_call *sc){
-	return sc->libc_syscall(
-		sc->argv[0], sc->argv[1]
-	);
-}
-intptr_t SCAPI injected_sc2(volatile struct injcode_call *sc){
-	return sc->libc_syscall(
-		sc->argv[0], sc->argv[1],
-		sc->argv[2]
-	);
-}
-intptr_t SCAPI injected_sc3(volatile struct injcode_call *sc){
-	return sc->libc_syscall(
-		sc->argv[0], sc->argv[1],
-		sc->argv[2], sc->argv[3]
-	);
-}
-intptr_t SCAPI injected_sc4(volatile struct injcode_call *sc){
-	return sc->libc_syscall(
-		sc->argv[0], sc->argv[1],
-		sc->argv[2], sc->argv[3],
-		sc->argv[4]
-	);
-}
-intptr_t SCAPI injected_sc5(volatile struct injcode_call *sc){
-	return sc->libc_syscall(
-		sc->argv[0], sc->argv[1],
-		sc->argv[2], sc->argv[3],
-		sc->argv[4], sc->argv[5]
-	);
-}
-intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc){
-	return sc->libc_syscall(
-		sc->argv[0], sc->argv[1],
-		sc->argv[2], sc->argv[3],
-		sc->argv[4], sc->argv[5],
-		sc->argv[6]
-	);
-}
-#endif
-
 #ifdef EZ_TARGET_LINUX
 /**
  * Old glibc has broken syscall(3) argument handling for mmap
@@ -112,17 +67,11 @@ intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc){
  **/
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
 	args->result = args->wrapper.target(args);
-#if defined(EZ_TARGET_POSIX)
 	args->libc_syscall(__NR_kill,
 		args->libc_syscall(__NR_getpid),
 		SIGTRAP
 	);
 	while(1);
-#elif defined(EZ_TARGET_WINDOWS)
-	asm volatile("int $3\n");
-#else
-#error "Unsupported target"
-#endif
 }
 #endif
 
@@ -192,11 +141,7 @@ INLINE uint64_t str64(uint64_t x){
 #include "ezinject_injcode_windows_common.c"
 #endif
 
-INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
-	char buf[(sizeof(uintptr_t) * 2) + 1];
-	itoa16((uintptr_t)ptr, buf);
-	inj_puts(br, buf);
-}
+#include "ezinject_injcode_util.c"
 
 struct injcode_ctx {
 	struct injcode_bearing *br;
@@ -214,8 +159,6 @@ struct injcode_ctx {
 	/** handle to the library providing threads **/
 	void *h_libthread;
 };
-
-#include "ezinject_injcode_util.c"
 
 INLINE intptr_t fetch_sym(
 	struct injcode_ctx *ctx,
@@ -242,6 +185,10 @@ INLINE intptr_t fetch_sym(
 #include "ezinject_injcode_posix.c"
 #endif
 
+#ifdef EZ_TARGET_DARWIN
+#include "ezinject_injcode_darwin.c"
+#endif
+
 #if defined(EZ_TARGET_LINUX) && !defined(EZ_TARGET_ANDROID)
 	#if defined(HAVE_LIBC_DLOPEN_MODE)
 		#include "ezinject_injcode_glibc.c"
@@ -255,35 +202,6 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	return ctx->br->libdl_handle;
 }
 #endif
-
-#ifdef EZ_TARGET_POSIX
-#undef EXIT_FAILURE
-#undef EXIT_SUCCESS
-#define EXIT_FAILURE SIGTRAP
-#define EXIT_SUCCESS SIGSTOP
-#endif
-
-#if defined(EZ_TARGET_DARWIN)
-#define PL_RETURN(sc, x) do { \
-	((sc)->result = (x)); \
-	sc->libc_syscall(__NR_kill, \
-		sc->libc_syscall(__NR_getpid), \
-		SIGSTOP \
-	); \
-	while(1); \
-} while(0)
-#elif defined(EZ_TARGET_POSIX)
-#define PL_RETURN(sc, x) return (x)
-#elif defined(EZ_TARGET_WINDOWS)
-#define PL_RETURN(sc, x) do { \
-	((sc)->result = (x)); \
-	asm volatile("int $3\n"); \
-	return 0; \
-} while(0)
-#else
-#error "Unsupported platform"
-#endif
-
 
 INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
