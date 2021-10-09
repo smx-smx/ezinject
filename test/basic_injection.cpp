@@ -150,11 +150,12 @@ int run(struct test_state *ctx){
 		rc = 0;
 	} while(0);
 
-	char buf[255];
-	while(ctx->ezinjectRunner.joinable()){
-		// consume buffer, to unblock ezinject until it completes
-		fgets(buf, sizeof(buf), hTarget);
-	}
+	std::thread targetConsumer = std::thread([=](){
+		char buf[255];
+		while(fgets(buf, sizeof(buf), hTarget) != NULL){
+			//fputs(buf, stdout);
+		}
+	});
 
 	if(ctx->pid > 0){
 	#if defined(EZ_TARGET_POSIX)
@@ -168,11 +169,13 @@ int run(struct test_state *ctx){
 	#endif
 	}
 
-	pclose(hTarget);
-
 	if(ctx->ezinjectRunner.joinable()){
 		ctx->ezinjectRunner.join();
 	}
+	if(targetConsumer.joinable()){
+		targetConsumer.join();
+	}
+	pclose(hTarget);
 
 	return rc;
 }
