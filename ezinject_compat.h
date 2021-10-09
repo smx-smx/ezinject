@@ -1,15 +1,15 @@
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #ifndef __EZINJECT_COMPAT_H
 #define __EZINJECT_COMPAT_H
 
 #include "config.h"
-
-#if !defined(HAVE_SHM_EXEC)
-	#if defined(EZ_TARGET_LINUX)
-	#define	SHM_EXEC	0100000	/* execution access */
-	#else
-	#define SHM_EXEC 0 // dummy
-	#endif
-#endif
 
 #ifndef MAP_FAILED
 #define MAP_FAILED (void *)-1
@@ -25,13 +25,6 @@
 #define RTLD_DEEPBIND 0
 #endif
 
-#if defined(EZ_TARGET_DARWIN)
-#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2)
-#elif defined(EZ_TARGET_WINDOWS)
-#define IS_IGNORED_SIG(x) 0
-#else
-#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
-#endif
 
 #ifndef PTRACE_SETOPTIONS
 #define PTRACE_SETOPTIONS 0x4200
@@ -41,52 +34,10 @@
 #define PTRACE_O_TRACESYSGOOD 1
 #endif
 
-#include "config.h"
-
 #ifdef EZ_TARGET_WINDOWS
 #define SIGSTOP 0
 #define SIGTRAP 0
 #endif
-
-#ifndef EZ_TARGET_WINDOWS
-#include <sys/ipc.h>
-
-
-#ifndef HAVE_SYS_SHM_H
-struct sembuf {
-	unsigned short int sem_num;   /* semaphore number */
-	short int sem_op;             /* semaphore operation */
-	short int sem_flg;            /* operation flag */
-};
-
-struct shmid_ds {
-	struct ipc_perm shm_perm;
-	size_t shm_segsz;
-	time_t shm_atime;
-	time_t shm_dtime;
-	time_t shm_ctime;
-	pid_t shm_cpid;
-	pid_t shm_lpid;
-	unsigned long shm_nattch;
-	unsigned long __pad1;
-	unsigned long __pad2;
-};
-#endif
-
-#ifdef EZINJECT_INJCODE
-#include "ezinject_injcode.h"
-#define BR_PARAM struct injcode_bearing *br,
-#else
-#define BR_PARAM
-
-#if defined(HAVE_SYS_SHM_H) || defined(EZ_TARGET_ANDROID)
-int shmget(BR_PARAM key_t key, size_t size, int shmflg);
-void *shmat(BR_PARAM int shmid, const void *shmaddr, int shmflg);
-int shmdt(BR_PARAM const void *shmaddr);
-int shmctl(int id, int cmd, struct shmid_ds *buf);
-#endif
-
-#endif /* EZINJECT_INJCODE */
 
 #if defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_DARWIN)
 #define __NR_getpid SYS_getpid
@@ -97,6 +48,13 @@ int shmctl(int id, int cmd, struct shmid_ds *buf);
 #define __NR_kill SYS_kill
 #endif
 
-#endif /* EZ_TARGET_WINDOWS */
+#if defined(EZ_TARGET_LINUX)
+  #if !defined(__NR_mmap2) && !defined(__NR_mmap)
+  #error "Unsupported platform"
+  #elif !defined(__NR_mmap2)
+  #define __NR_mmap2 __NR_mmap
+  #endif
+#endif // EZ_TARGET_LINUX
+
 
 #endif

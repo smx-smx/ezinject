@@ -18,10 +18,10 @@
 #cmakedefine HAVE_LIBDL_IN_LIBC
 #cmakedefine HAVE_SHM_SYSCALLS
 #cmakedefine HAVE_RTLD_NOLOAD
-#cmakedefine USE_SHM
+#cmakedefine HAVE_PTRACE_SETREGS
+#cmakedefine HAVE_PSR_T_BIT
 #cmakedefine USE_ANDROID_ASHMEM
 #cmakedefine USE_ARM_THUMB
-#cmakedefine HAVE_SYS_SHM_H
 #cmakedefine UCLIBC_OLD
 #cmakedefine C_LIBRARY_NAME "@C_LIBRARY_NAME@"
 #cmakedefine DYN_LINKER_NAME "@DYN_LINKER_NAME@"

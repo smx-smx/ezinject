@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,7 +57,7 @@ int delegate_invoke(delegate *cb, void *arg){
 	return cb->callback(cb->state, arg);
 }
 
-int expect(FILE *fh, char *str, int maxLines, delegate *cb){
+int expect(FILE *fh, const char *str, int maxLines, delegate *cb){
 	char line[256];
 	memset(line, 0x00, sizeof(line));
 
@@ -184,9 +183,7 @@ int main(int argc, char *argv[]){
 	char *ezinject = argv[2];
 	char *library = argv[3];
 	
-	struct test_state ctx;
-	memset(&ctx, 0x00, sizeof(ctx));
-
+	struct test_state ctx = {};
 	ctx.target = target;
 	ctx.ezinject = ezinject;
 	ctx.library = library;

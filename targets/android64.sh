@@ -13,7 +13,6 @@ LIBC_VARIANT=android-10
 	-DENABLE_STATIC=OFF \
 	-DANDROID_ABI=arm64-v8a \
 	-DCMAKE_SYSTEM_VERSION=21 \
-	-DUSE_ANDROID_ASHMEM=ON \
 && \
 adb push \
 	../build/ezinject \

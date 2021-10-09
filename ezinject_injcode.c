@@ -1,4 +1,11 @@
-#define _GNU_SOURCE
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #define EZINJECT_INJCODE
 
 #include <dlfcn.h>
@@ -21,8 +28,8 @@
 #include <sys/prctl.h>
 #endif
 
-#include "ezinject_compat.h"
 #include "ezinject_common.h"
+#include "ezinject_compat.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
@@ -82,6 +89,21 @@ intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc){
 }
 #endif
 
+#ifdef EZ_TARGET_LINUX
+/**
+ * Old glibc has broken syscall(3) argument handling for mmap
+ * We must use the libc's mmap(3) instead, which handles them properly
+ **/
+intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc){
+	return (intptr_t)sc->libc_mmap(
+		(void *)sc->argv[1], (size_t)sc->argv[2],
+		(int)sc->argv[3], (int)sc->argv[4],
+		(int)sc->argv[5], (off_t)sc->argv[6]
+	);
+}
+#endif
+
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
 /**
  * On ARM/Linux + glibc, making system calls and writing their results in the same function
  * seems to cause a very subtle stack corruption bug that ultimately causes dlopen/dlsym to segfault
@@ -102,6 +124,7 @@ void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
 #error "Unsupported target"
 #endif
 }
+#endif
 
 //#define PL_EARLYDEBUG
 
@@ -137,6 +160,17 @@ void PLAPI trampoline(){
 	EMIT_LABEL("trampoline_exit");
 }
 
+INLINE uint64_t inj_bswap64(uint64_t x){
+	return  ( (x << 56) & 0xff00000000000000UL ) |
+		( (x << 40) & 0x00ff000000000000UL ) |
+		( (x << 24) & 0x0000ff0000000000UL ) |
+		( (x <<  8) & 0x000000ff00000000UL ) |
+		( (x >>  8) & 0x00000000ff000000UL ) |
+		( (x >> 24) & 0x0000000000ff0000UL ) |
+		( (x >> 40) & 0x000000000000ff00UL ) |
+		( (x >> 56) & 0x00000000000000ffUL );
+}
+
 INLINE uint64_t str64(uint64_t x){
 	#ifndef BYTE_ORDER
 		#error "BYTE_ORDER not defined"
@@ -144,7 +178,7 @@ INLINE uint64_t str64(uint64_t x){
 	#if BYTE_ORDER == BIG_ENDIAN
 		return x;
 	#elif BYTE_ORDER == LITTLE_ENDIAN
-		return __builtin_bswap64(x);
+		return inj_bswap64(x);
 	#else
 		#error "Unknown endianness"
 	#endif
@@ -159,7 +193,7 @@ INLINE uint64_t str64(uint64_t x){
 #endif
 
 INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
-	char buf[sizeof(uintptr_t) + 1];
+	char buf[(sizeof(uintptr_t) * 2) + 1];
 	itoa16((uintptr_t)ptr, buf);
 	inj_puts(br, buf);
 }

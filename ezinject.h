@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #ifndef __EZINJECT_H
 #define __EZINJECT_H
 
@@ -17,7 +25,6 @@
 #include <mach/mach.h>
 #endif
 
-#include "ezinject_compat.h"
 #include "ezinject_injcode.h"
 
 typedef struct {
@@ -45,6 +52,8 @@ struct ezinj_pl {
 
 struct ezinj_ctx;
 
+#define PL_REMOTE(ctx, addr) (ctx->mapped_mem.remote + PTRDIFF(addr, ctx->mapped_mem.local))
+
 typedef EZAPI (*pfnCallHandler)(struct ezinj_ctx *ctx, struct injcode_call *rcall);
 
 struct ezinj_ctx {
@@ -63,7 +72,7 @@ struct ezinj_ctx {
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
 	// holds the overwritten ELF header
 	uint8_t *saved_sc_data;
-	size_t saved_sc_size;
+	ssize_t saved_sc_size;
 #endif
 	uintptr_t target_codebase;
 	ez_addr libc;
@@ -75,6 +84,9 @@ struct ezinj_ctx {
 	pfnCallHandler rcall_handler_post;
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
+#ifdef EZ_TARGET_LINUX
+	ez_addr libc_mmap;
+#endif
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	ez_addr uclibc_sym_tables;
 	ez_addr uclibc_loaded_modules;
@@ -138,7 +150,7 @@ struct call_req {
 
 	uintptr_t backup_addr;
 	uint8_t *backup_data;
-	size_t backup_size;
+	ssize_t backup_size;
 
 	struct injcode_call rcall;
 };
@@ -150,7 +162,7 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 
 #include "ezinject_arch.h"
 
-uintptr_t remote_call(
+EZAPI remote_call(
 	struct ezinj_ctx *ctx,
 	unsigned int argmask, ...
 );
@@ -170,6 +182,7 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 
 /** injection api **/ 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);
+EZAPI remote_pl_copy(struct ezinj_ctx *ctx);
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
 
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx);

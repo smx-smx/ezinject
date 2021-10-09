@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #ifndef __EZINJECT_INJCODE_H
 #define __EZINJECT_INJCODE_H
 
@@ -112,6 +120,11 @@ struct injcode_call {
 #ifdef EZ_TARGET_POSIX
 	long (*libc_syscall)(long number, ...);
 #endif
+#ifdef EZ_TARGET_LINUX
+	void *(*libc_mmap)(void *addr, size_t length, int prot, int flags,
+                  int fd, off_t offset);
+#endif
+
 	int argc;
 	intptr_t result;
 	intptr_t result2;
@@ -124,7 +137,7 @@ struct injcode_call {
 	 * when pushing
 	 * so we have to reserve enough stack for trampoline here
 	 */
-	uint8_t scratch[256];
+	uint8_t sc_stack[256];
 	struct injcode_trampoline trampoline;
 };
 
@@ -137,7 +150,7 @@ struct injcode_call {
 
 struct injcode_bearing
 {
-	size_t mapping_size;
+	ssize_t mapping_size;
 
 	int pl_debug;
 	off_t stack_offset;
@@ -206,6 +219,9 @@ struct injcode_bearing
 	struct injcode_user user;
 	int num_strings;
 	off_t argv_offset;
+#ifdef EZ_TARGET_LINUX
+	off_t pl_filename_offset;
+#endif
 	int argc;
 	int dyn_size;
 	char *argv[];
@@ -271,6 +287,10 @@ extern intptr_t SCAPI injected_sc3(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc4(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc5(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc);
+#endif
+
+#ifdef EZ_TARGET_LINUX
+extern intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc);
 #endif
 
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args);

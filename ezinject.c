@@ -1,4 +1,11 @@
-#define _GNU_SOURCE
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -16,11 +23,6 @@
 #include <dlfcn.h>
 #include <sched.h>
 
-
-#ifdef HAVE_SYS_SHM_H
-#include <sys/shm.h>
-#endif
-
 #ifdef EZ_TARGET_POSIX
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -33,13 +35,8 @@
 
 #include <sys/stat.h>
 
-#if defined(EZ_TARGET_LINUX) && !defined(HAVE_SHM_SYSCALLS)
-#include <asm-generic/ipc.h>
-#endif
-
 #include "ezinject_util.h"
 #include "ezinject.h"
-#include "ezinject_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
@@ -78,7 +75,7 @@ uintptr_t get_wrapper_address(struct ezinj_ctx *ctx){
 	DBGPTR(codeBase);
 
 	off_t trampoline_offset = 0;
-	size_t trampoline_size = ROUND_UP(
+	size_t trampoline_size = ALIGN(
 		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline)),
 		sizeof(uintptr_t)
 	);
@@ -126,6 +123,10 @@ intptr_t setregs_syscall(
 #ifdef EZ_TARGET_POSIX
 	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
 #endif
+#ifdef EZ_TARGET_LINUX
+	rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
+#endif
+	rcall->trampoline.fn_arg = r_call_args;
 
 	// skip syscall nr
 	for(int i=1; i<SC_MAX_ARGS; i++){
@@ -165,7 +166,7 @@ intptr_t setregs_syscall(
 		}
 	}
 
-	size_t backupSize = ROUND_UP(sizeof(*rcall), sizeof(uintptr_t));
+	ssize_t backupSize = (ssize_t)WORDALIGN(sizeof(*rcall));
 	
 	uint8_t *saved_stack = calloc(backupSize, 1);
 	if(remote_read(ctx, saved_stack, r_call_args, backupSize) != backupSize){
@@ -191,7 +192,7 @@ intptr_t setregs_syscall(
 	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
 	DBGPTR((void *)REG(*new_ctx, REG_SP));
 
-#ifdef EZ_ARCH_ARM
+#if defined(EZ_ARCH_ARM) && defined(HAVE_PSR_T_BIT)
 	#ifdef USE_ARM_THUMB
 	REG(*new_ctx, ARM_cpsr) = REG(*new_ctx, ARM_cpsr) | PSR_T_BIT;
 	#else
@@ -224,7 +225,7 @@ intptr_t remote_call_setup(struct ezinj_ctx *ctx, struct call_req *call, regs_t 
 	return 0;
 }
 
-uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
+intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	regs_t orig_ctx, new_ctx;
 	if(remote_call_setup(ctx, call, &orig_ctx, &new_ctx) < 0){
 		ERR("remote_call_setup failed");
@@ -290,7 +291,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	return call->rcall.result;
 }
 
-uintptr_t remote_call(
+intptr_t remote_call(
 	struct ezinj_ctx *ctx,
 	unsigned int argmask, ...
 ){
@@ -491,6 +492,23 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	for(int i=1; i < argc; i++){
 		PUSH_STRING(argv[i]);
 	}
+
+#ifdef EZ_TARGET_LINUX
+	off_t pl_filename_offset = dyn_str_size;
+	/**
+	 * construct tempory payload filename
+	 * yes, we use tempnam as we don't know
+	 * the system temporary directory
+	 **/
+	char *pl_filename = tempnam(NULL, "ezpl");
+	if(pl_filename == NULL){
+		PERROR("tmpnam");
+		return NULL;
+	}
+
+	PUSH_STRING(pl_filename);
+#endif
+
 #undef PUSH_STRING
 
 	size_t dyn_total_size = dyn_ptr_size + dyn_str_size;
@@ -546,15 +564,21 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->dyn_size = dyn_total_size;
 	br->num_strings = num_strings;
 	br->argv_offset = argv_offset;
+#ifdef EZ_TARGET_LINUX
+	br->pl_filename_offset = pl_filename_offset;
+#endif
 
 	char *stringData = (char *)br + sizeof(*br) + dyn_ptr_size;
 	for(int i=0; i<num_strings; i++){
 		strPush(&stringData, args[i]);
 	}
 
+#ifdef EZ_TARGET_LINUX
+	free(pl_filename);
+#endif
+
 	// copy code
 	memcpy(ctx->pl.code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
-
 	return br;
 }
 
@@ -572,23 +596,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	DBG("stack_offset=%zu", stack_offset);
 	DBG("mapping_size=%zu", mapping_size);
 
-	#ifdef USE_SHM
-	int shm_id;
-	if((shm_id = shmget(ctx->target, mapping_size, IPC_CREAT | IPC_EXCL | S_IRWXU | S_IRWXG | S_IRWXO)) < 0){
-		PERROR("shmget");
-		return 1;
-	}
-	INFO("SHM id: %u", shm_id);
-	ctx->shm_id = shm_id;
-
-	void *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
-	if(mapped_mem == MAP_FAILED){
-		PERROR("shmat");
-		return 1;
-	}
-	#else
 	void *mapped_mem = calloc(1, mapping_size);
-	#endif
 
 	ctx->mapped_mem.local = (uintptr_t)mapped_mem;
 
@@ -618,24 +626,7 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 }
 
 void cleanup_mem(struct ezinj_ctx *ctx){
-	#ifdef USE_SHM
-	if(ctx->mapped_mem.local != 0){
-		if(shmdt((void *)ctx->mapped_mem.local) < 0){
-			PERROR("shmdt");
-		} else {
-			ctx->mapped_mem.local = 0;
-		}
-	}
-	if(ctx->shm_id > -1){
-		if(shmctl(ctx->shm_id, IPC_RMID, NULL) < 0){
-			PERROR("shmctl (IPC_RMID)");
-		} else {
-			ctx->shm_id = -1;
-		}
-	}
-	#else
 	free((void *)ctx->mapped_mem.local);
-	#endif
 }
 
 void sigint_handler(int signum){
@@ -702,7 +693,7 @@ int ezinject_main(
 		#ifdef EZ_TARGET_WINDOWS
 			PERROR("VirtualAllocEx failed");
 		#else
-			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
+			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
 		#endif
 			break;
 		}
@@ -712,27 +703,18 @@ int ezinject_main(
 
 		struct ezinj_pl *pl = &ctx->pl;
 
-		#define PL_REMOTE(pl_addr) \
-			UPTR(remote_shm_ptr + PTRDIFF(pl_addr, ctx->mapped_mem.local))
-
 		#define PL_REMOTE_CODE(addr) \
-			PL_REMOTE(pl->code_start) + PTRDIFF(addr, region_pl_code.start)
+			PL_REMOTE(ctx, pl->code_start) + PTRDIFF(addr, region_pl_code.start)
 
-		#ifdef __GNUC__
-		{
-			void *flush_start = br;
-			void *flush_end = (void *)(UPTR(br) + br->mapping_size);
-			__builtin___clear_cache(flush_start, flush_end);
+		#if defined(EZ_TARGET_LINUX)
+		if(remote_pl_copy(ctx) != 0){
+			ERR("remote_pl_copy failed");
+			break;
 		}
 		#else
-		usleep(50000);
-		#endif
-
-		
-		#ifndef USE_SHM
 		if(remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
 			PERROR("remote_write failed");
-		}		
+		}
 		#endif
 
 		// switch to SIGSTOP wait mode
@@ -740,7 +722,7 @@ int ezinject_main(
 
 		// switch to user stack
 		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
-		ctx->pl_stack.remote = (uintptr_t)PL_REMOTE(target_sp);
+		ctx->pl_stack.remote = (uintptr_t)PL_REMOTE(ctx, target_sp);
 
 		// set trampoline parameters
 		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
@@ -756,7 +738,7 @@ int ezinject_main(
 			ctx->branch_target.remote
 		);
 
-		err = CHECK(RSCALL0(ctx, PL_REMOTE(pl->br_start)));
+		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
 
 		/**
 		 * if payload debugging is on, skip any cleanup
