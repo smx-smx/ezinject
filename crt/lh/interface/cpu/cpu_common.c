@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/mman.h>
 
 #include "log.h"
 #include "ezinject_util.h"
@@ -20,6 +19,10 @@
 
 #include "ezinject_common.h"
 #include "config.h"
+
+#ifdef EZ_TARGET_POSIX
+#include <sys/mman.h>
+#endif
 
 size_t inj_getjmp_size(){
 	#ifdef LH_JUMP_ABS
@@ -95,7 +98,7 @@ int inj_getinsn_count(void *buf, size_t sz, unsigned int *validbytes){
 #endif
 
 int inj_getbackup_size(void *codePtr, unsigned int payloadSz){
-	uint i = 0;
+	unsigned i = 0;
 	int opSz;
 	if((opSz = inj_opcode_bytes()) > 0){ //fixed opcode size
 		while(i < payloadSz)
@@ -188,9 +191,24 @@ void *inj_backup_function(void *original_code, size_t *num_saved_bytes, int opco
 	// Unlike needle variant, we call mmap here, as we're in the user process
 	size_t payloadSz = num_opcode_bytes + jumpSz;
 
-	void *pMem = mmap(0, payloadSz, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	if(pMem == MAP_FAILED){
-		PERROR("mmap");
+	//void *pMem = mmap(0, payloadSz, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	void *pMem = calloc(1, payloadSz);
+#if defined(EZ_TARGET_POSIX)
+	if(mprotect(pMem, payloadSz, PROT_READ | PROT_WRITE | PROT_EXEC) < 0){
+		PERROR("mprotect");
+		return NULL;
+	}
+#elif defined(EZ_TARGET_WINDOWS)
+	DWORD oldProtect = 0;
+	if(!VirtualProtect(pMem, payloadSz, PAGE_EXECUTE_READWRITE, &oldProtect)){
+		ERR("VirtualProtect failed");
+		return NULL;
+	}
+#else
+#error "Unsupported Target"
+#endif
+	if(pMem == NULL){
+		ERR("malloc failed");
 		return NULL;
 	}
 	uint8_t *remote_code = (uint8_t *)pMem;

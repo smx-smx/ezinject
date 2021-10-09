@@ -150,6 +150,12 @@ int run(struct test_state *ctx){
 		rc = 0;
 	} while(0);
 
+	char buf[255];
+	while(ctx->ezinjectRunner.joinable()){
+		// consume buffer, to unblock ezinject until it completes
+		fgets(buf, sizeof(buf), hTarget);
+	}
+
 	if(ctx->pid > 0){
 	#if defined(EZ_TARGET_POSIX)
 		kill(ctx->pid, SIGKILL);

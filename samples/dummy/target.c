@@ -15,12 +15,18 @@
 
 #define UNUSED(x) (void)x
 
-int func1(int arg1, int arg2) {
+#ifdef EZ_TARGET_WINDOWS
+#define EXPORT __declspec(dllexport)
+#else
+#define EXPORT extern
+#endif
+
+EXPORT int func1(int arg1, int arg2) {
 	printf("arg1: %d, arg2: %d\n", arg1, arg2);
 	return arg1 + arg2;
 }
 
-void func2(void) {
+EXPORT void func2(void) {
 	puts("Func2 called!");
 }
 

@@ -553,6 +553,10 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->RtlGetCurrentPeb = (void *)ctx->nt_get_peb.remote;
 	br->NtQueryInformationProcess = (void *)ctx->nt_query_proc.remote;
 	br->NtWriteFile = (void *)ctx->nt_write_file.remote;
+	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
+	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
+	br->ntdll_base = (void *)ctx->libc.remote;
+	br->AllocConsole = (void *)ctx->alloc_console.remote;
 #endif
 
 	br->dlopen_offset = ctx->dlopen_offset;

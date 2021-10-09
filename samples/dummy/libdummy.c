@@ -12,11 +12,9 @@
 
 LOG_SETUP(V_DBG);
 
-// $TODO
-#ifndef EZ_TARGET_WINDOWS
 #define USE_SLJIT
 #define USE_LH
-#endif
+
 
 #ifdef USE_SLJIT
 /**
@@ -91,7 +89,11 @@ int myCustomFn(int arg1, int arg2){
 
 #ifdef USE_LH
 void installHooks(){
-	void *self = dlopen(NULL, RTLD_LAZY);
+	#ifdef EZ_TARGET_WINDOWS
+	void *self = GetModuleHandle(NULL);
+	#else
+	void *self = dlopen(NULL, RTLD_NOW);
+	#endif 
 	if(self == NULL){
 		ERR("dlopen failed: %s", dlerror());
 		return;
@@ -101,7 +103,11 @@ void installHooks(){
 	int error = 1;
 
 	do {
+		#ifdef EZ_TARGET_WINDOWS
+		testFunc_t pfnTestFunc = (testFunc_t) GetProcAddress(self, "func1");
+		#else
 		testFunc_t pfnTestFunc = dlsym(self, "func1");
+		#endif
 		if(pfnTestFunc == NULL){
 			ERR("Couldn't locate test function: %s", dlerror());
 			break;
@@ -140,7 +146,9 @@ void installHooks(){
 			sljit_free_exec(codeMem);
 		}
 		#endif
+		#ifndef EZ_TARGET_WINDOWS
 		dlclose(self);
+		#endif
 	} else {
 		INFO("hooks installed succesfully");
 	}
