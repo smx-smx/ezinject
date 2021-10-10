@@ -458,14 +458,14 @@ function(add_ezinject_library target)
 		if(USING_GNU_LD)
 			target_link_options(${target} PUBLIC
 				-Wl,--whole-archive
-					$<TARGET_FILE:lh_hook_linux>
+					$<TARGET_FILE:lh_hook>
 				-Wl,--no-whole-archive
 			)
 		endif()
 		target_link_libraries(${target}
 			lh_ifcpu
 			lh_sljitmod
-			lh_hook_linux
+			lh_hook
 		)
 	endif()
 endfunction()
