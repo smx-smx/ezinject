@@ -48,7 +48,7 @@ int unprotect(void *addr) {
 		return -1;
 	}
 #else
-#error "Unsupported Target
+#error "Unsupported Target"
 #endif
 
 	return 0;
