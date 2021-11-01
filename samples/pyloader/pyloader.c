@@ -16,7 +16,7 @@
 #include "log.h"
 #include "ezinject_util.h"
 #include "ezinject_injcode.h"
-#include "ezinject_compat.h"
+#include "dlfcn_compat.h"
 
 #define UNUSED(x) (void)(x)
 
@@ -35,7 +35,7 @@ static char gEnvPythonPath[2048] = {
 	'P','Y','T','H','O','N','P','A','T','H','=','\0'
 };
 
-static const char *gEnvPythonIoEncoding = "PYTHONIOENCODING=UTF-8";
+static char *gEnvPythonIoEncoding = "PYTHONIOENCODING=UTF-8";
 
 int lib_main(int argc, char *argv[]){
 	lputs("Hello World from main");
