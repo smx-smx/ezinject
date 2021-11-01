@@ -15,18 +15,12 @@
 # include <Windows.h>
 # define LIB_HANDLE HMODULE
 # define LIB_OPEN(path) LoadLibraryA(path)
-# define LIB_GETHANDLE(path) LIB_OPEN(path)
 # define LIB_GETSYM(handle, sym) (void *)GetProcAddress(handle, sym)
 # define LIB_CLOSE(handle) FreeLibrary(handle)
 #elif defined(EZ_TARGET_POSIX)
 # include <dlfcn.h>
 # define LIB_HANDLE void *
 # define LIB_OPEN(path) dlopen(path, RTLD_GLOBAL)
-#ifdef HAVE_RTLD_NOLOAD
-# define LIB_GETHANDLE(path) dlopen(path, RTLD_NOLOAD)
-#else
-# define LIB_GETHANDLE(path) LIB_OPEN(path)
-#endif
 # define LIB_GETSYM(handle, sym) dlsym(handle, sym)
 # define LIB_CLOSE(handle) dlclose(handle)
 #else

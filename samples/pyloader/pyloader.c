@@ -92,10 +92,7 @@ int lib_main(int argc, char *argv[]){
 	/**
 	 * Load libpython and resolve symbols
 	 **/
-	void *hpy = LIB_GETHANDLE(libPythonPath);
-	if(hpy == NULL){
-		hpy = LIB_OPEN(libPythonPath);
-	}
+	void *hpy = LIB_OPEN(libPythonPath);
 	if(hpy == NULL){
 		lprintf("dlopen '%s' failed: %s\n", libPythonPath, dlerror());
 		return 1;
