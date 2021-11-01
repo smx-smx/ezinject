@@ -1,6 +1,11 @@
-/**
- * Copyright (C) 2020 Stefano Moioli <smxdev4@gmail.com>
- **/
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <dlfcn.h>
@@ -11,6 +16,7 @@
 #include "log.h"
 #include "ezinject_util.h"
 #include "ezinject_injcode.h"
+#include "ezinject_compat.h"
 
 #define UNUSED(x) (void)(x)
 
@@ -24,6 +30,12 @@ int lib_preinit(struct injcode_user *user){
 
 static char gPythonHome[255];
 static char gPythonProgramName[] = "python";
+
+static char gEnvPythonPath[2048] = {
+	'P','Y','T','H','O','N','P','A','T','H','=','\0'
+};
+
+static const char *gEnvPythonIoEncoding = "PYTHONIOENCODING=UTF-8";
 
 int lib_main(int argc, char *argv[]){
 	lputs("Hello World from main");
@@ -49,8 +61,14 @@ int lib_main(int argc, char *argv[]){
 
 	strncpy(gPythonHome, pythonHome, sizeof(gPythonHome));
 
-	setenv("PYTHONPATH", pythonPath, 1);
-	setenv("PYTHONIOENCODING", "UTF-8", 1);
+	char *pathPtr = strchr(gEnvPythonPath, '\0');
+	if(pathPtr == NULL){
+		return 1;
+	}
+	strncpy(pathPtr, pythonPath, sizeof(gEnvPythonPath) - (pathPtr - &gEnvPythonPath[0]));
+
+	putenv(gEnvPythonPath);
+	putenv(gEnvPythonIoEncoding);
 
 	/**
 	 * add the folder holding libpython to LD_LIBRARY_PATH
@@ -74,23 +92,22 @@ int lib_main(int argc, char *argv[]){
 	/**
 	 * Load libpython and resolve symbols
 	 **/
-
-	void *hpy = dlopen(libPythonPath, RTLD_NOLOAD);
+	void *hpy = LIB_GETHANDLE(libPythonPath);
 	if(hpy == NULL){
-		hpy = dlopen(libPythonPath, RTLD_NOW | RTLD_GLOBAL);
-		if(hpy == NULL){
-			lprintf("dlopen '%s' failed: %s\n", libPythonPath, dlerror());
-			return 1;
-		}
+		hpy = LIB_OPEN(libPythonPath);
+	}
+	if(hpy == NULL){
+		lprintf("dlopen '%s' failed: %s\n", libPythonPath, dlerror());
+		return 1;
 	}
 
-	void (*Py_SetProgramName)(char *) = dlsym(hpy, "Py_SetProgramName");
-	void (*Py_SetPythonHome)(char *) = dlsym(hpy, "Py_SetPythonHome");
-	void (*Py_Initialize)(void) = dlsym(hpy, "Py_Initialize");
-	void (*PyEval_InitThreads)(void) = dlsym(hpy, "PyEval_InitThreads");
-	int (*PyRun_SimpleString)(char *) = dlsym(hpy, "PyRun_SimpleString");
-	void (*Py_Finalize)(void) = dlsym(hpy, "Py_Finalize");
-	int (*Py_IsInitialized)(void) = dlsym(hpy, "Py_IsInitialized");
+	void (*Py_SetProgramName)(char *) = LIB_GETSYM(hpy, "Py_SetProgramName");
+	void (*Py_SetPythonHome)(char *) = LIB_GETSYM(hpy, "Py_SetPythonHome");
+	void (*Py_Initialize)(void) = LIB_GETSYM(hpy, "Py_Initialize");
+	void (*PyEval_InitThreads)(void) = LIB_GETSYM(hpy, "PyEval_InitThreads");
+	int (*PyRun_SimpleString)(char *) = LIB_GETSYM(hpy, "PyRun_SimpleString");
+	void (*Py_Finalize)(void) = LIB_GETSYM(hpy, "Py_Finalize");
+	int (*Py_IsInitialized)(void) = LIB_GETSYM(hpy, "Py_IsInitialized");
 
 	if(Py_SetProgramName == NULL
 	   || Py_SetPythonHome == NULL

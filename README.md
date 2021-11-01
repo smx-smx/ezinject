@@ -83,9 +83,9 @@ return1() = 13370
 
 ### Python injection
 
-```
+```sh
 echo "print('hello ' * 3 + 'from python');" > hello.py
-export EZPY=`python -c "import sys; print(':'.join(sys.path))"`
+export EZPY=`python -c "import sys; import os; print(os.pathsep.join(sys.path))"`
 echo "python path: $EZPY"
 ```
 

@@ -1,4 +1,5 @@
 add_subdirectory(dummy)
+add_subdirectory(pyloader)
 
 if(CMAKE_CXX_COMPILER_WORKS AND ENABLE_CPP_SAMPLES)
 	add_subdirectory(cpp)
@@ -8,7 +9,6 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(MONO mono-2)
 
 if(NOT EZ_TARGET_ANDROID AND NOT EZ_TARGET_WINDOWS)
-	add_subdirectory(pyloader)
 	add_subdirectory(dotnetcore)
 	if(MONO_FOUND AND ENABLE_MONO_SAMPLE)
 		add_subdirectory(mono)
