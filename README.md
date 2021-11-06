@@ -84,7 +84,7 @@ return1() = 13370
 ### Python injection
 
 ```sh
-echo "print('hello ' * 3 + 'from python');" > hello.py
+echo "print('hello ' * 3 + 'from python')" > hello.py
 export EZPY=`python -c "import sys; import os; print(os.pathsep.join(sys.path))"`
 echo "python path: $EZPY"
 ```
@@ -96,5 +96,5 @@ find /usr/lib -name "libpython*"
 
 Put correct libpython and paths in example below:
 ```
-sudo ./ezinject `pidof target` samples/pyloader/libpyloader.so /usr/lib/x86_64-linux-gnu/libpython2.7.so.1 /usr/lib/python2.7 $EZPY hello.py
+sudo ./ezinject `pidof target` samples/pyloader/libpyloader.so /usr/lib/x86_64-linux-gnu/libpython2.7.so.1 /usr/lib/python2.7 "$EZPY" hello.py
 ```

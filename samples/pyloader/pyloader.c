@@ -30,11 +30,7 @@ int lib_preinit(struct injcode_user *user){
 
 static char gPythonHome[255];
 static char gPythonProgramName[] = "python";
-
-static char gEnvPythonPath[2048] = {
-	'P','Y','T','H','O','N','P','A','T','H','=','\0'
-};
-
+static char gEnvPythonPath[2048] = "PYTHONPATH=";
 static char *gEnvPythonIoEncoding = "PYTHONIOENCODING=UTF-8";
 
 int lib_main(int argc, char *argv[]){
@@ -60,15 +56,6 @@ int lib_main(int argc, char *argv[]){
 	const char *pythonScript  = argv[4];
 
 	strncpy(gPythonHome, pythonHome, sizeof(gPythonHome));
-
-	char *pathPtr = strchr(gEnvPythonPath, '\0');
-	if(pathPtr == NULL){
-		return 1;
-	}
-	strncpy(pathPtr, pythonPath, sizeof(gEnvPythonPath) - (pathPtr - &gEnvPythonPath[0]));
-
-	putenv(gEnvPythonPath);
-	putenv(gEnvPythonIoEncoding);
 
 	/**
 	 * add the folder holding libpython to LD_LIBRARY_PATH
@@ -133,6 +120,13 @@ int lib_main(int argc, char *argv[]){
 
 	lprintf("Script: %s\n", pythonScript);
 	lprintf("Script dir: %s, filename: %s\n", scriptDir, scriptName);
+	// prepend script directory
+	strncat(gEnvPythonPath, scriptDir, sizeof(gEnvPythonPath));
+	strncat(gEnvPythonPath, pythonPath, sizeof(gEnvPythonPath));
+
+	putenv(gEnvPythonPath);
+	putenv(gEnvPythonIoEncoding);
+
 
 	/**
 	 * Initialize the interpreter
@@ -155,7 +149,7 @@ int lib_main(int argc, char *argv[]){
 	 **/
 
 	char *pyCode;
-	asprintf(&pyCode, "import sys\nsys.path.insert(0, \"%s\")\nimport %s\n", scriptDir, scriptName);
+	asprintf(&pyCode, "import %s\n", scriptName);
 	if(PyRun_SimpleString(pyCode) < 0){
 		lprintf("An error or exception occured\n");
 	}
