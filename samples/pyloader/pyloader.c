@@ -122,6 +122,15 @@ int lib_main(int argc, char *argv[]){
 	lprintf("Script dir: %s, filename: %s\n", scriptDir, scriptName);
 	// prepend script directory
 	strncat(gEnvPythonPath, scriptDir, sizeof(gEnvPythonPath));
+	{
+		char *end = strchr(gEnvPythonPath, '\0');
+		#ifdef EZ_TARGET_WINDOWS
+		*(end++) = ';';
+		#else
+		*(end++) = ':';
+		#endif
+		*end = '\0';
+	}
 	strncat(gEnvPythonPath, pythonPath, sizeof(gEnvPythonPath));
 
 	putenv(gEnvPythonPath);
