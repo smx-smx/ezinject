@@ -280,7 +280,6 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	// acquire libpthread
 	inj_dchar(br, 'p');
 
-	//had_pthread = dlopen(libpthread_name, RTLD_NOLOAD) != NULL;
 	inj_puts(br, ctx->libpthread_name);
 	ctx->h_libthread = inj_dlopen(ctx, ctx->libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
 	if(!ctx->h_libthread){
@@ -297,6 +296,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	if(inj_api_init(ctx) != 0){
 		inj_dchar(br, '!');
 		inj_dchar(br, '2');
+		ctx->libdl.dlclose(ctx->h_libthread);
 		PL_RETURN(sc, INJ_ERR_API);
 	}
 
@@ -310,6 +310,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	inj_dchar(br, 'd');
 	if(inj_load_library(ctx) != 0){
 		inj_dchar(br, '!');
+		ctx->libdl.dlclose(ctx->h_libthread);
 		PL_RETURN(sc, INJ_ERR_DLOPEN);
 	}
 
@@ -320,29 +321,24 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	intptr_t result = 0;
 	if(inj_thread_wait(ctx, &result) != 0){
 		inj_dchar(br, '!');
+		ctx->libdl.dlclose(ctx->h_libthread);
 		PL_RETURN(sc, INJ_ERR_WAIT);
 	}
 
 	if(br->user.persist == 0){
 		// cleanup
 		inj_dchar(br, 'c');
-		{
-			/**
-			 * NOTE: uclibc old might trigger segfaults in the user library while doing this (sigh)
-			 **/
-			ctx->libdl.dlclose(br->userlib);
-
-			#ifndef UCLIBC_OLD
-			/*if(!had_pthread){
-				dlclose(h_pthread);
-			}*/
-			#endif
-		}
+		/**
+		 * NOTE: some C libraries might cause a segfault during this call
+		 * the segfault will be trapped by ezinject, so (hopefully) the process can continue
+		 **/
+		ctx->libdl.dlclose(br->userlib);
 	}
 
 
 	// bye
 	inj_dchar(br, 'b');
+	ctx->libdl.dlclose(ctx->h_libthread);
 	PL_RETURN(sc, result);
 	return 0;
 }
