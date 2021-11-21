@@ -134,14 +134,7 @@ void *crt_user_entry(void *arg) {
 	hexdump(br, SIZEOF_BR(*br));
 #endif
 
-	enum userlib_return_action result;
-
-	crt_userinit(br);
-	if(br->user.persist){
-		result = userlib_persist;
-	} else {
-		result = userlib_unload;
-	}
+	int result = crt_userinit(br);
 
 	DBG("ret");
 	LOG_FINI();

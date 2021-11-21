@@ -315,13 +315,15 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	// wait for the thread to notify us
 	inj_dchar(br, 'w');
+
+	// exit status from lib_main
 	intptr_t result = 0;
 	if(inj_thread_wait(ctx, &result) != 0){
 		inj_dchar(br, '!');
 		PL_RETURN(sc, INJ_ERR_WAIT);
 	}
 
-	if((enum userlib_return_action)result != userlib_persist){
+	if(br->user.persist == 0){
 		// cleanup
 		inj_dchar(br, 'c');
 		{
@@ -341,6 +343,6 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	// bye
 	inj_dchar(br, 'b');
-	PL_RETURN(sc, 0);
+	PL_RETURN(sc, result);
 	return 0;
 }
