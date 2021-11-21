@@ -68,14 +68,10 @@ extern int crt_userinit(struct injcode_bearing *br);
 
 void* crt_user_entry(void *arg);
 
-__attribute__((constructor)) void ctor(void)
-{
+int crt_init(struct injcode_bearing *br){
 	LOG_INIT("/tmp/"MODULE_NAME".log");
 	INFO("library loaded!");
-}
 
-
-int crt_init(struct injcode_bearing *br){
 	INFO("initializing");
 
 	// workaround for old uClibc (see http://lists.busybox.net/pipermail/uclibc/2009-October/043122.html)
