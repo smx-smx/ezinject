@@ -191,14 +191,15 @@ void *inj_backup_function(void *original_code, size_t *num_saved_bytes, int opco
 	// Unlike needle variant, we call mmap here, as we're in the user process
 	size_t payloadSz = num_opcode_bytes + jumpSz;
 
-	//void *pMem = mmap(0, payloadSz, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-	void *pMem = calloc(1, payloadSz);
+	void *pMem = NULL;
 #if defined(EZ_TARGET_POSIX)
-	if(mprotect(pMem, payloadSz, PROT_READ | PROT_WRITE | PROT_EXEC) < 0){
-		PERROR("mprotect");
+	pMem = mmap(0, payloadSz, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	if(pMem == MAP_FAILED){
+		PERROR("mmap");
 		return NULL;
 	}
 #elif defined(EZ_TARGET_WINDOWS)
+	pMem = calloc(1, payloadSz);
 	DWORD oldProtect = 0;
 	if(!VirtualProtect(pMem, payloadSz, PAGE_EXECUTE_READWRITE, &oldProtect)){
 		ERR("VirtualProtect failed");
