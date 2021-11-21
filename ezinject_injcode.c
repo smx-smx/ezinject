@@ -266,6 +266,8 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		return 0;
 	}
 
+	intptr_t result = 0;
+
 	// entry
 	inj_dchar(br, 'e');
 
@@ -274,7 +276,8 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	if(inj_libdl_init(ctx) != 0){
 		inj_dchar(br, '!');
-		PL_RETURN(sc, INJ_ERR_LIBDL);
+		result = INJ_ERR_LIBDL;
+		goto pl_exit;
 	}
 
 	// acquire libpthread
@@ -289,7 +292,8 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
 			inj_puts(br, errstr);
 		}
-		PL_RETURN(sc, INJ_ERR_LIBPTHREAD);
+		result = INJ_ERR_LIBPTHREAD;
+		goto pl_exit;
 	}
 	inj_dbgptr(br, ctx->h_libthread);
 
@@ -297,7 +301,8 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		inj_dchar(br, '!');
 		inj_dchar(br, '2');
 		ctx->libdl.dlclose(ctx->h_libthread);
-		PL_RETURN(sc, INJ_ERR_API);
+		result = INJ_ERR_API;
+		goto pl_exit;
 	}
 
 	// setup
@@ -311,18 +316,19 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	if(inj_load_library(ctx) != 0){
 		inj_dchar(br, '!');
 		ctx->libdl.dlclose(ctx->h_libthread);
-		PL_RETURN(sc, INJ_ERR_DLOPEN);
+		result = INJ_ERR_DLOPEN;
+		goto pl_exit;
 	}
 
 	// wait for the thread to notify us
 	inj_dchar(br, 'w');
 
 	// exit status from lib_main
-	intptr_t result = 0;
 	if(inj_thread_wait(ctx, &result) != 0){
 		inj_dchar(br, '!');
 		ctx->libdl.dlclose(ctx->h_libthread);
-		PL_RETURN(sc, INJ_ERR_WAIT);
+		result = INJ_ERR_WAIT;
+		goto pl_exit;
 	}
 
 	if(br->user.persist == 0){
@@ -336,9 +342,16 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	}
 
 
+pl_exit:
 	// bye
 	inj_dchar(br, 'b');
-	ctx->libdl.dlclose(ctx->h_libthread);
+	if(ctx->h_libthread != NULL){
+		ctx->libdl.dlclose(ctx->h_libthread);
+	}
+
+	// return to ezinject
 	PL_RETURN(sc, result);
+
+	// should never be reached
 	return 0;
 }
