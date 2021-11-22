@@ -46,6 +46,8 @@
 #define __NR_shmdt SYS_shmdt
 #define __NR_write SYS_write
 #define __NR_kill SYS_kill
+#define __NR_mmap2 SYS_mmap
+#define __NR_munmap SYS_munmap
 #endif
 
 #if defined(EZ_TARGET_LINUX)
