@@ -58,35 +58,8 @@ static void *code_data(void *code){
 #endif
 }
 
-#if defined(EZ_TARGET_POSIX) && !defined(EZ_TARGET_DARWIN)
-static ez_region region_sc_code = {
-	.start = (void *)&__start_syscall,
-	.end = (void *)&__stop_syscall
-};
-
-/**
- * Get the address of the call wrapper
- **/
-uintptr_t get_wrapper_address(struct ezinj_ctx *ctx){
-	uintptr_t codeBase = (uintptr_t) get_base(ctx->target, NULL, NULL);
-	if(codeBase == 0){
-		ERR("Could not obtain code base");
-		return 0;
-	}
-	DBGPTR(codeBase);
-
-	off_t trampoline_offset = 0;
-	size_t trampoline_size = ALIGN(
-		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline)),
-		sizeof(uintptr_t)
-	);
-
-	off_t sc_offset = trampoline_offset + trampoline_size;
-	uintptr_t r_sc_base = codeBase + sc_offset;
-
-	uintptr_t sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
-	return r_sc_base + sc_wrapper_offset;
-}
+#ifdef HAVE_SC
+uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 #endif
 
 int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size);
@@ -108,6 +81,7 @@ intptr_t setregs_syscall(
 ){
 	REG(*new_ctx, REG_PC) = call->insn_addr;
 
+	// this will be passed on the stack
 	struct injcode_call *rcall = &call->rcall;
 	
 	uintptr_t target_sp = 0;
@@ -116,10 +90,12 @@ intptr_t setregs_syscall(
 	} else {
 		target_sp = REG(*orig_ctx, REG_SP);
 	}
+	// allocate remote call on the stack
 	uintptr_t r_call_args = target_sp - sizeof(*rcall);
 
 	rcall->argc = 0;
 	rcall->result = 0;
+	// copy call arguments
 	memcpy(&rcall->argv, &call->argv, sizeof(call->argv));
 
 #ifdef EZ_TARGET_POSIX
@@ -128,21 +104,18 @@ intptr_t setregs_syscall(
 #ifdef EZ_TARGET_LINUX
 	rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
 #endif
+
+	// set the call structure as argument for the function being called
 	rcall->trampoline.fn_arg = r_call_args;
 
-	// skip syscall nr
+	// count syscall arguments excluding syscall number
 	for(int i=1; i<SC_MAX_ARGS; i++){
 		if(CALL_HAS_ARG(*call, i)){
 			rcall->argc++;
 		}
 	}
 
-	/**
-	 * set trampoline params
-	 **/
-	rcall->trampoline.fn_arg = r_call_args;
-
-	#if defined(EZ_TARGET_POSIX) && !defined(EZ_TARGET_DARWIN)
+	#ifdef HAVE_SC
 	/**
 	 * this target supports true system calls
 	 * use a wrapper in-between to avoid stack corruption
@@ -161,10 +134,11 @@ intptr_t setregs_syscall(
 			return -1;
 		}
 	} else {
-		// set the user supplied branch target
+		// call the user supplied target through the wrapper
 		rcall->wrapper.target = ctx->branch_target.remote;
 	}
 	#else
+	// call the user supplied target through the trampoline
 	rcall->trampoline.fn_addr = ctx->branch_target.remote;
 	#endif
 
@@ -175,8 +149,8 @@ intptr_t setregs_syscall(
 		}
 	}
 
+	// backup the stack area being overwritten
 	ssize_t backupSize = (ssize_t)WORDALIGN(sizeof(*rcall));
-	
 	uint8_t *saved_stack = calloc(backupSize, 1);
 	if(remote_read(ctx, saved_stack, r_call_args, backupSize) != backupSize){
 		ERR("failed to backup stack");
@@ -184,6 +158,7 @@ intptr_t setregs_syscall(
 		return -1;
 	}
 
+	// write the remote call onto the stack
 	if(remote_write(
 		ctx,
 		r_call_args,
@@ -194,14 +169,17 @@ intptr_t setregs_syscall(
 		return -1;
 	}
 
+	// save original info for later
 	call->backup_addr = r_call_args;
 	call->backup_data = saved_stack;
 	call->backup_size = backupSize;
 
+	// update stack pointer
 	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
 	DBGPTR((void *)REG(*new_ctx, REG_SP));
 
 #if defined(EZ_ARCH_ARM) && defined(HAVE_PSR_T_BIT)
+	// set the ARM/Thumb flag for the shellcode invocation
 	#ifdef USE_ARM_THUMB
 	REG(*new_ctx, ARM_cpsr) = REG(*new_ctx, ARM_cpsr) | PSR_T_BIT;
 	#else
@@ -263,6 +241,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		}
 	}
 
+	// read the rcall result from the stack
 	remote_read(ctx,
 		&call->rcall.result,
 		RCALL_FIELD_ADDR(&call->rcall, result),
@@ -685,10 +664,16 @@ int ezinject_main(
 		return -1;
 	}
 
-	if(remote_sc_alloc(ctx) != 0){
+	
+	uintptr_t r_sc_elf = 0;
+	uintptr_t r_sc_vmem = 0;
+
+	// allocate initial shellcode on the ELF header
+	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
 		ERR("remote_sc_alloc failed");
 		return -1;
 	}
+	remote_sc_set(ctx, r_sc_elf);
 
 	// wait for a single syscall
 	ctx->syscall_mode = 1;
@@ -730,19 +715,41 @@ int ezinject_main(
 		}
 		#endif
 
+		// allocate new shellcode on a new memory map
+		// the current shellcode is used for the allocation
+		// this must be done before switching to payload mode
+		if(remote_sc_alloc(ctx, SC_ALLOC_MMAP, &r_sc_vmem) != 0){
+			ERR("remote_sc_alloc: mmap failed");
+			return -1;
+		}
+		remote_sc_set(ctx, r_sc_vmem);
+
+		// restore the ELF header
+		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+			ERR("remote_sc_free: restore failed");
+			return -1;
+		}
+
 		// switch to SIGSTOP wait mode
 		ctx->syscall_mode = 0;
 
-		// switch to user stack
+		/**
+		 * now that PL is available and mapped, we can use it
+		 * for stack and entry point
+		 **/
+
+		// switch to stack on PL
 		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
 		ctx->pl_stack.remote = (uintptr_t)PL_REMOTE(ctx, target_sp);
 
-		// set trampoline parameters
-		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
+		// use trampoline on PL
 		ctx->entry_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
+		// tell the trampoline to call the main injcode
+		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
 
+		// when syscall_mode = 0, SC is skipped
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
-
+		
 		/**
 		 * if payload debugging is on, skip any cleanup
 		 **/
@@ -750,12 +757,13 @@ int ezinject_main(
 			return -1;
 		}
 
-		// restore syscall behavior (to call shmdt, if needed by the target)
+		// restore syscall behavior (to call munmap, if needed by the target)
 		ctx->syscall_mode = 1;
 		ctx->pl_stack.remote = 0;
 		remote_pl_free(ctx, remote_shm_ptr);
 
-		if(remote_sc_free(ctx) != 0){
+		// free memory mapped sc (no remote syscalls allowed after this)
+		if(remote_sc_free(ctx, SC_ALLOC_MMAP, r_sc_vmem) != 0){
 			ERR("remote_sc_free failed!");
 			return -1;
 		}

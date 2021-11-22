@@ -9,6 +9,8 @@
 #ifndef __EZINJECT_COMMON_H
 #define __EZINJECT_COMMON_H
 
+#include <unistd.h>
+
 #define UNUSED(x) (void)(x)
 #define ALIGNMSK(y) ((y)-1)
 
