@@ -43,7 +43,7 @@
 #define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
 
 // temporary stack size
-#define PL_STACK_SIZE 1024 * 1024 * 4
+#define PL_STACK_SIZE 1024 * 1024 * 2
 
 #if defined(EZ_TARGET_DARWIN) || (defined(EZ_TARGET_WINDOWS) && defined(EZ_ARCH_I386))
 #define LABEL_PREFIX "_"

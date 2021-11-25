@@ -74,7 +74,6 @@ struct ezinj_ctx {
 	uint8_t *saved_sc_data;
 	ssize_t saved_sc_size;
 #endif
-	uintptr_t target_codebase;
 	ez_addr libc;
 	ez_addr libdl;
 	ez_addr entry_insn;
@@ -188,8 +187,12 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);
 EZAPI remote_pl_copy(struct ezinj_ctx *ctx);
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
 
-EZAPI remote_sc_alloc(struct ezinj_ctx *ctx);
+#define SC_ALLOC_ELFHDR (1 << 0)
+#define SC_ALLOC_MMAP (1 << 1)
+
+EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *sc_base);
 EZAPI remote_sc_check(struct ezinj_ctx *ctx);
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call);
-EZAPI remote_sc_free(struct ezinj_ctx *ctx);
+EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base);
+EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base);
 #endif

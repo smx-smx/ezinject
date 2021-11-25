@@ -23,6 +23,7 @@ EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 	return 0;
 }
 
-EZAPI remote_sc_alloc(struct ezinj_ctx *ctx){ return 0; }
-EZAPI remote_sc_free(struct ezinj_ctx *ctx){ return 0; }
+EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *sc_base){ return 0; }
+EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base){ return 0; }
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){ return 0; }
+EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base){ return 0; }

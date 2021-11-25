@@ -284,6 +284,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	inj_dchar(br, 'p');
 
 	inj_puts(br, ctx->libpthread_name);
+	//asm volatile(JMP_INSN " .");
 	ctx->h_libthread = inj_dlopen(ctx, ctx->libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
 	if(!ctx->h_libthread){
 		inj_dchar(br, '!');
