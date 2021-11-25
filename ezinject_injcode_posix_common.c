@@ -24,6 +24,7 @@ struct thread_api {
 
 
 INLINE void inj_puts(struct injcode_bearing *br, char *str){
+#ifdef DEBUG
 	if(str == NULL){
 		return;
 	}
@@ -34,4 +35,5 @@ INLINE void inj_puts(struct injcode_bearing *br, char *str){
 	char nl = '\n';
 	
 	br->libc_syscall(__NR_write, STDOUT_FILENO, &nl, 1);
+#endif
 }

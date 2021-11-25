@@ -46,6 +46,7 @@ struct thread_api {
 };
 
 INLINE void inj_puts(struct injcode_bearing *br, char *str){
+#ifdef DEBUG
 	if(str == NULL){
 		return;
 	}
@@ -68,4 +69,5 @@ INLINE void inj_puts(struct injcode_bearing *br, char *str){
 	char nl[2];
 	nl[0] = '\r'; nl[1] = '\n';
 	br->NtWriteFile(h, NULL, NULL, NULL, &stb, nl, sizeof(nl), 0, NULL);
+#endif
 }

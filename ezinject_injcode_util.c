@@ -6,10 +6,13 @@
  *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
+
 INLINE void inj_dchar(struct injcode_bearing *br, char ch){
+#ifdef DEBUG
 	//pl:x\n\0
 	volatile uint64_t str = str64(0x706C3A0000000000 | (((uint64_t)ch << 32) & 0xFF00000000));
 	inj_puts(br, (char *)&str);
+#endif
 }
 
 INLINE void *inj_memset(void *s, int c, size_t n){
@@ -33,7 +36,9 @@ INLINE void inj_cacheflush(struct injcode_bearing *br, void *from, void *to){
 #endif
 
 INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
+#ifdef DEBUG
 	char buf[(sizeof(uintptr_t) * 2) + 1];
 	itoa16((uintptr_t)ptr, buf);
 	inj_puts(br, buf);
+#endif
 }
