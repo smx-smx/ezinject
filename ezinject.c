@@ -670,7 +670,7 @@ int ezinject_main(
 
 	// allocate initial shellcode on the ELF header
 	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
-		ERR("remote_sc_alloc failed");
+		ERR("remote_sc_alloc: failed to overwrite ELF header");
 		return -1;
 	}
 	remote_sc_set(ctx, r_sc_elf);
@@ -726,7 +726,7 @@ int ezinject_main(
 
 		// restore the ELF header
 		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
-			ERR("remote_sc_free: restore failed");
+			ERR("remote_sc_free: ELF header restore failed");
 			return -1;
 		}
 
@@ -762,9 +762,22 @@ int ezinject_main(
 		ctx->pl_stack.remote = 0;
 		remote_pl_free(ctx, remote_shm_ptr);
 
-		// free memory mapped sc (no remote syscalls allowed after this)
+		// switch back to the ELF header, to free vmem
+		if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
+			ERR("remote_sc_alloc: failed to overwrite ELF header");
+			return -1;
+		}
+		remote_sc_set(ctx, r_sc_elf);
+
+		// free memory mapped sc
 		if(remote_sc_free(ctx, SC_ALLOC_MMAP, r_sc_vmem) != 0){
-			ERR("remote_sc_free failed!");
+			ERR("remote_sc_free: failed to free memory map");
+			return -1;
+		}
+
+		// now free the ELF header once more (no syscalls allowed after this point)
+		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+			ERR("remote_sc_free: ELF header restore failed");
 			return -1;
 		}
 	} while(0);
