@@ -81,13 +81,11 @@ int crt_init(struct injcode_bearing *br){
 	#endif
 
 	DBG("crt_thread_create");
-	// user thread must run against the local copy of br
 	if(crt_thread_create(br, crt_user_entry) < 0){
 		ERR("crt_thread_create failed");
 		return -1;
 	}
 	DBG("crt_thread_notify");
-	// notification must be done over the (possibly shared) br
 	if(crt_thread_notify(br) < 0){
 		ERR("crt_thread_notify failed");
 		return -1;
