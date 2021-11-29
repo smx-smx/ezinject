@@ -1,5 +1,8 @@
 add_executable(target target.c)
 
+add_executable(target_static target.c)
+target_link_options(target_static PUBLIC -static)
+
 #set(ARG_USE_LH "")
 #if(NOT EZ_TARGET_WINDOWS)
 #	set(ARG_USE_LH "USE_LH")

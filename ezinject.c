@@ -62,6 +62,10 @@ static void *code_data(void *code){
 uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 #endif
 
+#ifdef EZ_TARGET_LINUX
+EZAPI remote_libc_load(struct ezinj_ctx *ctx);
+#endif
+
 int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size);
 int resolve_libc_symbols(struct ezinj_ctx *ctx);
 
@@ -101,9 +105,12 @@ intptr_t setregs_syscall(
 #ifdef EZ_TARGET_POSIX
 	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
 #endif
+
 #ifdef EZ_TARGET_LINUX
 	rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
 #endif
+
+	rcall->pivot_mode = call->syscall_mode == -1;
 
 	// set the call structure as argument for the function being called
 	rcall->trampoline.fn_arg = r_call_args;
@@ -124,7 +131,7 @@ intptr_t setregs_syscall(
 	 * trampoline -> wrapper -> syscall
 	 **/
 	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
-	if(call->syscall_mode){	
+	if(call->syscall_mode > 0){	
 		/**
 		 * set the branch target
 		 * (based on the number of syscall arguments)
@@ -133,9 +140,11 @@ intptr_t setregs_syscall(
 			ERR("remote_call_prepare failed");
 			return -1;
 		}
-	} else {
+	} else if(call->syscall_mode == 0) {
 		// call the user supplied target through the wrapper
 		rcall->wrapper.target = ctx->branch_target.remote;
+	} else {
+		rcall->trampoline.fn_addr = ctx->branch_target.remote;
 	}
 	#else
 	// call the user supplied target through the trampoline
@@ -150,9 +159,10 @@ intptr_t setregs_syscall(
 	}
 
 	// backup the stack area being overwritten
+	uintptr_t backup_addr = r_call_args;
 	ssize_t backupSize = (ssize_t)WORDALIGN(sizeof(*rcall));
 	uint8_t *saved_stack = calloc(backupSize, 1);
-	if(remote_read(ctx, saved_stack, r_call_args, backupSize) != backupSize){
+	if(remote_read(ctx, saved_stack, backup_addr, backupSize) != backupSize){
 		ERR("failed to backup stack");
 		free(saved_stack);
 		return -1;
@@ -170,7 +180,7 @@ intptr_t setregs_syscall(
 	}
 
 	// save original info for later
-	call->backup_addr = r_call_args;
+	call->backup_addr = backup_addr;
 	call->backup_data = saved_stack;
 	call->backup_size = backupSize;
 
@@ -224,38 +234,52 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
+	/*
+	if(call->syscall_mode == -1){
+		return 0;
+	}*/
+
 	if(remote_wait(ctx, 0) < 0){
 		ERR("remote_wait failed");
 		return -1;
 	}
 
-	if(call->syscall_mode == 0 && ctx->pl_debug){
+	if(call->syscall_mode <= 0 && ctx->pl_debug){
 		return -1;
 	}
 
+	if(call->syscall_mode != -1){
+		if(ctx->rcall_handler_post != NULL){
+			if(ctx->rcall_handler_post(ctx, &call->rcall) < 0){
+				ERR("rcall_handler_post failed");
+				return -1;
+			}
+		}
 
-	if(ctx->rcall_handler_post != NULL){
-		if(ctx->rcall_handler_post(ctx, &call->rcall) < 0){
-			ERR("rcall_handler_post failed");
+		// read the rcall result from the stack
+		remote_read(ctx,
+			&call->rcall.result,
+			RCALL_FIELD_ADDR(&call->rcall, result),
+			sizeof(uintptr_t)
+		);
+
+		DBG("[RET] = %"PRIdPTR, call->rcall.result);
+	}
+
+	// special case: save current state before restoring
+	if(call->syscall_mode == -1){
+		if(remote_getregs(ctx, &ctx->alt_libc_regs) != 0){
+			ERR("failed to read new state");
 			return -1;
 		}
 	}
-
-	// read the rcall result from the stack
-	remote_read(ctx,
-		&call->rcall.result,
-		RCALL_FIELD_ADDR(&call->rcall, result),
-		sizeof(uintptr_t)
-	);
-
-	DBG("[RET] = %"PRIdPTR, call->rcall.result);
 
 	/**
 	  * the payload is expected to use its own stack
 	  * so we don't restore stack in that case
 	  * because the stack could be unmapped
 	  */
-	if(call->syscall_mode){
+	if(call->syscall_mode != 0){
 		DBG("restoring stack data");
 		if(remote_write(ctx,
 			call->backup_addr,
@@ -285,6 +309,7 @@ intptr_t remote_call(
 ){
 	struct call_req call = {
 		.insn_addr = ctx->entry_insn.remote,
+		.fn_arg = ctx->entry_arg.remote,
 		.stack_addr = ctx->pl_stack.remote,
 		.syscall_mode = ctx->syscall_mode,
 		.argmask = argmask
@@ -610,9 +635,9 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	#if defined(EZ_ARCH_AMD64) || defined(EZ_ARCH_ARM64)
 	// x64 requires a 16 bytes aligned stack for movaps
 	// force stack to snap to the lowest 16 bytes, or it will crash on x64
-	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(16));
+	layout->stack_top = (uint8_t *)TRUNCATE(layout->stack_top, 16);
 	#else
-	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(sizeof(void *)));
+	layout->stack_top = (uint8_t *)TRUNCATE(layout->stack_top, sizeof(void *));
 	#endif
 	return 0;
 }
@@ -685,6 +710,24 @@ int ezinject_main(
 	}
 
 	intptr_t err = -1;
+
+	#ifdef EZ_TARGET_LINUX
+	if(ctx->is_static){
+		err = remote_libc_load(ctx);
+		if(err != 0){
+			ERR("remote_libc_load failed");
+		}
+
+		// restore the ELF header
+		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+			ERR("remote_sc_free: ELF header restore failed");
+			return -1;
+		}
+		return err;
+	}
+	#endif
+
+	
 	do {
 		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
 		if(remote_shm_ptr == 0){
@@ -819,33 +862,64 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 
-	INFO("waiting for target to stop...");
-
 	int err = 0;
-	if(remote_wait(&ctx, 0) < 0){
-		PERROR("remote_wait");
-		return 1;
-	}
+	do {
+		INFO("waiting for target to stop...");
 
-	if(libc_init(&ctx) != 0){
-		return 1;
-	}
-
-	err = ezinject_main(&ctx, argc - optind, &argv[optind]);
-	/**
-	 * due to an eglibc bug, libdl loading will fail even tho it actually worked
-	 * if we're targeting linux, try again
-	 */
-	#ifdef EZ_TARGET_LINUX
-	if(err == INJ_ERR_LIBDL){
-		cleanup_mem(&ctx);
-		if(libc_init(&ctx) != 0){
+		if(remote_wait(&ctx, 0) < 0){
+			PERROR("remote_wait");
 			return 1;
 		}
-		err = ezinject_main(&ctx, argc - optind, &argv[optind]);
-	}
-	#endif
 
+		if(libc_init(&ctx) != 0){
+			ctx.is_static = 1;
+		}
+
+		err = ezinject_main(&ctx, argc - optind, &argv[optind]);
+		if(ctx.is_static && err == 0){
+			regs_t orig_libc_regs;
+			if(remote_getregs(&ctx, &orig_libc_regs) != 0){
+				ERR("failed to read orig libc regs");
+				return 1;
+			}
+
+			// libc injector succeded, re-probe libc
+			if(libc_init(&ctx) != 0){
+				ERR("libc_init failed, after injecting libc");
+				return 1;
+			}
+			INFO("===== libc loaded and probed!");
+			ctx.is_static = 0;
+
+			// switch to alt libc
+			if(remote_setregs(&ctx, &ctx.alt_libc_regs) != 0){
+				ERR("failed to switch to alt libc");
+				return 1;
+			}
+
+			err = ezinject_main(&ctx, argc - optind, &argv[optind]);
+
+			// restore orig libc
+			if(remote_setregs(&ctx, &orig_libc_regs) != 0){
+				ERR("failed to switch to orig libc");
+				return 1;
+			}
+		}
+
+		/**
+		 * due to an eglibc bug, libdl loading will fail even tho it actually worked
+		 * if we're targeting linux, try again
+		 */
+		#ifdef EZ_TARGET_LINUX
+		if(err == INJ_ERR_LIBDL){
+			cleanup_mem(&ctx);
+			if(libc_init(&ctx) != 0){
+				return 1;
+			}
+			err = ezinject_main(&ctx, argc - optind, &argv[optind]);
+		}
+		#endif
+	} while(0);
 
 	INFO("detaching...");
 	if(remote_detach(&ctx) < 0){

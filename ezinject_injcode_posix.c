@@ -9,6 +9,50 @@
 
 #define PL_RETURN(sc, x) return (x)
 
+intptr_t SCAPI injected_inline_sc(volatile struct injcode_call *sc){
+	intptr_t ret;
+
+	int stage = 0;
+
+do_syscall:;
+	register long r10 asm("r10") = sc->argv[4];
+	register long r8 asm("r8") = sc->argv[5];
+	register long r9 asm("r9") = sc->argv[6];
+    asm volatile (
+        "syscall\n\t"
+        : "=a"(ret)
+        : "a"(sc->argv[0]),
+		  // rdi
+          "D"(sc->argv[1]),
+		  // rsi
+          "S"(sc->argv[2]),
+		  // rdx
+          "d"(sc->argv[3]),
+          "r"(r10),
+		  "r"(r8),
+		  "r"(r9)
+        : "memory", "rcx", "r11"
+    );
+
+	switch(stage++){
+		// save result, then invoke getpid
+		case 0: 
+			sc->result = ret;
+			sc->argv[0] = __NR_getpid;
+			goto do_syscall;
+		// we now have the pid, signal ezinject
+		case 1:
+			sc->argv[0] = __NR_kill;
+			sc->argv[1] = ret;
+			sc->argv[2] = SIGTRAP;
+			goto do_syscall;
+	}
+	while(1);
+
+	return ret;
+
+}
+
 intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc){
 	return sc->libc_syscall(sc->argv[0]);
 }

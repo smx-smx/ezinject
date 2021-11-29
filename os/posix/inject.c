@@ -34,6 +34,8 @@ static uintptr_t r_current_sc_base;
 
 static off_t sc_wrapper_offset;
 
+static off_t sc_inline_offset;
+
 #ifdef EZ_TARGET_LINUX
 static off_t sc_mmap_offset;
 #endif
@@ -90,6 +92,7 @@ static void _remote_sc_setup_offsets(){
 
 #ifdef EZ_TARGET_LINUX
 	sc_mmap_offset = PTRDIFF(&injected_mmap, region_sc_code.start);
+	sc_inline_offset = PTRDIFF(&injected_inline_sc, region_sc_code.start);
 #endif
 
 	// always at the beginning of the shellcode
@@ -265,6 +268,13 @@ EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
 
 	// tell the wrapper which syscall trampoline to call
 	call->wrapper.target = (void *)_get_wrapper_target(call);
+
+#ifdef EZ_TARGET_LINUX
+	if(call->libc_syscall == 0){
+		call->wrapper.target = (void *)(r_current_sc_base + sc_inline_offset);
+	}
+#endif
+
 	DBGPTR(call->wrapper.target);
 
 	// tell the trampoline to call injected_sc_wrapper

@@ -134,6 +134,7 @@ struct injcode_call {
                   int fd, off_t offset);
 #endif
 
+	int pivot_mode;
 	int argc;
 	intptr_t result;
 	intptr_t result2;
@@ -319,6 +320,7 @@ extern intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc);
 #endif
 
 #ifdef EZ_TARGET_LINUX
+extern intptr_t SCAPI injected_inline_sc(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc);
 #endif
 

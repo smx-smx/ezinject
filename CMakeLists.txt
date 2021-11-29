@@ -542,6 +542,16 @@ set(ezinject_sources
 	${os_sources}
 )
 
+if(EZ_TARGET_LINUX)
+	list(APPEND ezinject_sources ezinject_libcloader.c)
+
+	add_executable(ezinject_libcloader_helper
+		ezinject_libcloader_helper.c
+	)
+	target_link_libraries(ezinject_libcloader_helper ${DL_LIBRARY_NAME})
+endif()
+
+
 add_executable(ezinject ${ezinject_sources})
 
 

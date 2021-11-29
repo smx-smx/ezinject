@@ -67,10 +67,12 @@ intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc){
  **/
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
 	args->result = args->wrapper.target(args);
-	args->libc_syscall(__NR_kill,
-		args->libc_syscall(__NR_getpid),
-		SIGTRAP
-	);
+	if(args->libc_syscall != NULL){
+		args->libc_syscall(__NR_kill,
+			args->libc_syscall(__NR_getpid),
+			SIGTRAP
+		);
+	}
 	while(1);
 }
 #endif
@@ -103,6 +105,19 @@ void PLAPI trampoline(){
 	register volatile struct injcode_call *args = NULL;
 	register uintptr_t (*target)(volatile struct injcode_call *) = NULL;
 	POP_PARAMS(args, target);
+
+	if(args->pivot_mode) {
+		// pivot stack
+		asm volatile(
+			//JMP_INSN " .\n\t"
+			"mov %0, %%rsp\n\t"
+			::
+			"m"(args->argv[0])
+		);
+		// we want a jmp to preserve stack layout
+		goto *target;
+		asm volatile(JMP_INSN " .");
+	}
 	target(args);
 
 	asm volatile(JMP_INSN " .");

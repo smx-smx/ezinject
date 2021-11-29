@@ -26,6 +26,7 @@
 #endif
 
 #include "ezinject_injcode.h"
+#include "ezinject_arch.h"
 
 typedef struct {
 	uintptr_t remote;
@@ -60,6 +61,10 @@ struct ezinj_ctx {
 	int pl_debug;
 	int syscall_mode;
 	pid_t target;
+	
+	int is_static;
+	regs_t alt_libc_regs;
+
 #ifdef EZ_TARGET_WINDOWS
 	DEBUG_EVENT ev;
 	HANDLE hProc;
@@ -77,6 +82,7 @@ struct ezinj_ctx {
 	ez_addr libc;
 	ez_addr libdl;
 	ez_addr entry_insn;
+	ez_addr entry_arg;
 	ez_addr branch_target;
 	ez_addr pl_stack;
 	pfnCallHandler rcall_handler_pre;
@@ -144,6 +150,7 @@ struct ezinj_str {
 
 struct call_req {
 	uintptr_t insn_addr;
+	uintptr_t fn_arg;
 	uintptr_t stack_addr;
 	
 	unsigned int argmask;
@@ -161,8 +168,6 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 
 /** remote API **/
 #define EZAPI intptr_t
-
-#include "ezinject_arch.h"
 
 EZAPI remote_call(
 	struct ezinj_ctx *ctx,

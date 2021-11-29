@@ -19,6 +19,7 @@
 #endif
 
 #define ALIGN(x, y) VPTR((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y))
+#define TRUNCATE(x, y) VPTR((UPTR(x) & ~ALIGNMSK(y)))
 #define WORDALIGN(x) ALIGN(x, sizeof(void *))
 #define PAGEALIGN(x)  ALIGN(x, getpagesize())
 
