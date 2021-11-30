@@ -383,6 +383,8 @@ static EZAPI _remote_prepare_elf(
 				break;
 		}
 	}
+	// go past AT_NULL
+	++av;
 
 	size_t auxv_size = WORDALIGN(PTRDIFF(av, auxv.local));
 	elf->auxv_size = auxv_size;
