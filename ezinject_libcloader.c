@@ -386,13 +386,6 @@ static EZAPI _remote_prepare_elf(
 
 	size_t auxv_size = WORDALIGN(PTRDIFF(av, auxv.local));
 	elf->auxv_size = auxv_size;
-	
-	// write patched AUXV
-	if(remote_write(ctx, auxv.remote, auxv.local, auxv_size) != (intptr_t)auxv_size){
-		ERR("failed to write patched auxv");
-		return -1;
-	}
-
 	return 0;
 }
 
