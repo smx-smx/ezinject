@@ -7,7 +7,9 @@ enable_testing()
 include(CheckPIESupported)
 check_pie_supported()
 
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(NOT EZ_TARGET_WINDOWS)
+	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 	set(EZ_TARGET_LINUX TRUE)
@@ -466,9 +468,9 @@ endfunction()
 
 set(_common_flags "")
 
-if(EZ_TARGET_DARWIN)
-	string(APPEND _common_flags " -Wl,-undefined,error")
-else()
+#if(EZ_TARGET_DARWIN)
+#	string(APPEND _common_flags " -Wl,-undefined,error")
+if(NOT EZ_TARGET_DARWIN)
 	string(APPEND _common_flags " -Wl,--no-undefined")
 endif()
 
