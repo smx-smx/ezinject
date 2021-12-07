@@ -7,11 +7,6 @@ enable_testing()
 include(CheckPIESupported)
 check_pie_supported()
 
-if(EZ_TARGET_POSIX)
-	add_definitions(-fPIC)
-	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-endif()
-
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 	set(EZ_TARGET_LINUX TRUE)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
