@@ -567,7 +567,7 @@ macro(ezinject_lib target_name mode)
 	if(EZ_TARGET_FREEBSD)
 		target_link_libraries(${target_name} procstat)
 	endif()
-	target_compile_definitions(${target_name} INTERFACE -DEZ_LIB)
+	target_compile_definitions(${target_name} PUBLIC -DEZ_LIB)
 endmacro(ezinject_lib)
 
 ezinject_lib(libezinject_static STATIC)
