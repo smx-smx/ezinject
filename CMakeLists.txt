@@ -7,7 +7,7 @@ enable_testing()
 include(CheckPIESupported)
 check_pie_supported()
 
-if(NOT EZ_TARGET_WINDOWS)
+if(EZ_TARGET_POSIX)
 	add_definitions(-fPIC)
 endif()
 
@@ -468,9 +468,9 @@ endfunction()
 
 set(_common_flags "")
 
-#if(EZ_TARGET_DARWIN)
-#	string(APPEND _common_flags " -Wl,-undefined,error")
-if(NOT EZ_TARGET_DARWIN)
+if(EZ_TARGET_DARWIN)
+	string(APPEND _common_flags " -Wl,-undefined,error")
+else()
 	string(APPEND _common_flags " -Wl,--no-undefined")
 endif()
 
@@ -569,10 +569,15 @@ macro(ezinject_lib target_name mode)
 	if(EZ_TARGET_FREEBSD)
 		target_link_libraries(${target_name} procstat)
 	endif()
+	target_compile_definitions(${target_name} INTERFACE -DEZ_LIB)
 endmacro(ezinject_lib)
 
 ezinject_lib(libezinject_static STATIC)
 ezinject_lib(libezinject_shared SHARED)
+
+if(EZ_TARGET_WINDOWS)
+	set_target_properties(libezinject_shared PROPERTIES POSITION_INDEPENDENT_CODE OFF)
+endif()
 
 set(ezinject_sources
 	ezinject.c
