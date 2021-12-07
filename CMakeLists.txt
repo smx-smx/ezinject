@@ -76,7 +76,10 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 11)
 
 
-set(_common_flags " -fPIC -Wall")
+set(_common_flags " -Wall")
+if(EZ_TARGET_POSIX)
+	string(APPEND _common_flags " -fPIC")
+endif()
 string(APPEND CMAKE_C_FLAGS ${_common_flags})
 string(APPEND CMAKE_CXX_FLAGS ${_common_flags})
 
@@ -472,10 +475,6 @@ else()
 	string(APPEND _common_flags " -Wl,--no-undefined")
 endif()
 
-if(EZ_TARGET_WINDOWS)
-	string(APPEND _common_flags " -Wl,-U,verbosity")
-endif()
-
 string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_flags})
 string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_flags})
 
@@ -567,15 +566,11 @@ macro(ezinject_lib target_name mode)
 	if(EZ_TARGET_FREEBSD)
 		target_link_libraries(${target_name} procstat)
 	endif()
-	target_compile_definitions(${target_name} PUBLIC -DEZ_LIB)
 endmacro(ezinject_lib)
 
 ezinject_lib(libezinject_static STATIC)
 ezinject_lib(libezinject_shared SHARED)
-
-if(EZ_TARGET_WINDOWS)
-	set_target_properties(libezinject_shared PROPERTIES POSITION_INDEPENDENT_CODE OFF)
-endif()
+target_compile_definitions(libezinject_shared PUBLIC -DEZ_SHARED)
 
 set(ezinject_sources
 	ezinject.c

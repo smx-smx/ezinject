@@ -13,7 +13,7 @@
 #include "dlfcn_compat.h"
 #include "ezinject.h"
 
-#ifdef EZ_LIB
+#ifdef EZ_SHARED
 #include "log.h"
 LOG_SETUP(V_DBG);
 #endif
