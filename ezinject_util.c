@@ -10,11 +10,11 @@
 #include <string.h>
 #include <ctype.h>
 
-#include <dlfcn.h>
+#include "dlfcn_compat.h"
 #include "ezinject.h"
 
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
-	uintptr_t sym_addr = (uintptr_t)dlsym(handle, sym_name);
+	uintptr_t sym_addr = (uintptr_t)LIB_GETSYM(handle, sym_name);
 	ez_addr sym = {
 		.local = sym_addr,
 		.remote = (sym_addr == 0) ? 0 : EZ_REMOTE(lib, sym_addr)

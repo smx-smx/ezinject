@@ -20,7 +20,6 @@
 #include "config.h"
 
 #include <fcntl.h>
-#include <dlfcn.h>
 #include <sched.h>
 
 #ifdef EZ_TARGET_POSIX
@@ -35,6 +34,7 @@
 
 #include <sys/stat.h>
 
+#include "dlfcn_compat.h"
 #include "ezinject_util.h"
 #include "ezinject.h"
 #include "ezinject_common.h"
@@ -332,16 +332,16 @@ int libc_init(struct ezinj_ctx *ctx){
 	}
 	ctx->libc = libc;
 
-	void *h_libc = dlopen(C_LIBRARY_NAME, RTLD_LAZY);
+	void *h_libc = LIB_OPEN(C_LIBRARY_NAME);
 	if(!h_libc){
-		ERR("dlopen("C_LIBRARY_NAME") failed: %s", dlerror());
+		ERR("dlopen("C_LIBRARY_NAME") failed: %s", LIB_ERROR());
 		return 1;
 	}
 
 	{
-		void *h_libdl = dlopen(DL_LIBRARY_NAME, RTLD_LAZY);
+		void *h_libdl = LIB_OPEN(DL_LIBRARY_NAME);
 		if(!h_libdl){
-			ERR("dlopen("DL_LIBRARY_NAME") failed: %s", dlerror());
+			ERR("dlopen("DL_LIBRARY_NAME") failed: %s", LIB_ERROR());
 			return 1;
 		}
 
@@ -354,22 +354,22 @@ int libc_init(struct ezinj_ctx *ctx){
 		DBGPTR(libdl.local);
 		DBGPTR(libdl.remote);
 
-		void *dlopen_local = dlsym(h_libdl, "dlopen");
+		void *dlopen_local = LIB_GETSYM(h_libdl, "dlopen");
 		off_t dlopen_offset = (off_t)PTRDIFF(dlopen_local, libdl.local);
 		DBG("dlopen offset: 0x%lx", dlopen_offset);
 		ctx->dlopen_offset = dlopen_offset;
 
-		void *dlclose_local = dlsym(h_libdl, "dlclose");
+		void *dlclose_local = LIB_GETSYM(h_libdl, "dlclose");
 		off_t dlclose_offset = (off_t)PTRDIFF(dlclose_local, libdl.local);
 		DBG("dlclose offset: 0x%lx", dlclose_offset);
 		ctx->dlclose_offset = dlclose_offset;
 
-		void *dlsym_local = dlsym(h_libdl, "dlsym");
+		void *dlsym_local = LIB_GETSYM(h_libdl, "dlsym");
 		off_t dlsym_offset = (off_t)PTRDIFF(dlsym_local, libdl.local);
 		DBG("dlsym offset: 0x%lx", dlsym_offset);
 		ctx->dlsym_offset = dlsym_offset;
 
-		dlclose(h_libdl);
+		LIB_CLOSE(h_libdl);
 	}
 
 	if(resolve_libc_symbols(ctx) != 0){
@@ -385,7 +385,7 @@ int libc_init(struct ezinj_ctx *ctx){
 	USE_LIBC_SYM(syscall);
 #undef USE_LIBC_SYM
 
-	dlclose(h_libc);
+	LIB_CLOSE(h_libc);
 	return 0;
 }
 
