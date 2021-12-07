@@ -53,18 +53,6 @@ if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD OR EZ_TARGET_DARWIN)
 	set(EZ_TARGET_POSIX TRUE)
 endif()
 
-set(_common_flags " -Wl,--no-undefined")
-
-string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_flags})
-string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_flags})
-
-if(EZ_TARGET_WINDOWS)
-	set(_common_appends "-Wl,-U,verbosity")
-
-	string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_appends})
-	string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_appends})
-endif()
-
 set(USING_GNU_LD FALSE)
 
 if(APPLE AND (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang"))
@@ -475,6 +463,18 @@ function(add_ezinject_library target)
 		)
 	endif()
 endfunction()
+
+set(_common_flags " -Wl,--no-undefined")
+
+string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_flags})
+string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_flags})
+
+if(EZ_TARGET_WINDOWS)
+	set(_common_appends "-Wl,-U,verbosity")
+
+	string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_appends})
+	string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_appends})
+endif()
 
 set(lib_sources 
 	ezinject_util.c
