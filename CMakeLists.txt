@@ -7,7 +7,7 @@ enable_testing()
 include(CheckPIESupported)
 check_pie_supported()
 
-add_definitions(-fPIC)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 	set(EZ_TARGET_LINUX TRUE)
@@ -358,9 +358,9 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	if(EZ_LIBC_VARIANT STREQUAL "android-2")
 	elseif(EZ_LIBC_VARIANT STREQUAL "android-5")
 		# android 5+ requires -fPIE
-		set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+		set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 	elseif(EZ_LIBC_VARIANT STREQUAL "android-10")
-		set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+		set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 		if(EZ_ARCH_ARM64)
 			set(DYN_LINKER_NAME "/apex/com.android.runtime/bin/linker64")
 		else()
@@ -563,6 +563,10 @@ macro(ezinject_lib target_name mode)
 	add_library(${target_name} ${mode} ${lib_sources})
 	set_target_properties(${target_name} PROPERTIES OUTPUT_NAME ezinject)
 	target_link_libraries(${target_name} ${DL_LIBRARY_NAME})
+
+	if(EZ_TARGET_FREEBSD)
+		target_link_libraries(${target_name} procstat)
+	endif()
 endmacro(ezinject_lib)
 
 ezinject_lib(libezinject_static STATIC)
@@ -576,10 +580,6 @@ set(ezinject_sources
 
 add_executable(ezinject ${ezinject_sources})
 target_link_libraries(ezinject libezinject_static)
-
-if(EZ_TARGET_FREEBSD)
-	target_link_libraries(ezinject procstat)
-endif()
 
 if(ENABLE_STATIC)
 	target_link_options(ezinject PUBLIC -static)

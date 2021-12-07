@@ -125,7 +125,6 @@ windows_x64_task:
       mingw-w64-x86_64-cmake
       mingw-w64-x86_64-pkgconf
       mingw-w64-x86_64-capstone
-      mingw-w64-x86_64-dlfcn
     "
     CHERE_INVOKING: 1
   msys2_cache:
