@@ -8,7 +8,7 @@ include(CheckPIESupported)
 check_pie_supported()
 
 if(NOT EZ_TARGET_WINDOWS)
-	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+	add_definitions(-fPIC)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
