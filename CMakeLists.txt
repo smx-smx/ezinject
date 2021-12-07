@@ -53,9 +53,16 @@ if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD OR EZ_TARGET_DARWIN)
 	set(EZ_TARGET_POSIX TRUE)
 endif()
 
-if(NOT EZ_TARGET_ANDROID)
-	string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,--no-undefined")
-	string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,--no-undefined")
+set(_common_flags " -Wl,--no-undefined")
+
+string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_flags})
+string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_flags})
+
+if(EZ_TARGET_WINDOWS)
+	set(_common_appends "-Wl,-U,verbosity")
+
+	string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_appends})
+	string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_appends})
 endif()
 
 set(USING_GNU_LD FALSE)
