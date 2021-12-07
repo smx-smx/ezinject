@@ -53,10 +53,9 @@ if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD OR EZ_TARGET_DARWIN)
 	set(EZ_TARGET_POSIX TRUE)
 endif()
 
-if(EZ_TARGET_LINUX)
-	if(NOT EZ_TARGET_ANDROID)
-		add_definitions(-Wl,--no-undefined)
-	endif()
+if(NOT EZ_TARGET_ANDROID)
+	string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,--no-undefined")
+	string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,--no-undefined")
 endif()
 
 set(USING_GNU_LD FALSE)
@@ -470,57 +469,68 @@ function(add_ezinject_library target)
 	endif()
 endfunction()
 
-set(os_sources "")
+set(lib_sources "")
+set(target_sources "")
 if(EZ_TARGET_POSIX)
-	list(APPEND os_sources
+	list(APPEND lib_sources
 		os/posix/remote.c
+	)
+	list(APPEND target_sources
 		os/posix/inject.c
 	)
 	if(EZ_TARGET_LINUX)
-		list(APPEND os_sources
-			os/linux/inject.c
+		list(APPEND lib_sources
 			os/linux/remote.c
 			os/linux/util.c
+		)
+		list(APPEND target_sources
+			os/linux/inject.c
 		)
 
 		# bionic
 		if(EZ_TARGET_ANDROID)
-			list(APPEND os_sources
+			list(APPEND lib_sources
 				os/android/libc_bionic.c
 				elfparse.c
 			)
 		# glibc
 		elseif(HAVE_LIBC_DLOPEN_MODE)
-			list(APPEND os_sources
+			list(APPEND lib_sources
 				os/linux/libc_glibc.c
 			)
 		# uClibc
 		elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
-			list(APPEND os_sources
+			list(APPEND lib_sources
 				os/linux/libc_uclibc.c
 			)
 		endif()
 	elseif(EZ_TARGET_FREEBSD)
-		list(APPEND os_sources
+		list(APPEND lib_sources
 			os/freebsd/remote.c
-			os/freebsd/inject.c
 			os/freebsd/util.c
 			os/freebsd/libc_freebsd.c
 		)
+		list(APPEND target_sources
+			os/freebsd/inject.c
+		)
 	elseif(EZ_TARGET_DARWIN)
-		list(APPEND os_sources
+		list(APPEND lib_sources
 			os/darwin/remote.c
-			os/darwin/inject.c
 			os/darwin/util.c
 			os/darwin/libc_darwin.c
 		)
+		list(APPEND target_sources
+			os/darwin/inject.c
+		)
 	endif()
 elseif(EZ_TARGET_WINDOWS)
-	list(APPEND os_sources
+	list(APPEND lib_sources
 		os/windows/remote.c
-		os/windows/inject.c
 		os/windows/util.c
 		os/windows/libc_windows.c
+	)
+	list(APPEND target_sources
+		os/windows/inject.c
 	)
 endif()
 
@@ -535,15 +545,24 @@ if(EZ_TARGET_LINUX)
 	)
 endif()
 
+macro(ezinject_lib target_name)
+	add_library(${target_name} ${mode} ${lib_sources})
+	set_target_properties(${target_name} PROPERTIES OUTPUT_NAME ezinject)
+	target_link_libraries(${target_name} ${DL_LIBRARY_NAME})
+endmacro(ezinject_lib)
+
+ezinject_lib(libezinject_static STATIC)
+ezinject_lib(libezinject_shared SHARED)
+
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
 	ezinject_util.c
-	${os_sources}
+	${target_sources}
 )
 
 add_executable(ezinject ${ezinject_sources})
-
+target_link_libraries(ezinject libezinject_static)
 
 if(EZ_TARGET_FREEBSD)
 	target_link_libraries(ezinject procstat)
