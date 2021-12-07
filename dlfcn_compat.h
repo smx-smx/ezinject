@@ -20,7 +20,7 @@
 #elif defined(EZ_TARGET_POSIX)
 # include <dlfcn.h>
 # define LIB_HANDLE void *
-# define LIB_OPEN(path) dlopen(path, RTLD_GLOBAL)
+# define LIB_OPEN(path) dlopen(path, RTLD_LAZY | RTLD_GLOBAL)
 # define LIB_GETSYM(handle, sym) dlsym(handle, sym)
 # define LIB_CLOSE(handle) dlclose(handle)
 #else
