@@ -41,7 +41,7 @@
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
-enum verbosity_level verbosity = V_DBG;
+LOG_SETUP(V_DBG);
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
@@ -306,15 +306,6 @@ struct ezinj_str ezstr_new(char *str){
 		.str = str
 	};
 	return bstr;
-}
-
-ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
-	uintptr_t sym_addr = (uintptr_t)dlsym(handle, sym_name);
-	ez_addr sym = {
-		.local = sym_addr,
-		.remote = (sym_addr == 0) ? 0 : EZ_REMOTE(lib, sym_addr)
-	};
-	return sym;
 }
 
 #ifdef EZ_TARGET_LINUX

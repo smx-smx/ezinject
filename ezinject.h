@@ -25,6 +25,7 @@
 #include <mach/mach.h>
 #endif
 
+#include "log.h"
 #include "ezinject_injcode.h"
 
 typedef struct {
@@ -170,7 +171,6 @@ EZAPI remote_call(
 );
 
 /** attach api **/
-
 EZAPI remote_attach(struct ezinj_ctx *ctx);
 EZAPI remote_detach(struct ezinj_ctx *ctx);
 EZAPI remote_suspend(struct ezinj_ctx *ctx);
@@ -195,4 +195,7 @@ EZAPI remote_sc_check(struct ezinj_ctx *ctx);
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call);
 EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base);
 EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base);
+
+/** util api **/
+void *get_base(pid_t pid, char *substr, char **ignores);
 #endif

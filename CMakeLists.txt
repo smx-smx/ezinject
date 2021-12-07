@@ -469,7 +469,9 @@ function(add_ezinject_library target)
 	endif()
 endfunction()
 
-set(lib_sources "")
+set(lib_sources 
+	ezinject_util.c
+)
 set(target_sources "")
 if(EZ_TARGET_POSIX)
 	list(APPEND lib_sources
@@ -543,9 +545,10 @@ if(EZ_TARGET_LINUX)
 		ezinject_util.c
 		os/linux/util.c
 	)
+	target_link_libraries(ezpatch ${DL_LIBRARY_NAME})
 endif()
 
-macro(ezinject_lib target_name)
+macro(ezinject_lib target_name mode)
 	add_library(${target_name} ${mode} ${lib_sources})
 	set_target_properties(${target_name} PROPERTIES OUTPUT_NAME ezinject)
 	target_link_libraries(${target_name} ${DL_LIBRARY_NAME})
@@ -557,7 +560,6 @@ ezinject_lib(libezinject_shared SHARED)
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
-	ezinject_util.c
 	${target_sources}
 )
 

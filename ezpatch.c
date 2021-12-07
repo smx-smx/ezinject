@@ -24,7 +24,7 @@
 #include "ezinject_util.h"
 #include "elfparse.h"
 
-enum verbosity_level verbosity = V_INFO;
+LOG_SETUP(V_DBG);
 
 void apply_patch(pid_t target, void *target_addr, void *patch, size_t patchlen)
 {
