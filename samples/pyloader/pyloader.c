@@ -8,7 +8,6 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <dlfcn.h>
 #include <string.h>
 #include <libgen.h>
 #include <unistd.h>
@@ -81,7 +80,7 @@ int lib_main(int argc, char *argv[]){
 	 **/
 	void *hpy = LIB_OPEN(libPythonPath);
 	if(hpy == NULL){
-		lprintf("dlopen '%s' failed: %s\n", libPythonPath, dlerror());
+		lprintf("dlopen '%s' failed: %s\n", libPythonPath, LIB_ERROR());
 		return 1;
 	}
 

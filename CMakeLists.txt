@@ -607,7 +607,9 @@ endif()
 # -ffreestanding: don't assume libc functions exist
 # -fno-stack-check,-mno-stack-arg-probe: don't emit ___chkstk_ms calls
 set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "${injcode_cflags}")
-target_link_libraries(ezinject dl)
+if(EZ_TARGET_POSIX)
+	target_link_libraries(ezinject dl)
+endif()
 
 add_subdirectory(crt)
 add_subdirectory(samples)

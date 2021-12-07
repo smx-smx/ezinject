@@ -36,7 +36,6 @@ for:
       MSYSTEM: MINGW64
       MSYS2_PACKAGES: "
         mingw-w64-x86_64-capstone
-        mingw-w64-x86_64-dlfcn
       "
       CHERE_INVOKING: 1
     install:
