@@ -464,17 +464,21 @@ function(add_ezinject_library target)
 	endif()
 endfunction()
 
-set(_common_flags " -Wl,--no-undefined")
+set(_common_flags "")
+
+if(EZ_TARGET_DARWIN)
+	string(APPEND _common_flags " -Wl,-undefined,error")
+else()
+	string(APPEND _common_flags " -Wl,--no-undefined")
+endif()
+
+if(EZ_TARGET_WINDOWS)
+	string(APPEND _common_flags " -Wl,-U,verbosity")
+endif()
 
 string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_flags})
 string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_flags})
 
-if(EZ_TARGET_WINDOWS)
-	set(_common_appends "-Wl,-U,verbosity")
-
-	string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_appends})
-	string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_appends})
-endif()
 
 set(lib_sources 
 	ezinject_util.c
