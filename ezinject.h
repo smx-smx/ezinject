@@ -14,18 +14,25 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <sys/types.h>
-
-#ifdef EZ_TARGET_LINUX
-#include <asm/ptrace.h>
-#include <sys/user.h>
+#ifndef EZAPI_GEN
+# include <sys/types.h>
+# ifdef EZ_TARGET_LINUX
+#  include <asm/ptrace.h>
+#  include <sys/user.h>
+# endif
+#else
+#include <bits/types.h>
+typedef __pid_t pid_t;
 #endif
 
 #ifdef EZ_TARGET_DARWIN
 #include <mach/mach.h>
 #endif
 
+#ifndef EZAPI_GEN
 #include "log.h"
+#endif
+
 #include "ezinject_injcode.h"
 
 typedef struct {
@@ -52,6 +59,8 @@ struct ezinj_pl {
 };
 
 struct ezinj_ctx;
+
+typedef intptr_t EZAPI;
 
 #define PL_REMOTE(ctx, addr) (ctx->mapped_mem.remote + PTRDIFF(addr, ctx->mapped_mem.local))
 
@@ -161,14 +170,14 @@ struct call_req {
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 
 /** remote API **/
-#define EZAPI intptr_t
-
 #include "ezinject_arch.h"
 
+#ifndef EZAPI_GEN //$TODO
 EZAPI remote_call(
 	struct ezinj_ctx *ctx,
 	unsigned int argmask, ...
 );
+#endif
 
 /** attach api **/
 EZAPI remote_attach(struct ezinj_ctx *ctx);
@@ -183,6 +192,7 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
 
 /** injection api **/ 
+#ifndef EZAPI_GEN
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);
 EZAPI remote_pl_copy(struct ezinj_ctx *ctx);
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);
@@ -195,6 +205,7 @@ EZAPI remote_sc_check(struct ezinj_ctx *ctx);
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call);
 EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base);
 EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base);
+#endif
 
 /** util api **/
 void *get_base(pid_t pid, char *substr, char **ignores);

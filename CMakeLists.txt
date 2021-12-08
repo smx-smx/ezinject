@@ -585,6 +585,30 @@ if(ENABLE_STATIC)
 	target_link_options(ezinject PUBLIC -static)
 endif()
 
+add_custom_command(
+	VERBATIM
+	OUTPUT ezapi.h
+	MAIN_DEPENDENCY
+		ezinject.h
+	DEPENDS
+		ezinject_injcode.h
+		ezinject_common.h
+	COMMAND ${CMAKE_COMMAND}
+		-E echo "#define FFI_LIB \"./build/libezinject.so\"" > ezapi.h
+	COMMAND ${CMAKE_C_COMPILER}
+		-I${CMAKE_SOURCE_DIR} -I${CMAKE_BINARY_DIR}
+		-D"__mode__(x)="
+		-D"__access__(...)="
+		-D__signed__=
+		-D__weak__=
+		-D"section(x)="
+		-DEZAPI_GEN
+		-E ${CMAKE_SOURCE_DIR}/ezinject.h >> ezapi.h
+)
+add_custom_target(generate_ezapi ALL
+	DEPENDS ezapi.h
+)
+
 check_c_compiler_flag("-mno-stack-arg-probe" HAVE_CFLAG_STACK_ARG_PROBE)
 check_c_compiler_flag("-fno-jump-tables" HAVE_CFLAG_NO_JUMP_TABLES)
 check_c_compiler_flag("-fno-stack-protector" HAVE_CFLAG_NO_STACK_PROTECTOR)

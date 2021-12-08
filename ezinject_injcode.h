@@ -11,8 +11,13 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+
+#ifndef EZAPI_GEN
 #include <sys/types.h>
 #include <pthread.h>
+#else
+#include <bits/pthreadtypes.h>
+#endif
 
 #include "config.h"
 
@@ -308,6 +313,7 @@ typedef struct {
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
 #endif
 
+#ifndef EZAPI_GEN
 #ifdef EZ_TARGET_POSIX
 extern intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc1(volatile struct injcode_call *sc);
@@ -334,6 +340,7 @@ extern uint8_t __start_payload SECTION_START("payload");
 extern uint8_t __stop_payload SECTION_END("payload");
 extern uint8_t __start_syscall SECTION_START("syscall");
 extern uint8_t __stop_syscall SECTION_END("syscall");
+#endif
 
 #define INJ_ERR_LIBDL 1
 #define INJ_ERR_LIBPTHREAD 2
