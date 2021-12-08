@@ -19,6 +19,16 @@
 #include "ezinject.h"
 #include "log.h"
 
+EZAPI remote_sc_check(struct ezinj_ctx *ctx){
+	pid_t remote_pid = (pid_t)RSCALL0(ctx, SYS_getpid);
+	if(remote_pid != ctx->target){
+		ERR("Remote syscall returned incorrect result!");
+		ERR("Expected: %u, actual: %u", ctx->target, remote_pid);
+		return -1;
+	}
+	return 0;
+}
+
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 	uintptr_t result = RSCALL6(ctx, SYS_mmap,
 		NULL, mapping_size,

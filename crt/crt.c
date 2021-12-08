@@ -40,7 +40,6 @@
 #include <fcntl.h>
 
 #include <pthread.h>
-#include <dlfcn.h>
 
 #include "ezinject.h"
 #include "ezinject_common.h"

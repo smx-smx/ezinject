@@ -20,7 +20,11 @@ extern enum verbosity_level
 	V_WARN,
 	V_INFO,
 	V_DBG
-} verbosity __attribute__((weak));
+} verbosity
+#ifdef EZ_TARGET_POSIX
+__attribute__((weak))
+#endif
+;
 
 #if __WORDSIZE == 64
 #define LX "%lx"

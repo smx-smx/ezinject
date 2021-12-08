@@ -12,7 +12,7 @@ add_ezinject_library(dummy
 )
 
 set(required_libs "")
-if(NOT ANDROID)
+if(NOT ANDROID AND EZ_TARGET_POSIX)
 	list(APPEND required_libs dl)
 endif()
 
