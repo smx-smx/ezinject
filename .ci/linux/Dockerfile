@@ -20,3 +20,13 @@ RUN cd /tmp && curl -LO https://dl.google.com/android/repository/android-ndk-r14
         --api 21 \
         --install-dir /opt/android-ndk-r14b-android-21-arm64 \
 	&& rm /tmp/android-ndk-r14b-linux-x86_64.zip
+
+RUN mkdir -p /opt/arm-buildroot-linux-uclibcgnueabi && \
+	cd /opt/arm-buildroot-linux-uclibcgnueabi && \
+	curl -L -o - https://github.com/smx-smx/arm-buildroot-linux-uclibcgnueabi/archive/refs/heads/master.tar.gz |\
+	tar --strip-components=1 -xvzf -
+
+RUN mkdir -p /opt/trendchip/mips-linux-uclibc && \
+	cd /opt/trendchip/mips-linux-uclibc && \
+	curl -L -o - https://github.com/smx-smx/trendchip-mips-linux-uclibc/archive/refs/heads/master.tar.gz |\
+	tar --strip-components=1 -xvzf -
