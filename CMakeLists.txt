@@ -1,6 +1,9 @@
-# 3.14 requirement: https://cmake.org/cmake/help/latest/policy/CMP0083.html
+# TODO: confirm minimum requirement
+cmake_minimum_required(VERSION 3.10)
+
 set(HAVE_CMAKE314 TRUE)
 if(${CMAKE_VERSION} VERSION_LESS "3.14") 
+	# 3.14 requirement: https://cmake.org/cmake/help/latest/policy/CMP0083.html
     message(WARNING "CMake older than 3.14 detected. You might experience problems with Android builds")
 	set(HAVE_CMAKE314 FALSE)
 endif()
