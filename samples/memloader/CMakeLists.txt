@@ -5,19 +5,19 @@ macro(handle_asm_file file)
 	set_property(SOURCE "${file}" PROPERTY COMPILE_DEFINITIONS __ASSEMBLY__)
 endmacro()
 
-handle_asm_file(memloader.S)
+handle_asm_file(memloader_blob.S)
 
 add_ezinject_library(memloader
 	SOURCES
 		memloader.c
-		memloader.S
+		memloader_blob.S
 )
 
 set(MODULE_FILE $<TARGET_FILE:module>)
 
 # if the module file changed, rebuild memloader.S
-add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/memloader.S
-	COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_SOURCE_DIR}/memloader.S
+add_custom_command(OUTPUT ${CMAKE_CURRENT_SOURCE_DIR}/memloader_blob.S
+	COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_SOURCE_DIR}/memloader_blob.S
 	DEPENDS ${MODULE_FILE}
 )
 
