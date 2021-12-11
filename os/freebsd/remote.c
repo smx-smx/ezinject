@@ -61,13 +61,3 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 	ptrace(PT_IO, ctx->target, (caddr_t)&iov, 0);
 	return iov.piod_len;
 }
-
-EZAPI remote_sc_check(struct ezinj_ctx *ctx){
-	pid_t remote_pid = (pid_t)RSCALL0(ctx, SYS_getpid);
-	if(remote_pid != ctx->target){
-		ERR("Remote syscall returned incorrect result!");
-		ERR("Expected: %u, actual: %u", ctx->target, remote_pid);
-		return -1;
-	}
-	return 0;
-}

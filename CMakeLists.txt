@@ -7,8 +7,6 @@ enable_testing()
 include(CheckPIESupported)
 check_pie_supported()
 
-add_definitions(-fPIC)
-
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 	set(EZ_TARGET_LINUX TRUE)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
@@ -53,12 +51,6 @@ if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD OR EZ_TARGET_DARWIN)
 	set(EZ_TARGET_POSIX TRUE)
 endif()
 
-if(EZ_TARGET_LINUX)
-	if(NOT EZ_TARGET_ANDROID)
-		add_definitions(-Wl,--no-undefined)
-	endif()
-endif()
-
 set(USING_GNU_LD FALSE)
 
 if(APPLE AND (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang"))
@@ -83,8 +75,13 @@ add_definitions(
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 11)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+
+set(_common_flags " -Wall")
+if(EZ_TARGET_POSIX)
+	string(APPEND _common_flags " -fPIC")
+endif()
+string(APPEND CMAKE_C_FLAGS ${_common_flags})
+string(APPEND CMAKE_CXX_FLAGS ${_common_flags})
 
 include(CheckCCompilerFlag)
 check_c_compiler_flag("-Wextra" HAVE_WEXTRA)
@@ -93,7 +90,7 @@ check_c_compiler_flag("-std=gnu99" HAVE_STDGNU)
 
 if(HAVE_WEXTRA)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
 endif()
 if(HAVE_WERROR_IMPLICIT_FN)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration")
@@ -364,9 +361,9 @@ elseif(EZ_LIBC STREQUAL "bionic")
 	if(EZ_LIBC_VARIANT STREQUAL "android-2")
 	elseif(EZ_LIBC_VARIANT STREQUAL "android-5")
 		# android 5+ requires -fPIE
-		set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+		set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 	elseif(EZ_LIBC_VARIANT STREQUAL "android-10")
-		set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+		set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 		if(EZ_ARCH_ARM64)
 			set(DYN_LINKER_NAME "/apex/com.android.runtime/bin/linker64")
 		else()
@@ -470,57 +467,82 @@ function(add_ezinject_library target)
 	endif()
 endfunction()
 
-set(os_sources "")
+set(_common_flags "")
+
+if(EZ_TARGET_DARWIN)
+	string(APPEND _common_flags " -Wl,-undefined,error")
+else()
+	string(APPEND _common_flags " -Wl,--no-undefined")
+endif()
+
+string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_flags})
+string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_flags})
+
+
+set(lib_sources 
+	ezinject_util.c
+)
+set(target_sources "")
 if(EZ_TARGET_POSIX)
-	list(APPEND os_sources
+	list(APPEND lib_sources
 		os/posix/remote.c
+	)
+	list(APPEND target_sources
 		os/posix/inject.c
 	)
 	if(EZ_TARGET_LINUX)
-		list(APPEND os_sources
-			os/linux/inject.c
+		list(APPEND lib_sources
 			os/linux/remote.c
 			os/linux/util.c
+		)
+		list(APPEND target_sources
+			os/linux/inject.c
 		)
 
 		# bionic
 		if(EZ_TARGET_ANDROID)
-			list(APPEND os_sources
+			list(APPEND lib_sources
 				os/android/libc_bionic.c
 				elfparse.c
 			)
 		# glibc
 		elseif(HAVE_LIBC_DLOPEN_MODE)
-			list(APPEND os_sources
+			list(APPEND lib_sources
 				os/linux/libc_glibc.c
 			)
 		# uClibc
 		elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
-			list(APPEND os_sources
+			list(APPEND lib_sources
 				os/linux/libc_uclibc.c
 			)
 		endif()
 	elseif(EZ_TARGET_FREEBSD)
-		list(APPEND os_sources
+		list(APPEND lib_sources
 			os/freebsd/remote.c
-			os/freebsd/inject.c
 			os/freebsd/util.c
 			os/freebsd/libc_freebsd.c
 		)
+		list(APPEND target_sources
+			os/freebsd/inject.c
+		)
 	elseif(EZ_TARGET_DARWIN)
-		list(APPEND os_sources
+		list(APPEND lib_sources
 			os/darwin/remote.c
-			os/darwin/inject.c
 			os/darwin/util.c
 			os/darwin/libc_darwin.c
 		)
+		list(APPEND target_sources
+			os/darwin/inject.c
+		)
 	endif()
 elseif(EZ_TARGET_WINDOWS)
-	list(APPEND os_sources
+	list(APPEND lib_sources
 		os/windows/remote.c
-		os/windows/inject.c
 		os/windows/util.c
 		os/windows/libc_windows.c
+	)
+	list(APPEND target_sources
+		os/windows/inject.c
 	)
 endif()
 
@@ -533,21 +555,31 @@ if(EZ_TARGET_LINUX)
 		ezinject_util.c
 		os/linux/util.c
 	)
+	target_link_libraries(ezpatch ${DL_LIBRARY_NAME})
 endif()
+
+macro(ezinject_lib target_name mode)
+	add_library(${target_name} ${mode} ${lib_sources})
+	set_target_properties(${target_name} PROPERTIES OUTPUT_NAME ezinject)
+	target_link_libraries(${target_name} ${DL_LIBRARY_NAME})
+
+	if(EZ_TARGET_FREEBSD)
+		target_link_libraries(${target_name} procstat)
+	endif()
+endmacro(ezinject_lib)
+
+ezinject_lib(libezinject_static STATIC)
+ezinject_lib(libezinject_shared SHARED)
+target_compile_definitions(libezinject_shared PUBLIC -DEZ_SHARED)
 
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
-	ezinject_util.c
-	${os_sources}
+	${target_sources}
 )
 
 add_executable(ezinject ${ezinject_sources})
-
-
-if(EZ_TARGET_FREEBSD)
-	target_link_libraries(ezinject procstat)
-endif()
+target_link_libraries(ezinject libezinject_static)
 
 if(ENABLE_STATIC)
 	target_link_options(ezinject PUBLIC -static)
@@ -575,7 +607,9 @@ endif()
 # -ffreestanding: don't assume libc functions exist
 # -fno-stack-check,-mno-stack-arg-probe: don't emit ___chkstk_ms calls
 set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "${injcode_cflags}")
-target_link_libraries(ezinject dl)
+if(EZ_TARGET_POSIX)
+	target_link_libraries(ezinject dl)
+endif()
 
 add_subdirectory(crt)
 add_subdirectory(samples)

@@ -8,7 +8,6 @@
  */
 #define EZINJECT_INJCODE
 
-#include <dlfcn.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdint.h>
@@ -28,6 +27,7 @@
 #include <sys/prctl.h>
 #endif
 
+#include "dlfcn_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_compat.h"
 #include "ezinject_arch.h"

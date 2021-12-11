@@ -17,12 +17,18 @@
 # define LIB_OPEN(path) LoadLibraryA(path)
 # define LIB_GETSYM(handle, sym) (void *)GetProcAddress(handle, sym)
 # define LIB_CLOSE(handle) FreeLibrary(handle)
+# define LIB_ERROR() "dlopen failure"
+# define RTLD_LAZY 0
+# define RTLD_NOW 0
+# define RTLD_GLOBAL 0
+// $TODO
 #elif defined(EZ_TARGET_POSIX)
 # include <dlfcn.h>
 # define LIB_HANDLE void *
-# define LIB_OPEN(path) dlopen(path, RTLD_GLOBAL)
+# define LIB_OPEN(path) dlopen(path, RTLD_LAZY | RTLD_GLOBAL)
 # define LIB_GETSYM(handle, sym) dlsym(handle, sym)
 # define LIB_CLOSE(handle) dlclose(handle)
+# define LIB_ERROR() dlerror()
 #else
 #error "Unsupported platform"
 #endif

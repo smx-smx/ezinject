@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <dlfcn.h>
 
 #include "config.h"
 #include "log.h"
 #include "interface/if_hook.h"
 #include "interface/cpu/if_sljit.h"
 
+#include "dlfcn_compat.h"
 #include "ezinject_util.h"
 #include "ezinject_injcode.h"
 
@@ -95,7 +95,7 @@ void installHooks(){
 	void *self = dlopen(NULL, RTLD_NOW);
 	#endif 
 	if(self == NULL){
-		ERR("dlopen failed: %s", dlerror());
+		ERR("dlopen failed: %s", LIB_ERROR());
 		return;
 	}
 
@@ -109,7 +109,7 @@ void installHooks(){
 		testFunc_t pfnTestFunc = dlsym(self, "func1");
 		#endif
 		if(pfnTestFunc == NULL){
-			ERR("Couldn't locate test function: %s", dlerror());
+			ERR("Couldn't locate test function: %s", LIB_ERROR());
 			break;
 		}
 

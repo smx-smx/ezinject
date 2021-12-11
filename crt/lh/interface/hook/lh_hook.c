@@ -11,7 +11,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-#include <dlfcn.h>
 #include <unistd.h>
 
 #include "config.h"

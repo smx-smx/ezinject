@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "log.h"
+#include "ezinject.h"
 
 void hexdump(void *pAddressIn, long lSize);
-void *get_base(pid_t pid, char *substr, char **ignores);
+ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
