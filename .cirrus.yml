@@ -56,6 +56,7 @@ linux_uclibc_armel_task:
 
   env:
     PATH: /opt/arm-buildroot-linux-uclibcgnueabi/bin:${PATH}
+    LD_LIBRARY_PATH: /opt/arm-buildroot-linux-uclibcgnueabi/lib:${LD_LIBRARY_PATH}
 
   script:
     - ./build.sh ./targets/arm-buildroot-bcm-uclibc.cmake

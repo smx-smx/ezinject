@@ -24,9 +24,15 @@ RUN cd /tmp && curl -LO https://dl.google.com/android/repository/android-ndk-r14
 RUN mkdir -p /opt/arm-buildroot-linux-uclibcgnueabi && \
 	cd /opt/arm-buildroot-linux-uclibcgnueabi && \
 	curl -L -o - https://github.com/smx-smx/arm-buildroot-linux-uclibcgnueabi/archive/refs/heads/master.tar.gz |\
-	tar --strip-components=1 -xvzf -
+	tar --strip-components=1 -xzf -
+
+RUN dpkg --add-architecture i386 \
+	&& apt-get update \
+	&& apt-get install -y libc6:i386 libstdc++6:i386 libgcc1:i386 zlib1g:i386 libncurses5:i386 \
+	&& apt-get clean \
+	&& rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /opt/trendchip/mips-linux-uclibc && \
 	cd /opt/trendchip/mips-linux-uclibc && \
 	curl -L -o - https://github.com/smx-smx/trendchip-mips-linux-uclibc/archive/refs/heads/master.tar.gz |\
-	tar --strip-components=1 -xvzf -
+	tar --strip-components=1 -xzf -
