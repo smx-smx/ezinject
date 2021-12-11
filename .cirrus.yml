@@ -1,3 +1,20 @@
+linux_arm64_task:
+  arm_container:
+    image: gcc:10.3.0-buster
+
+  env:
+    PATH: /usr/local/bin:${PATH}
+
+  install_script:
+    - apt-get -qq update
+    - apt-get install -y cmake
+
+  script:
+    - ./build.sh
+
+  test_script:
+    - (cd build; ctest -V)
+
 linux_x64_task:
   container:
     dockerfile: .ci/linux/Dockerfile

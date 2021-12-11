@@ -1,11 +1,17 @@
 # 3.14 requirement: https://cmake.org/cmake/help/latest/policy/CMP0083.html
-cmake_minimum_required(VERSION 3.14)
+set(HAVE_CMAKE314 TRUE)
+if(${CMAKE_VERSION} VERSION_LESS "3.14") 
+    message(WARNING "CMake older than 3.14 detected. You might experience problems with Android builds")
+	set(HAVE_CMAKE314 FALSE)
+endif()
 project(ezpatch C ASM)
 enable_language(CXX OPTIONAL)
 enable_testing()
 
-include(CheckPIESupported)
-check_pie_supported()
+if(HAVE_CMAKE314)
+	include(CheckPIESupported)
+	check_pie_supported()
+endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 	set(EZ_TARGET_LINUX TRUE)
