@@ -1,15 +1,10 @@
 linux_x64_task:
   container:
-    image: gcc:10.3.0-buster
+    dockerfile: .ci/linux/Dockerfile
 
   env:
     PATH: /usr/local/bin:${PATH}
 
-  install_script:
-    - wget -O cmake.sh https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh
-    - sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
-    - apt-get update -qq
-    - apt-get install -y libcapstone-dev
   script:
     - ./build.sh
   #test_script:
@@ -17,26 +12,11 @@ linux_x64_task:
 
 linux_android_armel_task:
   container:
-    image: gcc:10.3.0-buster
+    dockerfile: .ci/linux/Dockerfile
 
   env:
     PATH: /usr/local/bin:/opt/android-ndk-r14b-android-9/bin:${PATH}
 
-  submodules_script:
-    - git submodule update --init --recursive
-
-  android_ndk_script:
-    - wget -O cmake.sh https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh
-    - sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
-    - apt-get update -qq
-    - apt-get install -y libcapstone-dev
-    - (cd /tmp; curl -LO https://dl.google.com/android/repository/android-ndk-r14b-linux-x86_64.zip)
-    - (cd /opt; unzip -q /tmp/android-ndk-r14b-linux-x86_64.zip)
-    - python /opt/android-ndk-r14b/build/tools/make_standalone_toolchain.py
-        --arch arm
-        --api 9
-        --install-dir /opt/android-ndk-r14b-android-9
-  
   build_capstone_script:
     - (
         mkdir staging;
@@ -57,26 +37,10 @@ linux_android_armel_task:
 
 linux_android_aarch64_task:
   container:
-    image: gcc:10.3.0-buster
+    dockerfile: .ci/linux/Dockerfile
 
   env:
     PATH: /usr/local/bin:/opt/android-ndk-r14b-android-21-arm64/bin:${PATH}
-
-  submodules_script:
-    - git submodule update --init --recursive
-
-  android_ndk_script:
-    - wget -O cmake.sh https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh
-    - sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
-    - apt-get update -qq
-    - apt-get install -y cmake libcapstone-dev
-    - (cd /tmp; curl -LO https://dl.google.com/android/repository/android-ndk-r14b-linux-x86_64.zip)
-    - (cd /opt; unzip -q /tmp/android-ndk-r14b-linux-x86_64.zip)
-    - python /opt/android-ndk-r14b/build/tools/make_standalone_toolchain.py
-        --arch arm64
-        --api 21
-        --install-dir /opt/android-ndk-r14b-android-21-arm64
-
   script:
     - ./build.sh ./targets/arm64-android.cmake
         -DEZ_LIBC=bionic
