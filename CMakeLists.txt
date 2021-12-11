@@ -9,6 +9,7 @@ enable_language(CXX OPTIONAL)
 enable_testing()
 
 if(HAVE_CMAKE314)
+	cmake_policy(VERSION 3.14)
 	include(CheckPIESupported)
 	check_pie_supported()
 endif()
