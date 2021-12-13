@@ -8,7 +8,7 @@ set(CMAKE_RANLIB "arm-linux-ranlib")
 
 string(APPEND CMAKE_C_FLAGS " -mcpu=arm920t")
 
-set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH "/opt/ttgo/gcc-3.3.4_glibc-2.3.2/arm-linux/sys-root")
 
 set(CMAKE_STRIP "arm-linux-strip")
 set(CMAKE_SIZE "arm-linux-size")
