@@ -91,6 +91,18 @@ linux_uclibc_mipsbe_task:
     - ./build.sh ./targets/trendchip.cmake
         -DENABLE_STATIC=OFF
 
+# targeting TomTom GO
+linux_glibc_armv4_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  env:
+    PATH: /opt/ttgo/gcc-3.3.4_glibc-2.3.2/bin:${PATH}
+
+  script:
+    - ./build.sh targets/ttgo-arm-linux.cmake 
+        -DEZ_LIBC=glibc-old
+
 freebsd_x64_task:
   freebsd_instance:
     image_family: freebsd-12-2
