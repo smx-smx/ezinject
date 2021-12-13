@@ -58,7 +58,13 @@ intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc){
 }
 
 intptr_t SCAPI injected_open(volatile struct injcode_call *sc){
-	return (intptr_t)sc->libc_open((const char *)sc->argv[1], (int)sc->argv[2], (mode_t)sc->argv[3]);
+#if defined(__NR_open)
+	return (intptr_t)sc->libc_open((const char *)sc->argv[1], (int)sc->argv[2]);
+#elif defined(__NR_openat)
+	return (intptr_t)sc->libc_open((const char *)sc->argv[2], (int)sc->argv[3]);
+#else
+#error "Unsupported build flags"
+#endif
 }
 
 intptr_t SCAPI injected_read(volatile struct injcode_call *sc){

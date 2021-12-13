@@ -132,7 +132,7 @@ struct injcode_call {
 #ifdef EZ_TARGET_LINUX
 	void *(*libc_mmap)(void *addr, size_t length, int prot, int flags,
                   int fd, off_t offset);
-	int (*libc_open)(const char *pathname, int flags, mode_t mode);
+	int (*libc_open)(const char *pathname, int flags, ...);
 	ssize_t (*libc_read)(int fd, void *buf, size_t count); 
 #endif
 

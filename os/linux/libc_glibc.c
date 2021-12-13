@@ -52,6 +52,10 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ctx->libc_open = libc_open;
 	ctx->libc_read = libc_read;
 
+	DBGPTR(ctx->libc_mmap.remote);
+	DBGPTR(ctx->libc_open.remote);
+	DBGPTR(ctx->libc_read.remote);
+
 	dlclose(h_libc);
 	return 0;
 }
