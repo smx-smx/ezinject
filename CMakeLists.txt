@@ -60,12 +60,6 @@ macro(check_symbol_withlibs symbol files libs result)
 	set(CMAKE_REQUIRED_LIBRARIES "${_CMAKE_REQUIRED_LIBRARIES}")
 endmacro()
 
-if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-	check_symbol_withlibs("__aeabi_idivmod" "" "gcc" HAVE_PROPER_LIBGCC)
-else()
-	set(HAVE_PROPER_LIBGCC TRUE)
-endif()
-
 if(NOT HAVE_GNU_SOURCE)
 	add_definitions(-D_GNU_SOURCE)
 endif()
@@ -487,11 +481,6 @@ function(add_ezinject_library target)
 			lh_ifcpu
 			lh_hook
 		)
-
-		# cannot use sljit with old GCC compilers
-		if(HAVE_PROPER_LIBGCC)
-			target_link_libraries(${target} lh_sljitmod)
-		endif()
 	endif()
 endfunction()
 
