@@ -147,21 +147,21 @@ INLINE uint64_t str64(uint64_t x){
 	#endif
 }
 
+#define PCALL(ctx, fn, ...) ctx->plapi.fn(ctx, __VA_ARGS__)
 #include "ezinject_injcode_common.c"
 
 #if defined(EZ_TARGET_POSIX)
-#include "ezinject_injcode_posix_common.c"
+#include "ezinject_injcode_posix.h"
 #elif defined(EZ_TARGET_WINDOWS)
-#include "ezinject_injcode_windows_common.c"
+#include "ezinject_injcode_windows.h"
 #endif
-
-#include "ezinject_injcode_util.c"
 
 struct injcode_ctx {
 	struct injcode_bearing *br;
 
 	struct dl_api libdl;
 	struct thread_api libthread;
+	struct injcode_plapi plapi;
 	char *stbl;
 	
 	char *libdl_name;
@@ -174,7 +174,15 @@ struct injcode_ctx {
 	void *h_libthread;
 };
 
-INLINE intptr_t fetch_sym(
+#if defined(EZ_TARGET_POSIX)
+#include "ezinject_injcode_posix_common.c"
+#elif defined(EZ_TARGET_WINDOWS)
+#include "ezinject_injcode_windows_common.c"
+#endif
+
+#include "ezinject_injcode_util.c"
+
+intptr_t PLAPI inj_fetchsym(
 	struct injcode_ctx *ctx,
 	void *handle, void **sym
 ){
@@ -182,14 +190,14 @@ INLINE intptr_t fetch_sym(
 	// advances stbl in ctx
 	STRTBL_FETCH(ctx->stbl, sym_name);
 #ifdef DEBUG
-	inj_puts(ctx->br, sym_name);
+	PCALL(ctx, inj_puts, sym_name);
 #endif
 	inj_cacheflush(ctx->br, &sym_name, (void *)(UPTR(&sym_name) + sizeof(sym_name)));
 	*sym = ctx->libdl.dlsym(handle, sym_name);
 	if(*sym == NULL){
-		inj_dchar(ctx->br, '!');
-		inj_dchar(ctx->br, 's');
-		inj_puts(ctx->br, sym_name);
+		PCALL(ctx, inj_dchar, '!');
+		PCALL(ctx, inj_dchar, 's');
+		PCALL(ctx, inj_puts, sym_name);
 		return -1;
 	}
 	return 0;
@@ -224,12 +232,12 @@ INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	void *libdl_handle = br->libdl_handle;
 	// acquire libdl
 	if(libdl_handle == NULL){
-		inj_dchar(br, 'l');
+		PCALL(ctx, inj_dchar, 'l');
 
 		libdl_handle = inj_get_libdl(ctx);
-		inj_dbgptr(br, libdl_handle);
+		PCALL(ctx, inj_dbgptr, libdl_handle);
 		if(libdl_handle == NULL){
-			inj_dchar(br, '!');
+			PCALL(ctx, inj_dchar, '!');
 			return -1;
 		}
 	}
@@ -257,7 +265,7 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 		return -1;
 	}
 	crt_init = ctx->libdl.dlsym(br->userlib, sym_crt_init);
-	inj_dbgptr(br, crt_init);
+	PCALL(ctx, inj_dbgptr, crt_init);
 	if(crt_init == NULL){
 		return -2;
 	}
@@ -267,11 +275,23 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	return 0;
 }
 
+INLINE void inj_plapi_init(struct injcode_call *sc, struct injcode_ctx *ctx){
+	#define PCOPY(x) ctx->plapi.x = sc->plapi.x
+	PCOPY(inj_memset);
+	PCOPY(inj_puts);
+	PCOPY(inj_dchar);
+	PCOPY(inj_dbgptr);
+	PCOPY(inj_fetchsym);
+	#undef PCOPY
+}
+
 intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	struct injcode_bearing *br = (struct injcode_bearing *)(sc->argv[0]);
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;
-	inj_memset(ctx, 0x00, sizeof(*ctx));
+	sc->plapi.inj_memset(NULL, ctx, 0x00, sizeof(*ctx));
+	inj_plapi_init(sc, ctx);
+
 	ctx->br = br;
 	ctx->stbl = BR_STRTBL(br);
 
@@ -282,64 +302,66 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	intptr_t result = 0;
 
 	// entry
-	inj_dchar(br, 'e');
+	PCALL(ctx, inj_dchar, 'e');
 
 	STRTBL_FETCH(ctx->stbl, ctx->libdl_name);
 	STRTBL_FETCH(ctx->stbl, ctx->libpthread_name);
 
+
+
 	if(inj_libdl_init(ctx) != 0){
-		inj_dchar(br, '!');
+		PCALL(ctx, inj_dchar, '!');
 		result = INJ_ERR_LIBDL;
 		goto pl_exit;
 	}
 
 	// acquire libpthread
-	inj_dchar(br, 'p');
+	PCALL(ctx, inj_dchar, 'p');
 
-	inj_puts(br, ctx->libpthread_name);
+	PCALL(ctx, inj_puts, ctx->libpthread_name);
 	//asm volatile(JMP_INSN " .");
 	ctx->h_libthread = inj_dlopen(ctx, ctx->libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
 	if(!ctx->h_libthread){
-		inj_dchar(br, '!');
-		inj_dchar(br, '1');
+		PCALL(ctx, inj_dchar, '!');
+		PCALL(ctx, inj_dchar, '1');
 		char *errstr = NULL;
 		if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
-			inj_puts(br, errstr);
+			PCALL(ctx, inj_puts, errstr);
 		}
 		result = INJ_ERR_LIBPTHREAD;
 		goto pl_exit;
 	}
-	inj_dbgptr(br, ctx->h_libthread);
+	PCALL(ctx, inj_dbgptr, ctx->h_libthread);
 
 	if(inj_api_init(ctx) != 0){
-		inj_dchar(br, '!');
-		inj_dchar(br, '2');
+		PCALL(ctx, inj_dchar, '!');
+		PCALL(ctx, inj_dchar, '2');
 		ctx->libdl.dlclose(ctx->h_libthread);
 		result = INJ_ERR_API;
 		goto pl_exit;
 	}
 
 	// setup
-	inj_dchar(br, 's');
+	PCALL(ctx, inj_dchar, 's');
 	if(inj_load_prepare(ctx) != 0){
-		inj_dchar(br, '!');
+		PCALL(ctx, inj_dchar, '!');
 	}
 
 	// dlopen
-	inj_dchar(br, 'd');
+	PCALL(ctx, inj_dchar, 'd');
 	if(inj_load_library(ctx) != 0){
-		inj_dchar(br, '!');
+		PCALL(ctx, inj_dchar, '!');
 		ctx->libdl.dlclose(ctx->h_libthread);
 		result = INJ_ERR_DLOPEN;
 		goto pl_exit;
 	}
 
 	// wait for the thread to notify us
-	inj_dchar(br, 'w');
+	PCALL(ctx, inj_dchar, 'w');
 
 	// exit status from lib_main
 	if(inj_thread_wait(ctx, &result) != 0){
-		inj_dchar(br, '!');
+		PCALL(ctx, inj_dchar, '!');
 		ctx->libdl.dlclose(ctx->h_libthread);
 		result = INJ_ERR_WAIT;
 		goto pl_exit;
@@ -347,7 +369,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	if(br->user.persist == 0){
 		// cleanup
-		inj_dchar(br, 'c');
+		PCALL(ctx, inj_dchar, 'c');
 		/**
 		 * NOTE: some C libraries might cause a segfault during this call
 		 * the segfault will be trapped by ezinject, so (hopefully) the process can continue
@@ -360,7 +382,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 pl_exit:
 	// bye
-	inj_dchar(br, 'b');
+	PCALL(ctx, inj_dchar, 'b');
 
 	// XXX: if we close pthread and it wasn't open before, bad things can happen
 	/*if(ctx->h_libthread != NULL){

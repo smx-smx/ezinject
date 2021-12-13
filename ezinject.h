@@ -57,6 +57,14 @@ struct ezinj_ctx;
 
 typedef EZAPI (*pfnCallHandler)(struct ezinj_ctx *ctx, struct injcode_call *rcall);
 
+struct ezinj_ctx_plapi {
+	uintptr_t inj_memset;
+	uintptr_t inj_puts;
+	uintptr_t inj_dchar;
+	uintptr_t inj_dbgptr;
+	uintptr_t inj_fetchsym;
+};
+
 struct ezinj_ctx {
 	int pl_debug;
 	int syscall_mode;
@@ -113,6 +121,7 @@ struct ezinj_ctx {
 	ez_addr mapped_mem;
 
 	struct ezinj_pl pl;
+	struct ezinj_ctx_plapi plapi;
 };
 
 struct ezinj_str {

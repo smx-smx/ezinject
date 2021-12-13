@@ -107,6 +107,14 @@ intptr_t setregs_syscall(
 	rcall->libc_read = (void *)ctx->libc_read.remote;
 #endif
 
+#define PLAPI_USE(fn) rcall->plapi.fn = (void *)ctx->plapi.fn;
+	PLAPI_USE(inj_memset);
+	PLAPI_USE(inj_puts);
+	PLAPI_USE(inj_dchar);
+	PLAPI_USE(inj_dbgptr);
+	PLAPI_USE(inj_fetchsym);
+#undef PLAPI_USE
+
 	// set the call structure as argument for the function being called
 	rcall->trampoline.fn_arg = r_call_args;
 
@@ -783,6 +791,15 @@ int ezinject_main(
 		ctx->entry_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
 		// tell the trampoline to call the main injcode
 		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
+
+		// init plapi
+		#define PLAPI_SET(ctx, fn) ctx->plapi.fn = PL_REMOTE_CODE(&fn)
+		PLAPI_SET(ctx, inj_memset);
+		PLAPI_SET(ctx, inj_puts);
+		PLAPI_SET(ctx, inj_dchar);
+		PLAPI_SET(ctx, inj_dbgptr);
+		PLAPI_SET(ctx, inj_fetchsym);
+		#undef PLAPI_SET
 
 		// when syscall_mode = 0, SC is skipped
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));

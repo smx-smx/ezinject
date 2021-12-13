@@ -7,15 +7,17 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 
-INLINE void inj_dchar(struct injcode_bearing *br, char ch){
+void PLAPI inj_dchar(struct injcode_ctx *ctx, char ch){
 #ifdef DEBUG
 	//pl:x\n\0
 	volatile uint64_t str = str64(0x706C3A0000000000 | (((uint64_t)ch << 32) & 0xFF00000000));
-	inj_puts(br, (char *)&str);
+	PCALL(ctx, inj_puts, (char *)&str);
 #endif
 }
 
-INLINE void *inj_memset(void *s, int c, size_t n){
+void PLAPI *inj_memset(struct injcode_ctx *ctx, void *s, int c, size_t n){
+	UNUSED(ctx);
+
 	volatile unsigned char* p=s;
 	while(n--){
 		*p++ = (unsigned char)c;
@@ -35,10 +37,10 @@ INLINE void inj_cacheflush(struct injcode_bearing *br, void *from, void *to){
 }
 #endif
 
-INLINE void inj_dbgptr(struct injcode_bearing *br, void *ptr){
+void PLAPI inj_dbgptr(struct injcode_ctx *ctx, void *ptr){
 #ifdef DEBUG
 	char buf[(sizeof(uintptr_t) * 2) + 1];
 	itoa16((uintptr_t)ptr, buf);
-	inj_puts(br, buf);
+	PCALL(ctx, inj_puts, buf);
 #endif
 }

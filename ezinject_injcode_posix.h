@@ -7,30 +7,25 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 
-void PLAPI inj_puts(struct injcode_ctx *ctx, char *str){
-#ifdef DEBUG
-	struct injcode_bearing *br = ctx->br;
-	if(str == NULL){
-		return;
-	}
+#ifndef __EZINJECT_INJCODE_POSIX_H
+#define __EZINJECT_INJCODE_POSIX_H
 
-	PPEB peb = br->RtlGetCurrentPeb();
-	PINT_RTL_USER_PROCESS_PARAMETERS params = (PINT_RTL_USER_PROCESS_PARAMETERS)peb->ProcessParameters;
-	
-	HANDLE h = params->StandardOutput;
-	if(h == INVALID_HANDLE_VALUE){
-		return;
-	}
+#include <pthread.h>
 
-	int l = 0;
-	char *p = str;
-	while(*(p++)) ++l;
+struct dl_api {
+	void *(*dlopen)(const char *filename, int flag);
+	void *(*dlsym)(void *handle, const char *symbol);
+	int (*dlclose)(void *handle);
+	char *(*dlerror)(void);
+};
 
-	IO_STATUS_BLOCK stb;
-	br->NtWriteFile(h, NULL, NULL, NULL, &stb, str, l, 0, NULL);
+struct thread_api {
+	int (*pthread_mutex_init)(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
+	int (*pthread_mutex_lock)(pthread_mutex_t *mutex);
+	int (*pthread_mutex_unlock)(pthread_mutex_t *mutex);
+	int (*pthread_cond_init)(pthread_cond_t *cond, const pthread_condattr_t *attr);
+	int (*pthread_cond_wait)(pthread_cond_t *restrict cond, pthread_mutex_t *restrict mutex);
+	int (*pthread_join)(pthread_t thread, void **retval);
+};
 
-	char nl[2];
-	nl[0] = '\r'; nl[1] = '\n';
-	br->NtWriteFile(h, NULL, NULL, NULL, &stb, nl, sizeof(nl), 0, NULL);
 #endif
-}
