@@ -121,7 +121,19 @@ struct injcode_trampoline {
 	uintptr_t fn_addr;
 };
 
+struct injcode_bearing;
+struct injcode_ctx;
+
+struct injcode_plapi {
+	void *(*inj_memset)(struct injcode_ctx *ctx, void *s, int c, size_t n);
+	void (*inj_puts)(struct injcode_ctx *ctx, char *str);
+	void (*inj_dchar)(struct injcode_ctx *ctx, char ch);
+	void (*inj_dbgptr)(struct injcode_ctx *ctx, void *ptr);
+	intptr_t (*inj_fetchsym)(struct injcode_ctx *ctx, void *handle, void **sym);
+};
+
 /**
+ * 
  * this structure is pushed on the stack
  * within the target process
  **/
@@ -135,6 +147,9 @@ struct injcode_call {
 	int (*libc_open)(const char *pathname, int flags, ...);
 	ssize_t (*libc_read)(int fd, void *buf, size_t count); 
 #endif
+
+	/** PLAPI **/
+	struct injcode_plapi plapi;
 
 	int argc;
 	intptr_t result;
@@ -335,6 +350,13 @@ extern void trampoline_entry();
 extern void trampoline_exit();
 
 extern intptr_t injected_fn(struct injcode_call *sc);
+
+/** plapi **/
+extern void *inj_memset(struct injcode_ctx *ctx, void *s, int c, size_t n);
+extern void inj_puts(struct injcode_ctx *ctx, char *str);
+extern void inj_dchar(struct injcode_ctx *ctx, char ch);
+extern void inj_dbgptr(struct injcode_ctx *ctx, void *ptr);
+extern intptr_t inj_fetchsym(struct injcode_ctx *ctx, void *handle, void **sym);
 
 extern uint8_t __start_payload SECTION_START("payload");
 extern uint8_t __stop_payload SECTION_END("payload");

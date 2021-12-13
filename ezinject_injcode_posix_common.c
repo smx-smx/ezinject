@@ -6,25 +6,10 @@
  *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
-struct dl_api {
-	void *(*dlopen)(const char *filename, int flag);
-	void *(*dlsym)(void *handle, const char *symbol);
-	int (*dlclose)(void *handle);
-	char *(*dlerror)(void);
-};
 
-struct thread_api {
-	int (*pthread_mutex_init)(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
-	int (*pthread_mutex_lock)(pthread_mutex_t *mutex);
-	int (*pthread_mutex_unlock)(pthread_mutex_t *mutex);
-	int (*pthread_cond_init)(pthread_cond_t *cond, const pthread_condattr_t *attr);
-	int (*pthread_cond_wait)(pthread_cond_t *restrict cond, pthread_mutex_t *restrict mutex);
-	int (*pthread_join)(pthread_t thread, void **retval);
-};
-
-
-INLINE void inj_puts(struct injcode_bearing *br, char *str){
+void PLAPI inj_puts(struct injcode_ctx *ctx, char *str){
 #ifdef DEBUG
+	struct injcode_bearing *br = ctx->br;
 	if(str == NULL){
 		return;
 	}

@@ -50,7 +50,7 @@ INLINE intptr_t inj_thread_wait(
 		result = api->GetExitCodeThread(br->hThread, &exitStatus);
 	} while(result != FALSE && exitStatus == STILL_ACTIVE);
 
-	inj_dbgptr(br, exitStatus);
+	PCALL(ctx, inj_dbgptr, exitStatus);
 	
 	*pExitStatus = exitStatus;
 	return 0;
@@ -89,11 +89,11 @@ INLINE void *_inj_get_kernel32(struct injcode_bearing *br){
 INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 	//asm volatile(JMP_INSN " .");
 	intptr_t result = 0;
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.CreateEventA);
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.CreateThread);
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.CloseHandle);
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.WaitForSingleObject);
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.GetExitCodeThread);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.CreateEventA);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.CreateThread);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.CloseHandle);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.WaitForSingleObject);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.GetExitCodeThread);
 	if(result != 0) return -1;
 	return 0;
 }

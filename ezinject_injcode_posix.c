@@ -98,7 +98,7 @@ INLINE intptr_t inj_thread_wait(
 	api->pthread_mutex_unlock(&br->mutex);
 
 	// wait for user thread to die
-	inj_dchar(br, 'j');
+	PCALL(ctx, inj_dchar, 'j');
 
 	void *result = NULL;
 	api->pthread_join(br->user_tid, &result);
@@ -108,13 +108,11 @@ INLINE intptr_t inj_thread_wait(
 }
 
 INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
-	struct injcode_bearing *br = ctx->br;
-
-	inj_puts(br, ctx->libdl_name);
+	PCALL(ctx, inj_puts, ctx->libdl_name);
 
 	// just to make sure it's really loaded
 	ctx->h_libdl = ctx->libdl.dlopen(ctx->libdl_name, RTLD_NOLOAD);
-	inj_dbgptr(br, ctx->h_libdl);
+	PCALL(ctx, inj_dbgptr, ctx->h_libdl);
 	if(ctx->h_libdl == NULL){
 		ctx->h_libdl = ctx->libdl.dlopen(ctx->libdl_name, RTLD_NOW | RTLD_GLOBAL);
 	}
@@ -123,7 +121,7 @@ INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 		return -1;
 	}
 
-	return fetch_sym(ctx, ctx->h_libdl, (void **)&ctx->libdl.dlerror);
+	return PCALL(ctx, inj_fetchsym, ctx->h_libdl, (void **)&ctx->libdl.dlerror);
 }
 
 INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
@@ -132,12 +130,12 @@ INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 	if(_inj_init_libdl(ctx) != 0){
 		return -1;
 	}
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_init);
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_lock);
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_unlock);
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_init);
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_wait);
-	result += fetch_sym(ctx, ctx->h_libthread, (void **)&ctx->libthread.pthread_join);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_init);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_lock);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_unlock);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_init);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_wait);
+	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_join);
 	if(result != 0){
 		return -1;
 	}
