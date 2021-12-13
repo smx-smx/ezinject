@@ -7,6 +7,16 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 
+/*#define PL_RETURN(sc, x) do { \
+	((sc)->result = (x)); \
+	sc->libc_syscall(__NR_kill, \
+		sc->libc_syscall(__NR_getpid), \
+		SIGSTOP \
+	); \
+	while(1); \
+} while(0)
+*/
+
 #define PL_RETURN(sc, x) return (x)
 
 intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc){

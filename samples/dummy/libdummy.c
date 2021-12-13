@@ -112,6 +112,12 @@ int lib_preinit(struct injcode_user *user){
 }
 
 int lib_main(int argc, char *argv[]){
+	#ifdef EZ_TARGET_LINUX
+	char cmd[128];
+	sprintf(cmd, "cat /proc/%u/maps", getpid());
+	system(cmd);
+	#endif
+
 	lputs("Hello World from main");
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);

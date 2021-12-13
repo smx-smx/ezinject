@@ -36,6 +36,8 @@ static off_t sc_wrapper_offset;
 
 #ifdef EZ_TARGET_LINUX
 static off_t sc_mmap_offset;
+static off_t sc_open_offset;
+static off_t sc_read_offset;
 #endif
 
 /**
@@ -90,6 +92,8 @@ static void _remote_sc_setup_offsets(){
 
 #ifdef EZ_TARGET_LINUX
 	sc_mmap_offset = PTRDIFF(&injected_mmap, region_sc_code.start);
+	sc_open_offset = PTRDIFF(&injected_open, region_sc_code.start);
+	sc_read_offset = PTRDIFF(&injected_read, region_sc_code.start);
 #endif
 
 	// always at the beginning of the shellcode
@@ -236,23 +240,44 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base){
 #ifdef EZ_TARGET_LINUX
 static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 	/**
-	 * if available,
-	 * use mmap(3) instead of mmap(2)
-	 **/
-	int is_mmap = call->argc > 0 && call->argv[0] == __NR_mmap2;
-
-	if(is_mmap){
-		DBGPTR(call->libc_mmap);
-		if(call->libc_mmap == NULL){
-			WARN("couldn't resolve mmap(3), will use mmap(2)");
+	 * glibc 2.x on ARM OABI exposes a syscall(2) that only accepts 3 arguments:
+	 *  a1: syscall number
+	 *  a2: syscall arg1
+	 *  a3: syscall arg2
+	 * 
+	 * this means we can only do syscalls with 2 arguments, which is insufficient for
+	 *  open(2), read(2) and mmap(2)
+	 * which we need to perform the injection
+	 * we must therefore intercept these and use the respective libc functions
+	 */
+	if(call->argc > 0){
+		switch(call->argv[0]){
+			case __NR_mmap2:
+				DBGPTR(call->libc_mmap);
+				if(call->libc_mmap != NULL){
+					return r_current_sc_base + sc_mmap_offset;
+				}
+				break;
+			#if defined(__NR_open)
+			case __NR_open:
+			#elif defined(__NR_openat)
+			case __NR_openat:
+			#endif
+				DBGPTR(call->libc_open);
+				if(call->libc_open != NULL){
+					return r_current_sc_base + sc_open_offset;
+				}
+				break;
+			case __NR_read:
+				DBGPTR(call->libc_read);
+				if(call->libc_read != NULL){
+					return r_current_sc_base + sc_read_offset;
+				}
+				break;
 		}
 	}
 
-	if(is_mmap && call->libc_mmap != NULL){
-		return r_current_sc_base + sc_mmap_offset;
-	} else {
-		return r_current_sc_base + sc_offsets[call->argc];
-	}
+	return r_current_sc_base + sc_offsets[call->argc];
 }
 #else
 static inline uintptr_t _get_wrapper_target(struct injcode_call *call){

@@ -76,7 +76,7 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 
 	char *stbl_entry = BR_STRTBL(br) + br->pl_filename_offset;
 	// remote_write always writes in word units
-	size_t stbl_entry_size = (size_t)WORDALIGN(STR_ENTSIZE(stbl_entry));
+	uintptr_t stbl_entry_size = (uintptr_t)WORDALIGN(STR_ENTSIZE(stbl_entry));
 	uintptr_t r_stbl_entry = PL_REMOTE(ctx, stbl_entry);
 
 	/** write the payload filename string table entry */

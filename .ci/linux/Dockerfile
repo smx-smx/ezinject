@@ -36,3 +36,8 @@ RUN mkdir -p /opt/trendchip/mips-linux-uclibc && \
 	cd /opt/trendchip/mips-linux-uclibc && \
 	curl -L -o - https://github.com/smx-smx/trendchip-mips-linux-uclibc/archive/refs/heads/master.tar.gz |\
 	tar --strip-components=1 -xzf -
+
+RUN mkdir -p /opt/ttgo/gcc-3.3.4_glibc-2.3.2 && \
+	cd /opt/ttgo/gcc-3.3.4_glibc-2.3.2 && \
+	curl -L -o - https://github.com/smx-smx/ttgo-arm-linux/archive/refs/heads/master.tar.gz |\
+	tar --strip-components=1 -xzf -

@@ -46,7 +46,6 @@ linux_android_armel_task:
     - ./build.sh ./targets/arm-android.cmake
         -DEZ_LIBC=bionic
         -DEZ_LIBC_VARIANT=android-10
-        -DENABLE_STATIC=OFF
         -DANDROID_ABI=armeabi-v7a
         -DCMAKE_SYSTEM_VERSION=9
         -DUSE_ARM_THUMB=ON
@@ -62,7 +61,6 @@ linux_android_aarch64_task:
     - ./build.sh ./targets/arm64-android.cmake
         -DEZ_LIBC=bionic
         -DEZ_LIBC_VARIANT=android-10
-        -DENABLE_STATIC=OFF
         -DANDROID_ABI=arm64-v8a
         -DCMAKE_SYSTEM_VERSION=21
 
@@ -77,7 +75,6 @@ linux_uclibc_armel_task:
 
   script:
     - ./build.sh ./targets/arm-buildroot-bcm-uclibc.cmake
-        -DENABLE_STATIC=OFF
 
 # targeting Asus DSL-N55U D1 (TrendChip MIPS BE)
 linux_uclibc_mipsbe_task:
@@ -89,7 +86,18 @@ linux_uclibc_mipsbe_task:
 
   script:
     - ./build.sh ./targets/trendchip.cmake
-        -DENABLE_STATIC=OFF
+
+# targeting TomTom GO
+linux_glibc_armv4_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  env:
+    PATH: /opt/ttgo/gcc-3.3.4_glibc-2.3.2/bin:${PATH}
+
+  script:
+    - ./build.sh targets/ttgo-arm-linux.cmake 
+        -DEZ_LIBC=glibc-old
 
 freebsd_x64_task:
   freebsd_instance:
