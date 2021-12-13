@@ -4,7 +4,6 @@
 #include "config.h"
 #include "log.h"
 #include "interface/if_hook.h"
-#include "interface/cpu/if_sljit.h"
 
 #include "dlfcn_compat.h"
 #include "ezinject_util.h"
@@ -12,52 +11,12 @@
 
 LOG_SETUP(V_DBG);
 
-#define USE_SLJIT
 #define USE_LH
 
-
-#ifdef USE_SLJIT
-/**
- * Sample function that demonstrates the use of sljit
- **/
-void *sljit_build_sample(void **ppCodeMem){
-	void *sljit_code = NULL;
-	struct sljit_compiler *compiler = sljit_create_compiler(NULL);
-	if(!compiler){
-		ERR("Unable to create sljit compiler instance");
-		return NULL;
-	}
-
-	/** Simple routine that returns 1337 **/
-	sljit_emit_enter(compiler, 0, 0, 0, 0, 0, 0, 0);
-	sljit_emit_op1(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 0, SLJIT_IMM, 1337);
-	sljit_emit_return(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 1337);
-
-	sljit_code = sljit_generate_code(compiler);
-	if(sljit_code == NULL){
-		ERR("Unable to build JIT Code");
-		return NULL;
-	}
-	if(ppCodeMem != NULL){
-		*ppCodeMem = sljit_code;
-	}
-	sljit_code += compiler->executable_offset;	
-
-	if(compiler){
-		sljit_free_compiler(compiler);
-	}
-
-	INFO("JIT code");
-	hexdump(sljit_code, compiler->executable_size);
-
-	return sljit_code;
-}
-#endif
 
 typedef int(*testFunc_t)(int arg1, int arg2);
 
 static testFunc_t pfnOrigTestFunc = NULL;
-static testFunc_t sljitCode = NULL;
 
 #ifdef UCLIBC_OLD
 int myCustomFn(int arg1, int arg2){
@@ -68,11 +27,6 @@ int myCustomFn(int arg1, int arg2){
 #else
 int myCustomFn(int arg1, int arg2){
 	DBG("original arguments: %d, %d", arg1, arg2);
-
-	#ifdef USE_SLJIT
-	// call the sljit code sample
-	arg1 = sljitCode(arg1, arg2);
-	#endif
 
 	arg2 = 0;
 
@@ -113,10 +67,6 @@ void installHooks(){
 			break;
 		}
 
-		#ifdef USE_SLJIT
-		sljitCode = sljit_build_sample(&codeMem);
-		#endif
-
 		/**
 		 * create a trampoline to call the original function once the hook is installed
 		 * -1 enables automatic backup length detection (most relevant for arches with variable opcode size)
@@ -141,11 +91,6 @@ void installHooks(){
 
 	if(error){
 		INFO("failed to install hooks");
-		#ifdef USE_SLJIT
-		if(codeMem != NULL){
-			sljit_free_exec(codeMem);
-		}
-		#endif
 		#ifndef EZ_TARGET_WINDOWS
 		dlclose(self);
 		#endif
