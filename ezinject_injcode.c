@@ -40,7 +40,7 @@
 
 #define UNUSED(x) (void)(x)
 
-#ifdef HAVE_LIBC_DLOPEN_MODE
+#if defined(HAVE_LIBC_DLOPEN_MODE) || defined(HAVE_LIBC_DL_OPEN)
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
@@ -55,6 +55,14 @@ intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc){
 		(int)sc->argv[3], (int)sc->argv[4],
 		(int)sc->argv[5], (off_t)sc->argv[6]
 	);
+}
+
+intptr_t SCAPI injected_open(volatile struct injcode_call *sc){
+	return (intptr_t)sc->libc_open((const char *)sc->argv[1], (int)sc->argv[2], (mode_t)sc->argv[3]);
+}
+
+intptr_t SCAPI injected_read(volatile struct injcode_call *sc){
+	return (intptr_t)sc->libc_read((int)sc->argv[1], (void *)sc->argv[2], (size_t)sc->argv[3]);
 }
 #endif
 
@@ -190,7 +198,7 @@ INLINE intptr_t fetch_sym(
 #endif
 
 #if defined(EZ_TARGET_LINUX) && !defined(EZ_TARGET_ANDROID)
-	#if defined(HAVE_LIBC_DLOPEN_MODE)
+	#if defined(HAVE_LIBC_DLOPEN_MODE) || defined(HAVE_LIBC_DL_OPEN)
 		#include "ezinject_injcode_glibc.c"
 	#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 		#include "ezinject_injcode_uclibc.c"
@@ -255,7 +263,6 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 
 intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	struct injcode_bearing *br = (struct injcode_bearing *)(sc->argv[0]);
-
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;
 	inj_memset(ctx, 0x00, sizeof(*ctx));
@@ -342,16 +349,22 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		ctx->libdl.dlclose(br->userlib);
 	}
 
+	result = 0;
+
 
 pl_exit:
 	// bye
 	inj_dchar(br, 'b');
-	if(ctx->h_libthread != NULL){
+
+	// XXX: if we close pthread and it wasn't open before, bad things can happen
+	/*if(ctx->h_libthread != NULL){
 		ctx->libdl.dlclose(ctx->h_libthread);
-	}
+	}*/
 
 	// return to ezinject
 	PL_RETURN(sc, result);
+
+	asm volatile(JMP_INSN " .");
 
 	// should never be reached
 	return 0;

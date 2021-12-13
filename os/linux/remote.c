@@ -17,7 +17,7 @@
 
 #include "config.h"
 
-#ifndef PTRACE_GETREGS
+#if !defined(PTRACE_GETREGS) && !defined(PT_GETREGS)
 // NT_PRSTATUS
 #include <linux/elf.h>
 #endif
@@ -39,7 +39,7 @@ EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 }
 
 EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
-#ifdef PTRACE_GETREGS
+#if defined(PTRACE_GETREGS) || defined(PT_GETREGS)
 	return ptrace(PTRACE_GETREGS, ctx->target, 0, regs);
 #else
 	struct iovec iovec = {
@@ -51,7 +51,7 @@ EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
 }
 
 EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
-#ifdef PTRACE_SETREGS
+#if defined(PTRACE_SETREGS) || defined(PT_SETREGS)
 	return ptrace(PTRACE_SETREGS, ctx->target, 0, regs);
 #else
 	struct iovec iovec = {

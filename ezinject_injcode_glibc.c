@@ -15,7 +15,15 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
 	char *libdl_name = STR_DATA(BR_STRTBL(br));
+
+#if defined(HAVE_LIBC_DLOPEN_MODE)
 	struct link_map *libdl = (struct link_map *) br->libc_dlopen(libdl_name, RTLD_NOW | __RTLD_DLOPEN);
+#elif defined(HAVE_LIBC_DL_OPEN)
+	struct link_map *libdl = (struct link_map *) br->libc_dlopen(libdl_name, RTLD_NOW | __RTLD_DLOPEN, NULL);
+#else
+#error "Unsupported build flags"
+#endif
+
 	if(libdl == NULL){
 		return NULL;
 	}

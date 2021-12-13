@@ -132,6 +132,8 @@ struct injcode_call {
 #ifdef EZ_TARGET_LINUX
 	void *(*libc_mmap)(void *addr, size_t length, int prot, int flags,
                   int fd, off_t offset);
+	int (*libc_open)(const char *pathname, int flags, mode_t mode);
+	ssize_t (*libc_read)(int fd, void *buf, size_t count); 
 #endif
 
 	int argc;
@@ -149,7 +151,7 @@ struct injcode_call {
 	/**
 	 * this field acts as the stack for the entry point (trampoline)
 	 */
-	uint8_t entry_stack[256];
+	uint8_t entry_stack[512];
 
 	/**
 	 * trampoline parameters
@@ -197,6 +199,8 @@ struct injcode_bearing
 || defined(EZ_TARGET_ANDROID) \
 || defined(EZ_TARGET_DARWIN)
 	void *(*libc_dlopen)(const char *name, int mode);
+#elif defined(HAVE_LIBC_DL_OPEN)
+	void *(*libc_dlopen)(const char *name, int mode, void *caller);
 #elif defined(EZ_TARGET_WINDOWS)
 	// LdrLoadDll
 	NTSTATUS NTAPI (*libc_dlopen)(
@@ -320,6 +324,8 @@ extern intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc);
 
 #ifdef EZ_TARGET_LINUX
 extern intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc);
+extern intptr_t SCAPI injected_open(volatile struct injcode_call *sc);
+extern intptr_t SCAPI injected_read(volatile struct injcode_call *sc);
 #endif
 
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args);

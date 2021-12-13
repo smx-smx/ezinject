@@ -86,6 +86,9 @@ struct ezinj_ctx {
 	ez_addr libc_dlopen;
 #ifdef EZ_TARGET_LINUX
 	ez_addr libc_mmap;
+	ez_addr libc_open;
+	ez_addr libc_read;
+	ez_addr libc_close;
 #endif
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	ez_addr uclibc_sym_tables;

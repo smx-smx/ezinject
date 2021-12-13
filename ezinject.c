@@ -103,6 +103,8 @@ intptr_t setregs_syscall(
 #endif
 #ifdef EZ_TARGET_LINUX
 	rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
+	rcall->libc_open = (void *)ctx->libc_open.remote;
+	rcall->libc_read = (void *)ctx->libc_read.remote;
 #endif
 
 	// set the call structure as argument for the function being called
@@ -224,10 +226,38 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
-	if(remote_wait(ctx, 0) < 0){
-		ERR("remote_wait failed");
-		return -1;
-	}
+	int wait = 0;
+	do {
+		intptr_t status = remote_wait(ctx, 0);
+		if(status < 0){
+			ERR("remote_wait failed");
+			return -1;
+		}
+
+	#ifdef EZ_TARGET_POSIX
+	// this may be defined to a runtime call (!!)
+	// in that case, it will return the *current* SIGRTMIN, which is not what we want
+	#undef SIGRTMIN
+	#define SIGRTMIN 32
+		#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
+
+		wait = 0;
+
+		int signal = WSTOPSIG(status);
+		DBG("signal: %d", signal);
+		/**
+		 * some glibc versions use SIGRTMIN for thread management
+		 * we need to forward those signals so that
+		 * `pthread_create` and `pthread_join`
+		 * can work correctly
+		 */
+		if(call->syscall_mode == 0 && IS_IGNORED_SIG(signal)){
+			INFO("forwarding signal %d", signal);
+			remote_continue(ctx, signal);
+			wait = 1;
+		}
+	#endif
+	} while(wait);
 
 	if(call->syscall_mode == 0 && ctx->pl_debug){
 		return -1;
@@ -250,6 +280,11 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 
 	DBG("[RET] = %"PRIdPTR, call->rcall.result);
 
+	if(remote_getregs(ctx, &new_ctx) < 0){
+		ERR("remote_getregs failed");
+		return -1;
+	}
+
 	/**
 	  * the payload is expected to use its own stack
 	  * so we don't restore stack in that case
@@ -271,6 +306,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	}
 
 #ifdef DEBUG
+	DBG("SP: %p", (void *)((uintptr_t)REG(new_ctx, REG_SP)));
 	DBG("PC: %p => %p",
 		(void *)call->insn_addr,
 		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
@@ -302,7 +338,13 @@ intptr_t remote_call(
 
 struct ezinj_str ezstr_new(char *str){
 	struct ezinj_str bstr = {
-		.len = STRSZ(str),
+		/**
+		 * align the size of the string entry
+		 * since some architectures (e.g. ARMv4)
+		 * don't like doing unaligned accesses
+		 * and will corrupt memory
+		 */
+		.len = WORDALIGN(STRSZ(str)),
 		.str = str
 	};
 	return bstr;
@@ -400,11 +442,15 @@ int libc_init(struct ezinj_ctx *ctx){
  **/
 void strPush(char **strData, struct ezinj_str str){
 	// write the number of bytes we need to skip to get to the next string
-	*(unsigned int *)(*strData) = sizeof(unsigned int) + str.len;
+	unsigned int entry_sz = sizeof(unsigned int) + str.len;
+	memcpy(*strData, &entry_sz, sizeof(unsigned int));
+
 	*strData += sizeof(unsigned int);
 
 	// write the string itself
-	memcpy(*strData, str.str, str.len);
+	unsigned int str_len = STRSZ(str.str);
+	memcpy(*strData, str.str, str_len);
+
 	*strData += str.len;
 }
 

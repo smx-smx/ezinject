@@ -53,6 +53,19 @@ check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
 check_symbol_exists("__ANDROID__" "" EZ_TARGET_ANDROID)
 check_symbol_exists("_GNU_SOURCE" "" HAVE_GNU_SOURCE)
 
+macro(check_symbol_withlibs symbol files libs result)
+	set(_CMAKE_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES}")
+	set(CMAKE_REQUIRED_LIBRARIES "${libs}")
+	check_symbol_exists("${symbol}" "${files}" ${result})
+	set(CMAKE_REQUIRED_LIBRARIES "${_CMAKE_REQUIRED_LIBRARIES}")
+endmacro()
+
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+	check_symbol_withlibs("__aeabi_idivmod" "" "gcc" HAVE_PROPER_LIBGCC)
+else()
+	set(HAVE_PROPER_LIBGCC TRUE)
+endif()
+
 if(NOT HAVE_GNU_SOURCE)
 	add_definitions(-D_GNU_SOURCE)
 endif()
@@ -360,6 +373,8 @@ if(NOT DEFINED EZ_LIBC)
 	libc_autodetect()
 elseif(EZ_LIBC STREQUAL "glibc")
 	set(HAVE_LIBC_DLOPEN_MODE TRUE)
+elseif(EZ_LIBC STREQUAL "glibc-old")
+	set(HAVE_LIBC_DL_OPEN TRUE)
 elseif(EZ_LIBC STREQUAL "uclibc")
 	find_uclibc()
 	set(HAVE_DL_LOAD_SHARED_LIBRARY TRUE)
@@ -469,11 +484,16 @@ function(add_ezinject_library target)
 				-Wl,--no-whole-archive
 			)
 		endif()
+
 		target_link_libraries(${target}
 			lh_ifcpu
-			lh_sljitmod
 			lh_hook
 		)
+
+		# cannot use sljit with old GCC compilers
+		if(HAVE_PROPER_LIBGCC)
+			target_link_libraries(${target} lh_sljitmod)
+		endif()
 	endif()
 endfunction()
 
@@ -516,7 +536,7 @@ if(EZ_TARGET_POSIX)
 				elfparse.c
 			)
 		# glibc
-		elseif(HAVE_LIBC_DLOPEN_MODE)
+		elseif(HAVE_LIBC_DLOPEN_MODE OR HAVE_LIBC_DL_OPEN)
 			list(APPEND lib_sources
 				os/linux/libc_glibc.c
 			)
