@@ -90,8 +90,6 @@ include_directories(
 	${CMAKE_CURRENT_SOURCE_DIR}/crt/lh
 )
 add_definitions(
-	-DSLJIT_CONFIG_AUTO
-	-DSLJIT_DEBUG=0
 	-DLH_JUMP_ABS
 )
 
