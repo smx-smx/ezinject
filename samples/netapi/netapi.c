@@ -18,6 +18,7 @@
 #include <sys/socket.h>
 #elif defined(EZ_TARGET_WINDOWS)
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #endif
 
 
