@@ -26,3 +26,5 @@ endif()
 if(ENABLE_PHP_SAMPLE)
 	add_subdirectory(php)
 endif()
+
+add_subdirectory(webapi)
