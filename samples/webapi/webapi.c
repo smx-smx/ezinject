@@ -162,10 +162,14 @@ int handle_client(int client){
 				void *handle = NULL;
 				if(length == 2 && path[0] == '0'){
 					DBG("dlopen(NULL)");
+				#if defined(EZ_TARGET_POSIX)
 					handle = dlopen(NULL, RTLD_NOW);
+				#elif defined(EZ_TARGET_WINDOWS)
+					handle = GetModuleHandle(NULL);
+				#endif
 				} else {
 					DBG("dlopen(%s)", path);
-					handle = dlopen(path, RTLD_GLOBAL | RTLD_NOW);
+					handle = LIB_OPEN(path);
 				}
 				send_ptrstr(client, handle);
 				break;
@@ -175,14 +179,14 @@ int handle_client(int client){
 				void *handle = (void *)strtoull(data, NULL, 16);
 				data = strchr(data, ' ') + 1;
 				DBG("dlsym(%p, %s)", handle, data);
-				void *sym = dlsym(handle, data);
+				void *sym = LIB_GETSYM(handle, data);
 				send_ptrstr(client, sym);
 				break;
 			}
 			case OP_DLCLOSE:{
 				DBG("OP_DLCLOSE");
 				void *handle = (void *)strtoull(data, NULL, 16);
-				dlclose(handle);
+				LIB_CLOSE(handle);
 				send_str(client, NULL);
 				break;
 			}
