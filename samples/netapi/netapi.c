@@ -97,7 +97,37 @@ static void _build_pkt(struct ez_pkt *pkt, char *str){
 	pkt->body_length = ntohl(length);
 }
 
-void send_str(int fd, char *str){
+intptr_t safe_send(int fd, void *buf, size_t length, int flags){
+	uint8_t *pb = (uint8_t *)buf;
+
+	ssize_t acc = 0;
+	while(acc < length){
+		ssize_t sent = send(fd, &pb[acc], length - acc, 0);
+		if(sent < 0){
+			PERROR("send");
+			return -1;
+		}
+		acc += sent;
+	}
+	return (intptr_t)acc;
+}
+
+intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
+	uint8_t *pb = (uint8_t *)buf;
+	
+	ssize_t acc = 0;
+	while(acc < length){
+		ssize_t received = recv(fd, &pb[acc], length - acc, 0);
+		if(received < 0){
+			PERROR("recv");
+			return -1;
+		}
+		acc += received;
+	}
+	return (intptr_t)acc;
+}
+
+intptr_t send_str(int fd, char *str){
 	struct ez_pkt pkt;
 	memset(&pkt, 0x00, sizeof(pkt));
 
@@ -110,23 +140,29 @@ void send_str(int fd, char *str){
 	puts("");
 #endif
 
-	send(fd, &pkt, sizeof(pkt), 0);
+	if(send(fd, &pkt, sizeof(pkt), 0) != sizeof(pkt)){
+		return -1;
+	}
+	return 0;
 }
 
-void send_ptrstr(int fd, void *ptr){
+intptr_t send_ptrstr(int fd, void *ptr){
 	uint8_t buf[MAX_BODYSZ];
 	memset(buf, 0x00, sizeof(buf));
 	snprintf(buf, sizeof(buf), "%p", ptr);
-	send_str(fd, buf);
+	return send_str(fd, buf);
 }
 
-void send_datahdr(int fd, unsigned int size){
+intptr_t send_datahdr(int fd, unsigned int size){
 	struct ez_pkt pkt;
 	memset(&pkt, 0x00, sizeof(pkt));
 
 	_build_pkt(&pkt, NULL);
 	pkt.body_length = ntohl(size);
-	send(fd, &pkt, sizeof(pkt), 0);
+	if(send(fd, &pkt, sizeof(pkt), 0) != sizeof(pkt)){
+		return -1;
+	}
+	return 0;
 }
 
 int handle_client(int client){
@@ -134,16 +170,36 @@ int handle_client(int client){
 	int flag = 1;
 	setsockopt(client, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
 
+	int last_txrx = 0;
+
+	#define SAFE_SEND(fd, buf, length, flags) do { \
+		last_txrx = safe_send(fd, buf, length, flags); \
+		if(last_txrx < 0) { \
+			PERROR("send"); \
+			serve = 0; break; \
+		} \
+	} while(0)
+
+	#define SAFE_RECV(fd, buf, length, flags) do { \
+		last_txrx = safe_recv(fd, buf, length, flags); \
+		if(last_txrx < 0) { \
+			PERROR("recv"); \
+			serve = 0; break; \
+			break; \
+		} \ 
+	} while(0)
+
+
 	int serve = 1;
 	while(serve){
 		unsigned int length = 0;
-		recv(client, &length, sizeof(length), 0);
+		SAFE_RECV(client, &length, sizeof(length), 0);
 		length = ntohl(length);
 		int malloc_sz = WORDALIGN(MAX(length, 64));
 		DBG("incoming msg, length: %u", length);
 		uint8_t *mem = calloc(malloc_sz, 1);
 		uint8_t *data = mem;
-		recv(client, data, length, 0);
+		SAFE_RECV(client, data, length, 0);
 
 		switch(*(data++)){
 			case OP_INFO:{
@@ -172,7 +228,10 @@ int handle_client(int client){
 					DBG("dlopen(%s)", path);
 					handle = LIB_OPEN(path);
 				}
-				send_ptrstr(client, handle);
+				if(send_ptrstr(client, handle) != 0){
+					ERR("send_ptrstr failed");
+					serve = 0;
+				}
 				break;
 			}
 			case OP_DLSYM:{
@@ -181,14 +240,20 @@ int handle_client(int client){
 				data = strchr(data, ' ') + 1;
 				DBG("dlsym(%p, %s)", handle, data);
 				void *sym = LIB_GETSYM(handle, data);
-				send_ptrstr(client, sym);
+				if(send_ptrstr(client, sym) != 0){
+					ERR("send_ptrstr failed");
+					serve = 0;
+				}
 				break;
 			}
 			case OP_DLCLOSE:{
 				DBG("OP_DLCLOSE");
 				void *handle = (void *)strtoull(data, NULL, 16);
 				LIB_CLOSE(handle);
-				send_str(client, NULL);
+				if(send_str(client, NULL) != 0){
+					ERR("send_str failed");
+					serve = 0;
+				}
 				break;
 			}
 			case OP_PEEK:{
@@ -207,16 +272,22 @@ int handle_client(int client){
 				}
 				int length_aligned = ntohl(length + rem);
 
-				send_datahdr(client, 0);
-				send(client, &length_aligned, sizeof(length_aligned), 0);
+				if(send_datahdr(client, 0) != 0){
+					ERR("send_datahdr failed");
+					serve = 0;
+					break;
+				}
+				SAFE_SEND(client, &length_aligned, sizeof(length_aligned), 0);
 
-				DBG("reading %d blocks", nblocks);
+				DBG("writing %d blocks", nblocks);
 				for(int i=0; i<nblocks; i++){
-					send(client, start_addr, blocksize, 0);
+					SAFE_SEND(client, start_addr, blocksize, 0);
 					start_addr += blocksize;
 				}
-				DBG("reading %d bytes", blockoff);
-				send(client, start_addr, blockoff, 0);
+				DBG("writing %d bytes", blockoff);
+				if(blockoff > 0){
+					SAFE_SEND(client, start_addr, blockoff, 0);
+				}
 			
 				break;
 			}
@@ -233,13 +304,18 @@ int handle_client(int client){
 
 				DBG("reading %d blocks", nblocks);
 				for(int i=0; i<nblocks; i++){
-					recv(client, start_addr, blocksize, 0);
+					SAFE_RECV(client, start_addr, blocksize, 0);
 					start_addr += blocksize;
 				}
 				DBG("reading %d bytes", blockoff);
-				recv(client, start_addr, blockoff, 0);
+				if(blockoff > 0){
+					SAFE_RECV(client, start_addr, blockoff, 0);
+				}
 				
-				send_str(client, NULL);
+				if(send_str(client, NULL) != 0){
+					ERR("send_str failed");
+					serve = 0;
+				}
 
 				break;
 			}
@@ -275,12 +351,17 @@ int handle_client(int client){
 						break;
 				}
 
-				send_ptrstr(client, result);
+				if(send_ptrstr(client, result) != 0){
+					ERR("send_ptrstr failed");
+					serve = 0;
+				}
 				break;
 			}
 			case OP_QUIT:{
-				send_str(client, NULL);
-				serve = false;
+				if(send_str(client, NULL) != 0){
+					ERR("send_str failed");
+				}
+				serve = 0;
 				break;
 			}
 				
