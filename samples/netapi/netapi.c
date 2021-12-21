@@ -261,15 +261,16 @@ int handle_client(int client){
 				uint8_t *start_addr = (uint8_t *)strtoull(data, NULL, 16);
 				data = strchr(data, ' ') + 1;
 				unsigned int length = strtoul(data, NULL, 16);
+				DBG("length: %u", length);
 				
 				int blocksize = 4096;
 				int nblocks = length / blocksize;
 				int blockoff = length % blocksize;
 
+				// align to multiple of NETALIGN (2)
 				int rem = (length % sizeof(uintptr_t));
-				if(rem != 0){
-					blockoff += rem;
-				}
+				uintptr_t padding = 0;
+
 				int length_aligned = ntohl(length + rem);
 
 				if(send_datahdr(client, 0) != 0){
@@ -288,7 +289,11 @@ int handle_client(int client){
 				if(blockoff > 0){
 					SAFE_SEND(client, start_addr, blockoff, 0);
 				}
-			
+
+				if(rem > 0){
+					DBG("writing rem: %d", rem);
+					SAFE_SEND(client, &padding, rem, 0);
+				}
 				break;
 			}
 			case OP_POKE:{
