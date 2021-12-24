@@ -105,6 +105,11 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 INLINE intptr_t inj_remove_chrome_sandbox(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
+	if(br->LdrRegisterDllNotification == NULL
+	|| br->LdrUnregisterDllNotification == NULL){
+		return 0;
+	}
+
 	PVOID cookie = NULL;
 	// register a dummy invalid CB to get the list tail
 	br->LdrRegisterDllNotification(0, ctx, ctx, &cookie);

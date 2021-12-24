@@ -23,7 +23,9 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
 	set(EZ_TARGET_FREEBSD TRUE)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
-	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll")
+	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ".dll")
+	string(APPEND CMAKE_EXE_LINKER_FLAGS " -static-libgcc")
+	string(APPEND CMAKE_SHARED_LINKER_FLAGS " -static-libgcc")
 	set(EZ_TARGET_WINDOWS TRUE)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
@@ -406,22 +408,20 @@ if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR (EZ_ARCH_ARM AND USE_ARM_THUMB))
 endif()
 
 if(HAVE_CPU_VLE)
-	if(NOT CAPSTONE_PREFIX)
-		set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")
-		if(NOT CAPSTONE_INCLUDE_DIRS AND NOT CAPSTONE_LIBRARIES)
-			find_package(CAPSTONE REQUIRED)
-		endif()
-		include_directories(${CAPSTONE_INCLUDE_DIRS})
-	else()
-		find_library(
-				CAPSTONE_LIBRARIES REQUIRED
-				NO_DEFAULT_PATH
-				PATHS ${CAPSTONE_PREFIX}/lib
-				NAMES libcapstone.a capstone
-				CMAKE_FIND_ROOT_PATH_BOTH 
-		)
+	set(_opt_nodefault "")
+	set(_search_paths "")
+	if(CAPSTONE_PREFIX)
+		set(_opt_nodefault "NO_DEFAULT_PATH")
+		list(APPEND _search_paths ${CAPSTONE_PREFIX}/lib)
 		include_directories(${CAPSTONE_PREFIX}/include)
 	endif()
+
+	find_library(
+			CAPSTONE_LIBRARIES REQUIRED
+			${_opt_nodefault}
+			PATHS ${_search_paths}
+			NAMES libcapstone.a capstone
+	)
 endif()
 
 configure_file(

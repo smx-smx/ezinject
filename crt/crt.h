@@ -12,7 +12,7 @@
 #include <stdint.h>
 #include "ezinject.h"
 
-typedef void *(*crt_thread_func_t)(void *arg);
+typedef void *(WINAPI *crt_thread_func_t)(void *arg);
 
 EZAPI crt_thread_create(struct injcode_bearing *br, crt_thread_func_t pfnThreadEntry);
 EZAPI crt_thread_notify(struct injcode_bearing *br);

@@ -6,8 +6,8 @@ add_executable(target target.c)
 #endif()
 
 add_ezinject_library(dummy
-	USE_LH
-	#USE_LOG
+	#USE_LH
+	USE_LOG
 	SOURCES libdummy.c
 )
 

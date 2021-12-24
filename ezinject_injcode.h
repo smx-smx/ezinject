@@ -231,17 +231,21 @@ struct injcode_bearing
 		ULONG            ProcessInformationLength,
 		PULONG           ReturnLength
 	);
-	PPEB NTAPI (*RtlGetCurrentPeb)();
-	NTSTATUS NTAPI (*NtWriteFile)(
-		HANDLE           FileHandle,
-		HANDLE           Event,
-		PIO_APC_ROUTINE  ApcRoutine,
-		PVOID            ApcContext,
-		PIO_STATUS_BLOCK IoStatusBlock,
-		PVOID            Buffer,
-		ULONG            Length,
-		PLARGE_INTEGER   ByteOffset,
-		PULONG           Key
+	HANDLE WINAPI (*CreateFileA)(
+		LPCSTR                lpFileName,
+		DWORD                 dwDesiredAccess,
+		DWORD                 dwShareMode,
+		LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+		DWORD                 dwCreationDisposition,
+		DWORD                 dwFlagsAndAttributes,
+		HANDLE                hTemplateFile
+	);
+	BOOL WINAPI (*WriteFile)(
+		HANDLE       hFile,
+		LPCVOID      lpBuffer,
+		DWORD        nNumberOfBytesToWrite,
+		LPDWORD      lpNumberOfBytesWritten,
+		LPOVERLAPPED lpOverlapped
 	);
 	NTSTATUS NTAPI (*LdrRegisterDllNotification)(
   		ULONG   Flags,

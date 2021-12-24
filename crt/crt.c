@@ -65,10 +65,52 @@
 
 extern int crt_userinit(struct injcode_bearing *br);
 
-void* crt_user_entry(void *arg);
+WINAPI void* crt_user_entry(void *arg);
 
-int crt_init(struct injcode_bearing *br){
+#ifdef EZ_TARGET_WINDOWS 
+#define DLLEXPORT __declspec(dllexport)
+#else
+#define DLLEXPORT
+#endif
+
+#ifdef EZ_TARGET_WINDOWS
+static void _init_stdout(){
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
+
+	AllocConsole();
+	freopen("CONIN$", "r", stdin);
+	freopen("CONOUT$", "w", stderr);
+	freopen("CONOUT$", "w", stdout);
+
+	HANDLE hConOut = CreateFile(
+		TEXT("CONOUT$"),
+		GENERIC_READ | GENERIC_WRITE,
+		FILE_SHARE_READ | FILE_SHARE_WRITE,
+		NULL, OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL, NULL);
+	
+	SetStdHandle(STD_OUTPUT_HANDLE, hConOut);
+	SetStdHandle(STD_ERROR_HANDLE, hConOut);
+
+	puts("HI");
+	puts("HI");
+	puts("HI");
+	puts("HI");
+	puts("HI");
+	puts("HI");
+	puts("HI");
+}
+#endif
+
+DLLEXPORT int crt_init(struct injcode_bearing *br){
+#ifdef EZ_TARGET_WINDOWS
+	LOG_INIT(MODULE_NAME".log");
+	//_init_stdout();
+#else
 	LOG_INIT("/tmp/"MODULE_NAME".log");
+#endif
+
 	INFO("library loaded!");
 
 	INFO("initializing");
@@ -96,7 +138,7 @@ int crt_init(struct injcode_bearing *br){
 /**
  * User code: runs on mmap'd stack
  **/
-void *crt_user_entry(void *arg) {
+WINAPI void *crt_user_entry(void *arg) {
 	struct injcode_bearing *br = arg;
 
 	// prepare argv
