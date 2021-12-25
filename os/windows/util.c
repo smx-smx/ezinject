@@ -65,6 +65,36 @@ char *strcasestr(const char *s, const char *find) {
 	return ((char *)s);
 }
 
+static uintptr_t _search_executable_region(HANDLE hProcess, LPVOID baseAddr){
+	MEMORY_BASIC_INFORMATION mbi;
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+
+	BOOL found = FALSE;
+	LPVOID lpMem = baseAddr;
+	do {
+		if(VirtualQueryEx(hProcess, lpMem, &mbi, sizeof(mbi)) == 0){
+			PERROR("VirtualQueryEx");
+			break;
+		}
+		DBGPTR(lpMem);
+		DBG("mem protection: %u", mbi.Protect);
+
+		if(mbi.Type != MEM_IMAGE) goto next;
+		if((mbi.Protect & PAGE_NOACCESS)) goto next;
+		if((mbi.Protect & PAGE_GUARD)) goto next;
+		if((mbi.Protect & PAGE_EXECUTE_READ) || (mbi.Protect & PAGE_EXECUTE_READWRITE)){
+			found = TRUE;
+			break;
+		}
+
+		next:
+		lpMem = VPTR(UPTR(lpMem) + mbi.RegionSize);
+	} while(lpMem < si.lpMaximumApplicationAddress);
+
+	return (found) ? UPTR(lpMem) : 0;
+}
+
 void *get_base(pid_t pid, char *substr, char **ignores) {
 	UNUSED(ignores);
 
@@ -99,20 +129,31 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 
 		imageFileName = mod32.szExePath;
 		DBG("imageFileName: %s", imageFileName);
-
+		{
+			char *backslash = strrchr(imageFileName, '\\');
+			if(backslash != NULL){
+				imageFileName = backslash + 1;
+			}
+		}
+		DBG("imageFileName: %s", imageFileName);		
 		do {
 			TCHAR *modName = mod32.szModule;
 			uintptr_t modBase = (uintptr_t)mod32.modBaseAddr;
 			DBG("%p -> %s", (void *)modBase, modName);
 
-			if(
-				(substr == NULL && !_stricmp(imageFileName, modName)) ||
-				(substr != NULL && strcasestr(modName, substr) != NULL)
-			){
+			if(substr == NULL){
+				if(!_stricmp(imageFileName, modName)){
+					#if 1 // FIXME: only Windows NT
+					base = (LPVOID)_search_executable_region(hProcess, (LPVOID)modBase);
+					#else 
+					base = (LPVOID)modBase;
+					#endif
+					break;
+				}
+			} else if(strcasestr(modName, substr) != NULL){
 				base = (void *)modBase;
 				break;
 			}
-
 		} while(Module32Next(hSnap, &mod32));
 
 	} while(0);
@@ -124,5 +165,6 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	}
 	CloseHandle(hProcess);
 
+	DBG("base for %s -> %p", substr, base);
 	return base;
 }

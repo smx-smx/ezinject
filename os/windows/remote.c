@@ -50,10 +50,12 @@ static EZAPI _grant_debug_privileges(){
 }
 
 EZAPI remote_attach(struct ezinj_ctx *ctx){
+#if 1
 	if(_grant_debug_privileges() < 0){
 		ERR("_grant_debug_privileges failed");
 		return -1;
 	}
+#endif
 
 	HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, false, ctx->target);
 	if(hProc == NULL || hProc == INVALID_HANDLE_VALUE){
@@ -65,10 +67,12 @@ EZAPI remote_attach(struct ezinj_ctx *ctx){
 		ERR("remote_suspend failed");
 		return -1;
 	}
+#if 0
 	if(DebugSetProcessKillOnExit(FALSE) == FALSE){
 		PERROR("DebugSetProcessKillOnExit failed");
 		return -1;
 	}
+#endif
 	return 0;
 }
 
@@ -99,9 +103,11 @@ EZAPI remote_detach(struct ezinj_ctx *ctx){
 	// we need to dispatch the last debug event first
 	remote_continue(ctx, 0);
 
+#if 1
 	if(DebugActiveProcessStop(ctx->target) == FALSE){
 		return -1;
 	}
+#endif
 	return 0;
 }
 

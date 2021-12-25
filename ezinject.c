@@ -106,6 +106,10 @@ intptr_t setregs_syscall(
 	rcall->libc_open = (void *)ctx->libc_open.remote;
 	rcall->libc_read = (void *)ctx->libc_read.remote;
 #endif
+#ifdef EZ_TARGET_WINDOWS
+	rcall->VirtualAlloc = (void *)ctx->virtual_alloc.remote;
+	rcall->VirtualFree = (void *)ctx->virtual_free.remote;
+#endif
 
 #define PLAPI_USE(fn) rcall->plapi.fn = (void *)ctx->plapi.fn;
 	PLAPI_USE(inj_memset);
@@ -580,6 +584,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
 	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
 	br->ntdll_base = (void *)ctx->libc.remote;
+	br->kernel32_base = (void *)ctx->libdl.remote;
 	br->AllocConsole = (void *)ctx->alloc_console.remote;
 #endif
 
@@ -733,11 +738,7 @@ int ezinject_main(
 	do {
 		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
 		if(remote_shm_ptr == 0){
-		#ifdef EZ_TARGET_WINDOWS
-			PERROR("VirtualAllocEx failed");
-		#else
 			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
-		#endif
 			break;
 		}
 		DBG("remote payload base: %p", (void *)remote_shm_ptr);

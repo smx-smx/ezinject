@@ -43,17 +43,13 @@ static int chrome_remove_sandbox(struct ezinj_ctx *ctx){
 }
 
 int resolve_libc_symbols(struct ezinj_ctx *ctx){
-	void *h_ntdll = GetModuleHandleA("ntdll.dll");
-	if(!h_ntdll){
-		ERR("Failed to locate ntdll.dll");
-		return 1;
-	}
-
 	void *h_kernel32 = GetModuleHandleA("kernel32.dll");
 	if(!h_kernel32){
 		ERR("Failed to locate kernel32.dll");
 		return 1;
 	}
+
+#define DBGADDR(x) DBGPTR(x.local); DBGPTR(x.remote)
 
 	ez_addr kernel32 = {
 		.local = UPTR(h_kernel32),
@@ -63,31 +59,42 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 		ERR("Failed to locate kernel32");
 		return 1;
 	}
+	ctx->libdl = kernel32;
+
+	ez_addr virtual_alloc = sym_addr(h_kernel32, "VirtualAlloc", kernel32);
+	ez_addr virtual_free = sym_addr(h_kernel32, "VirtualFree", kernel32);
+	ctx->virtual_alloc = virtual_alloc;
+	ctx->virtual_free = virtual_free;
 
 	ez_addr create_file = sym_addr(h_kernel32, "CreateFileA", kernel32);
 	ez_addr write_file = sym_addr(h_kernel32, "WriteFile", kernel32);
 	ctx->create_file = create_file;
 	ctx->write_file = write_file;
 
-	ez_addr libc_dlopen = sym_addr(h_ntdll, "LdrLoadDll", ctx->libc);
+	DBGADDR(virtual_alloc);
+	DBGADDR(virtual_free);
 
-	ez_addr nt_query_proc = sym_addr(h_ntdll, "NtQueryInformationProcess", ctx->libc);
-	ez_addr nt_register_dll_noti = sym_addr(h_ntdll, "LdrRegisterDllNotification", ctx->libc);
-	ez_addr nt_unregister_dll_noti = sym_addr(h_ntdll, "LdrUnregisterDllNotification", ctx->libc);
+	void *h_ntdll = GetModuleHandleA("ntdll.dll");
+	if(h_ntdll != NULL){
+		ez_addr libc_dlopen = sym_addr(h_ntdll, "LdrLoadDll", ctx->libc);
 
-#define DBGADDR(x) DBGPTR(x.local); DBGPTR(x.remote)
-
-	DBGADDR(libc_dlopen);
-	DBGADDR(nt_query_proc);
-	DBGADDR(nt_register_dll_noti);
-	DBGADDR(nt_unregister_dll_noti);
+		ez_addr nt_query_proc = sym_addr(h_ntdll, "NtQueryInformationProcess", ctx->libc);
+		ez_addr nt_register_dll_noti = sym_addr(h_ntdll, "LdrRegisterDllNotification", ctx->libc);
+		ez_addr nt_unregister_dll_noti = sym_addr(h_ntdll, "LdrUnregisterDllNotification", ctx->libc);
 
 
+		DBGADDR(libc_dlopen);
+		DBGADDR(nt_query_proc);
+		DBGADDR(nt_register_dll_noti);
+		DBGADDR(nt_unregister_dll_noti);
 
-	ctx->nt_query_proc = nt_query_proc;
-	ctx->libc_dlopen = libc_dlopen;
-	ctx->nt_register_dll_noti = nt_register_dll_noti;
-	ctx->nt_unregister_dll_noti = nt_unregister_dll_noti;
+
+
+		ctx->nt_query_proc = nt_query_proc;
+		ctx->libc_dlopen = libc_dlopen;
+		ctx->nt_register_dll_noti = nt_register_dll_noti;
+		ctx->nt_unregister_dll_noti = nt_unregister_dll_noti;
+	}
 
 	ez_addr alloc_console = sym_addr(h_kernel32, "AllocConsole", kernel32);
 	ctx->alloc_console = alloc_console;

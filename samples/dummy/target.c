@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
 	print_maps();
 
 	int interactive = argc > 1;
-	printf("pid=%d\n&main=%p\n&return2=%p\n&func2=%p\n", getpid(), main, func1, func2);
+	printf("pid=%lu\n&main=%p\n&return2=%p\n&func2=%p\n", getpid(), main, func1, func2);
 	for(;;)
 	{
 		int val = func1(0, 1);

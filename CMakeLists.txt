@@ -180,7 +180,7 @@ elseif(EZ_TARGET_DARWIN)
 	list(APPEND EXTRA_SEARCH_PATHS "/usr/lib/system")
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND C_LIBRARY_NAMES
-		ntdll.dll
+		kernel32.dll
 	)
 	list(APPEND EXTRA_SEARCH_PATHS "$ENV{SystemRoot}\\System32")
 endif()
@@ -205,7 +205,7 @@ if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD)
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND DL_LIBRARY_NAMES
 		# implements LoadLibraryA
-		Kernel32.dll
+		kernel32.dll
 	)
 endif()
 
@@ -281,11 +281,11 @@ endmacro()
 
 function(libc_autodetect)
 	if(EZ_TARGET_WINDOWS)
-		check_library_exists("${C_LIBRARY}" "LdrLoadDll" "" HAVE_LDR_LOAD_DLL)
+		#check_library_exists("${C_LIBRARY}" "LdrLoadDll" "" HAVE_LDR_LOAD_DLL)
 		check_library_exists("${DL_LIBRARY}" "LoadLibraryA" "" HAVE_LOADLIBRARY)
-		if(NOT HAVE_LDR_LOAD_DLL)
-			message(FATAL_ERROR "Invalid or unsupported ntdll.dll")
-		endif()
+		#if(NOT HAVE_LDR_LOAD_DLL)
+		#	message(FATAL_ERROR "Invalid or unsupported ntdll.dll")
+		#endif()
 		if(NOT HAVE_LOADLIBRARY)
 			message(FATAL_ERROR "Invalid or unsupported kernel32.dll")
 		endif()
@@ -559,6 +559,7 @@ elseif(EZ_TARGET_WINDOWS)
 		os/windows/libc_windows.c
 	)
 	list(APPEND target_sources
+		os/posix/inject.c
 		os/windows/inject.c
 	)
 endif()
