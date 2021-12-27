@@ -69,6 +69,7 @@ struct ezinj_ctx {
 	int pl_debug;
 	int syscall_mode;
 	pid_t target;
+	uintptr_t r_xpage_base;
 #ifdef EZ_TARGET_WINDOWS
 	int wait_call_seq;
 	DEBUG_EVENT ev;

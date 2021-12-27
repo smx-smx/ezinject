@@ -17,6 +17,17 @@
 
 #include "ezinject_common.h"
 #include "log.h"
+#include "util.h"
+
+//#define EZ_TARGET_WINNT
+
+NTSTATUS NTAPI (*RtlQueryProcessDebugInformation)(
+	HANDLE UniqueProcessId,
+	ULONG Flags,
+	PRTL_DEBUG_INFORMATION Buffer
+);
+PRTL_DEBUG_INFORMATION NTAPI (*RtlCreateQueryDebugBuffer)(ULONG Size, BOOLEAN EventPair);
+NTSTATUS NTAPI (*RtlDestroyQueryDebugBuffer)(PRTL_DEBUG_INFORMATION Buffer);
 
 BOOL win32_errstr(DWORD dwErrorCode, LPTSTR pBuffer, DWORD cchBufferLength){
 	if(cchBufferLength == 0){
@@ -95,6 +106,69 @@ static uintptr_t _search_executable_region(HANDLE hProcess, LPVOID baseAddr){
 	return (found) ? UPTR(lpMem) : 0;
 }
 
+#ifdef EZ_TARGET_WINNT
+
+void *get_base(pid_t pid, char *substr, char **ignores) {
+	HANDLE hProcess = INVALID_HANDLE_VALUE;
+
+
+	DBG("pid: %u, substr: %s", pid, substr);
+	hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
+                            PROCESS_VM_READ,
+                            FALSE, pid );
+	if (NULL == hProcess){
+		PERROR("OpenProcess");
+		return NULL;
+	}	
+
+	void *base = NULL;
+	do {
+		PRTL_DEBUG_INFORMATION debugBuffer = RtlCreateQueryDebugBuffer(0, FALSE);
+		if(!debugBuffer){
+			PERROR("RtlCreateQueryDebugBuffer");
+			break;
+		}
+
+		RtlQueryProcessDebugInformation((HANDLE)pid, RTL_DEBUG_QUERY_MODULES, debugBuffer);
+
+		DBG("number of modules: %u", debugBuffer->Modules->NumberOfModules);
+		for(unsigned i=0; i<debugBuffer->Modules->NumberOfModules; i++){
+			PRTL_PROCESS_MODULE_INFORMATION mod = &debugBuffer->Modules->Modules[i];
+			char *imageFileName = mod->FullPathName;
+			DBG("imageFileName: %s", imageFileName);
+			{
+				char *backslash = strrchr(imageFileName, '\\');
+				if(backslash != NULL){
+					imageFileName = backslash + 1;
+				}
+			}
+			DBG("imageBaseName: %s", imageFileName);
+
+			char *lastdot = strrchr(imageFileName, '.');
+			if(lastdot == NULL) continue;
+
+			for(char *t = lastdot; *t != '\0'; t++){
+				*t = tolower(*t);
+			}
+
+			if(substr == NULL){
+				if(!strcmp(lastdot, ".exe")){
+					base = (LPVOID)_search_executable_region(hProcess, (LPVOID)mod->ImageBase);
+				}
+			} else if(strcasestr(imageFileName, substr) != NULL){
+				base = (LPVOID)mod->ImageBase;
+			}
+		}
+
+		RtlDestroyQueryDebugBuffer(debugBuffer);
+	} while(0);
+	CloseHandle(hProcess);
+
+	return base;
+}
+
+
+#else
 void *get_base(pid_t pid, char *substr, char **ignores) {
 	UNUSED(ignores);
 
@@ -179,3 +253,4 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	DBG("base for %s -> %p", substr, base);
 	return base;
 }
+#endif
