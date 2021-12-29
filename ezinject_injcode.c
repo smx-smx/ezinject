@@ -81,8 +81,11 @@ INLINE void injected_sc_stop(volatile struct injcode_call *sc){
 }
 #elif defined(EZ_TARGET_WINDOWS)
 INLINE void injected_sc_stop(volatile struct injcode_call *sc){
-	UNUSED(sc);
-	asm volatile("int $3\n");
+	asm volatile(
+		".align 0\n\t"
+		JMP_INSN " .\n\t"
+		".long 0xDEADBEEF\n\t"
+	);
 }
 #endif
 
@@ -96,7 +99,7 @@ INLINE void injected_sc_stop(volatile struct injcode_call *sc){
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
 	args->result = args->wrapper.target(args);
 	injected_sc_stop(args);
-	while(1);
+	asm volatile(JMP_INSN " .");
 }
 #endif
 
@@ -274,6 +277,8 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	STRTBL_FETCH(stbl_argv, ctx->userlib_name);
 
 	//asm volatile(JMP_INSN " .");
+	PCALL(ctx, inj_puts, ctx->userlib_name);
+
 	br->userlib = inj_dlopen(ctx, ctx->userlib_name, RTLD_NOW);
 	PCALL(ctx, inj_dbgptr, br->userlib);
 	if(br->userlib == NULL){

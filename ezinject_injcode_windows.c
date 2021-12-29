@@ -9,7 +9,6 @@
 
 #define PL_RETURN(sc, x) do { \
 	((sc)->result = (x)); \
-	asm volatile("int $3\n"); \
 	return 0; \
 } while(0)
 

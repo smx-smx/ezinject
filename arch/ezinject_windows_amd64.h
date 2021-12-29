@@ -11,6 +11,7 @@
 
 #define REG_PC Rip
 #define REG_SP Rsp
+#define REG_AX Rax
 
 #define REG(u, r) (u).r
 

@@ -65,7 +65,6 @@ extern FILE *LOG_RESERVED_HANDLE;
     FILE *LOG_RESERVED_HANDLE; \
     __LOG_DECLARE_VERBOSITY(verb)
 
-
 #define LOG_INIT(filePath) do { \
     LOG_RESERVED_HANDLE = fopen(filePath, "w+"); \
     if(LOG_RESERVED_HANDLE == NULL){ \

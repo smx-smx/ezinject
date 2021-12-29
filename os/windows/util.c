@@ -112,6 +112,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	HANDLE hSnap = INVALID_HANDLE_VALUE;
 	TCHAR *imageFileName = NULL;
 	do {
+	repeat:
 		hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
 		if(hSnap == INVALID_HANDLE_VALUE){
 			PERROR("CreateToolhelp32Snapshot failed");
@@ -143,7 +144,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 
 			if(substr == NULL){
 				if(!_stricmp(imageFileName, modName)){
-					#if 1 // FIXME: only Windows NT
+					#if 0 // FIXME: only Windows NT
 					base = (LPVOID)_search_executable_region(hProcess, (LPVOID)modBase);
 					#else 
 					base = (LPVOID)modBase;

@@ -3,6 +3,7 @@
 
 #define REG_PC Eip
 #define REG_SP Esp
+#define REG_AX Eax
 
 #define REG(u, r) (u).r
 
