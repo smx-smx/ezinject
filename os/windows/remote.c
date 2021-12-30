@@ -49,12 +49,12 @@ static EZAPI _grant_debug_privileges(){
 EZAPI remote_attach(struct ezinj_ctx *ctx){
 	Initialization();
 
-#if 0
-	if(_grant_debug_privileges() < 0){
-		ERR("_grant_debug_privileges failed");
-		return -1;
+	if(OSWinNT){
+		if(_grant_debug_privileges() < 0){
+			ERR("_grant_debug_privileges failed");
+			return -1;
+		}
 	}
-#endif
 
 	HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, false, ctx->target);
 	if(hProc == NULL || hProc == INVALID_HANDLE_VALUE){
@@ -182,24 +182,22 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 
 	regs_t regs;
 	while(1){
-		if(remote_getregs(ctx, &regs) < 0){
-			ERR("remote_getregs failed");
-			return -1;
-		}
-
-		uintptr_t buf = 0;
-		uintptr_t addr = REG(regs, REG_PC) + 2;
-		if(remote_read(ctx, &buf, addr, sizeof(buf)) != sizeof(buf)){
+		uintptr_t ezstate = 0;
+		if(remote_read(ctx,
+			&ezstate, ctx->r_ezstate_addr,
+			sizeof(ezstate)) != sizeof(ezstate)
+		){
 			ERR("remote_read failed");
 			return -1;
 		}
 
-		if(buf == 0xdeadbeef){
+		// check for signaled state
+		if(ezstate == EZST1){
 			DBG("Ready");
 			return 0;
 		}
 
-		Sleep(100);
+		Sleep(50);
 	}
 
 	/*while(1){

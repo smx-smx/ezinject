@@ -100,6 +100,16 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 
 	HANDLE hProcess = INVALID_HANDLE_VALUE;
 
+	OSVERSIONINFO osvi = {
+		.dwOSVersionInfoSize = sizeof(OSVERSIONINFO)
+	};
+	if (!GetVersionEx(&osvi)){
+		PERROR("GetVersionEx");
+		return NULL;
+	}
+	BOOL isWINNT = osvi.dwPlatformId == VER_PLATFORM_WIN32_NT;
+
+
 	hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
                             PROCESS_VM_READ,
                             FALSE, pid );
@@ -144,11 +154,11 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 
 			if(substr == NULL){
 				if(!_stricmp(imageFileName, modName)){
-					#if 0 // FIXME: only Windows NT
-					base = (LPVOID)_search_executable_region(hProcess, (LPVOID)modBase);
-					#else 
-					base = (LPVOID)modBase;
-					#endif
+					if(isWINNT){
+						base = (LPVOID)_search_executable_region(hProcess, (LPVOID)modBase);
+					} else {
+						base = (LPVOID)modBase;
+					}
 					break;
 				}
 			} else if(strcasestr(modName, substr) != NULL){

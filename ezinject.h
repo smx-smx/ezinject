@@ -75,6 +75,7 @@ struct ezinj_ctx {
 	HANDLE hProc;
 	HANDLE hThread;
 	DWORD target_tid;
+	uintptr_t r_ezstate_addr;
 #endif
 #ifdef EZ_TARGET_DARWIN
 	task_t task;

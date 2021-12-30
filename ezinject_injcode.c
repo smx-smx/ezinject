@@ -73,19 +73,16 @@ intptr_t SCAPI injected_read(volatile struct injcode_call *sc){
 #endif
 
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
-INLINE void injected_sc_stop(volatile struct injcode_call *sc){
+INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
 	sc->libc_syscall(__NR_kill,
 		sc->libc_syscall(__NR_getpid),
 		SIGTRAP
 	);
 }
 #elif defined(EZ_TARGET_WINDOWS)
-INLINE void injected_sc_stop(volatile struct injcode_call *sc){
-	asm volatile(
-		".align 0\n\t"
-		JMP_INSN " .\n\t"
-		".long 0xDEADBEEF\n\t"
-	);
+INLINE void SCAPI injected_sc_stop(struct injcode_call *sc){
+	sc->ezstate = EZST1;
+	asm volatile(JMP_INSN " .");
 }
 #endif
 
