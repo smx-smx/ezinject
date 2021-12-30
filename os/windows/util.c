@@ -19,7 +19,8 @@
 #include "log.h"
 #include "util.h"
 
-//#define EZ_TARGET_WINNT
+// $TODO: runtime
+#define EZ_TARGET_WINNT
 
 NTSTATUS NTAPI (*RtlQueryProcessDebugInformation)(
 	HANDLE UniqueProcessId,
@@ -107,7 +108,6 @@ static uintptr_t _search_executable_region(HANDLE hProcess, LPVOID baseAddr){
 }
 
 #ifdef EZ_TARGET_WINNT
-
 void *get_base(pid_t pid, char *substr, char **ignores) {
 	HANDLE hProcess = INVALID_HANDLE_VALUE;
 

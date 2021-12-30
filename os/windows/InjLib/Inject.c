@@ -466,6 +466,13 @@ int RemoteExecute(HANDLE hProcess,                      // Remote process handle
                 // WinNT
                 else if (ProcessFlags & fWINNT)
                 {
+                    if(OSWinNT3){
+                        // $FIXME: Windows NT 3
+                        // (note: ezinject currently works by thread hijacking)
+                        ErrorCode = ERROR_INVALIDOS;
+                        break;
+                    }
+
                     if (!(dwThreadId = _GetProcessThread(_GetProcessId(hProcess))))
                     {
                         ProcessFlags |= ~fNOTINITIALIZED;

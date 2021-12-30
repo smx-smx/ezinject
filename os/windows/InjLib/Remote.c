@@ -25,6 +25,8 @@
 #include  "GetProcAddress.h"
 #include  "LenDis.h"
 
+#include "log.h"
+
 int     OSMajorVersion, OSMinorVersion, OSBuildVersion;
 BOOL    OSWin9x, OSWin95, OSWin98, OSWinMe;
 BOOL    OSWinNT, OSWinNT3_2003, OSWinVista_7;
@@ -1144,6 +1146,9 @@ BOOL Initialization()
             OSWinNT = osvi.dwPlatformId == VER_PLATFORM_WIN32_NT;
 			OSWinNT3_2003 = (OSWinNT && OSMajorVersion >= 3 && OSMajorVersion <= 5) ? TRUE : FALSE; // Win 3.1 to 2003
 			OSWinVista_7 = (OSWinNT && OSMajorVersion == 6) ? TRUE : FALSE; // Win Vista to 7 (8 ?)
+            OSWinNT3 = (OSWinNT && OSMajorVersion == 3);
+
+            DBG("OS Major: %u, Minor: %u", OSMajorVersion, OSMinorVersion);
 
             /***** Win 9x *****/
             if (OSWin9x)
@@ -1323,9 +1328,12 @@ BOOL Initialization()
                 if (!(K32_CreateRemoteThread = (CREATEREMOTETHREAD)GetProcAddress(hKernel32, "CreateRemoteThread")))
                     break;
                 if (!(RtlCreateUserThread = (RTLCREATEUSERTHREAD)GetProcAddress(hNTDLL, "RtlCreateUserThread")))
-                break;
-                if (!(NtQueueApcThread = (NTQUEUEAPCTHREAD)GetProcAddress(hNTDLL, "NtQueueApcThread")))
                     break;
+                // Windows NT 3 doesn't have this, unsure about 4
+                if(OSWinNT && !OSWinNT3){
+                    if (!(NtQueueApcThread = (NTQUEUEAPCTHREAD)GetProcAddress(hNTDLL, "NtQueueApcThread")))
+                        break;
+                }
                 if (!(LdrShutdownThread = (LDRSHUTDOWNTHREAD)GetProcAddress(hNTDLL, "LdrShutdownThread")))
                     break;
                 if (!(NtTerminateThread = (NTTERMINATETHREAD)GetProcAddress(hNTDLL, "NtTerminateThread")))
