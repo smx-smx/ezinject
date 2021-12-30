@@ -10,11 +10,6 @@
 #include "InjLib/Remote.h"
 #include "ezinject.h"
 
-
-//#define EZ_TARGET_WIN9X
-//#define EZ_TARGET_WINNT
-
-#ifdef EZ_TARGET_WINNT
 static EZAPI _grant_debug_privileges(){
 	HANDLE token = NULL;
 	if(!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &token)){
@@ -49,10 +44,12 @@ static EZAPI _grant_debug_privileges(){
 	}
 	return rc;
 }
-#endif
 
 EZAPI remote_attach(struct ezinj_ctx *ctx){
-	Initialization();
+	if(!Initialization()){
+		ERR("InjLib Initialization failed");
+		return -1;
+	}
 
 	if(OSWinNT){
 		if(_grant_debug_privileges() < 0){
@@ -69,6 +66,7 @@ EZAPI remote_attach(struct ezinj_ctx *ctx){
 	ctx->hProc = hProc;
 
 	DWORD main_tid = _GetProcessThread(ctx->target);
+	DBG("main_tid: %lu", main_tid);
 	HANDLE hThread = _OpenThread(THREAD_ALL_ACCESS, FALSE, main_tid);
 	if(hThread == NULL || hThread == INVALID_HANDLE_VALUE){
 		PERROR("OpenThread");

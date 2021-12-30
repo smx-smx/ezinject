@@ -93,7 +93,7 @@ typedef PVOID PTDB;
 // Global variables
 REMOTE_EXTERN int     OSMajorVersion, OSMinorVersion, OSBuildVersion;
 REMOTE_EXTERN BOOL    OSWin9x, OSWin95, OSWin98, OSWinMe;
-REMOTE_EXTERN BOOL    OSWinNT, OSWinNT3_2003, OSWinVista_7;
+REMOTE_EXTERN BOOL    OSWinNT, OSWinNT3, OSWinNT3_2003, OSWinVista_7;
 REMOTE_EXTERN DWORD   dwObsfucator;               // Win 9x obfuscator
 REMOTE_EXTERN IMTE    **pMTEModTable;             // Global IMTE table
 REMOTE_EXTERN DWORD   Win16Mutex;                 // Win16Mutex
