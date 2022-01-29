@@ -1,6 +1,3 @@
-find_package(PHP REQUIRED)
-add_definitions(${PHP_INCLUDE_DIRS})
-
 add_ezinject_library(php
 	USE_LH
 	SOURCES
