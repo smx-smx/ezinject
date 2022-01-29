@@ -85,13 +85,18 @@ extern FILE *LOG_RESERVED_HANDLE;
 #define lprintf(fmt, ...) fprintf(LOG_RESERVED_HANDLE, fmt, ##__VA_ARGS__)
 #define lputchar(ch) fputc(ch, LOG_RESERVED_HANDLE)
 
-#define LOG(verb, fmt, ...) do{ \
-    if((int)verbosity>=verb) lprintf(LOG_PREFIX fmt "\n", ##__VA_ARGS__); \
-} while(0)
+//#define LOG(verb, fmt, ...) do{ \
+//    if((int)verbosity>=verb) lprintf(LOG_PREFIX fmt "\n", ##__VA_ARGS__); \
+//} while(0)
+//
+//#define INFO(fmt, ...) LOG(V_INFO, "[INFO] " fmt, ##__VA_ARGS__)
+//#define WARN(fmt, ...) LOG(V_WARN, "[WARN] " fmt, ##__VA_ARGS__)
+//#define ERR(fmt, ...) LOG(V_ERR, "[ERR ] " fmt, ##__VA_ARGS__)
 
-#define INFO(fmt, ...) LOG(V_INFO, "[INFO] " fmt, ##__VA_ARGS__)
-#define WARN(fmt, ...) LOG(V_WARN, "[WARN] " fmt, ##__VA_ARGS__)
-#define ERR(fmt, ...) LOG(V_ERR, "[ERR ] " fmt, ##__VA_ARGS__)
+#define LOG(verb, fmt, ...)
+#define INFO(fmt, ...)
+#define WARN(fmt, ...)
+#define ERR(fmt, ...)
 
 #if defined(EZ_TARGET_POSIX)
 #define PERROR(str) ERR("%s: %s", str, strerror(errno));

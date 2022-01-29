@@ -36,45 +36,40 @@
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
+#if CMAKE_SIZEOF_VOID_P==4
+#define PTRSTR "4"
+#elif CMAKE_SIZEOF_VOID_P==8
+#define PTRSTR "8"
+#else
+#error "Unknown pointer size"
+#endif
+
 LOG_SETUP(V_DBG);
 
 #define WEBAPI_DEBUG
 
-enum api_msg_type {
-	OP_INFO = 'I',
-	OP_DLOPEN = 'D',
-	OP_DLCLOSE = 'F',
-	OP_DLSYM = 'S',
-	OP_PEEK = 'R',
-	OP_POKE = 'W',
-	OP_CALL = 'C',
-	OP_QUIT = 'Q'
-};
+#define OP_INFO 0x49 // I
+#define OP_DLOPEN 0x44 // D
+#define OP_DLCLOSE 0x46 // F
+#define OP_DLSYM 0x53 // S
+#define OP_PEEK 0x52 // R
+#define OP_POKE 0x57 // W
+#define OP_CALL 0x43 // C 
+#define OP_QUIT 0x51 // Q
 
-enum api_msg_ccall {
-	C_CDECL = 'C',
-	C_STDCALL = 'S',
-	C_THISCALL = 'T'
-};
+#define C_CDECL 0x43 // C
+#define C_STDCALL 0x53 // S
+#define C_THISCALL 0x54 // T
 
-struct api_msg {
-	int type;
-	unsigned char data[1];
-};
-
-/** IMPORTANT: always prefer this to unaligned writes, or it will break on ARM v4
+/**
+ *  NOTE: remember to not do unaligned writes, or it will break on ARM v4
  * https://developer.arm.com/documentation/dui0473/j/using-the-assembler/address-alignment
  **/
-#define PUTINT(dst, src) do { \
-	uintptr_t __t = (uintptr_t)(src); \
-	memcpy(dst, &__t, sizeof(src)); \
-} while(0)
-
 /**
  * NOTE: we must ensure the TCP packet is aligned to NET_IP_ALIGN bytes (2 on old Linux)
  * or it will not be dequeued from the skb (https://lwn.net/Articles/89597/)
  */
-#define MAX_BODYSZ 20
+#define MAX_BODYSZ 8
 struct ez_pkt {
 	uint32_t magic;
 	uint32_t hdr_length;
@@ -82,14 +77,14 @@ struct ez_pkt {
 	uint8_t body[MAX_BODYSZ];
 };
 
-static void _build_pkt(struct ez_pkt *pkt, char *str){
-	int length = (str == NULL) ? 0 : strlen(str);
+static void _build_pkt(struct ez_pkt *pkt, uint8_t *data, unsigned length){
 	if(length > MAX_BODYSZ){
 		// if we overflowed
 		// we prefer being a no-op than sending an incorrect reply
 		length = 0;
-	} else if(length > 0) {
-		strncpy(pkt->body, str, MAX_BODYSZ);
+	}
+	if(data != NULL){
+		memcpy(pkt->body, data, length);
 	}
 
 	pkt->magic = htonl(0x4F4B3030); //OK00
@@ -127,11 +122,11 @@ intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
 	return (intptr_t)acc;
 }
 
-intptr_t send_str(int fd, char *str){
+intptr_t send_data(int fd, uint8_t *data, unsigned size){
 	struct ez_pkt pkt;
 	memset(&pkt, 0x00, sizeof(pkt));
+	_build_pkt(&pkt, data, size);
 
-	_build_pkt(&pkt, str);
 	uint8_t *pb = (uint8_t *)&pkt;
 #ifdef WEBAPI_DEBUG
 	for(int i=0; i<sizeof(pkt); i++){
@@ -146,23 +141,36 @@ intptr_t send_str(int fd, char *str){
 	return 0;
 }
 
-intptr_t send_ptrstr(int fd, void *ptr){
-	uint8_t buf[MAX_BODYSZ];
-	memset(buf, 0x00, sizeof(buf));
-	snprintf(buf, sizeof(buf), "%p", ptr);
-	return send_str(fd, buf);
+intptr_t send_str(int fd, char *str){
+	return send_data(fd, str, strlen(str));
 }
 
-intptr_t send_datahdr(int fd, unsigned int size){
+intptr_t send_ptrval(int fd, void *ptr){
+	uintptr_t val = (uintptr_t)ptr;
+	return send_data(fd, htonl(val), sizeof(val));
+}
+
+intptr_t send_datahdr(int fd, unsigned size){
 	struct ez_pkt pkt;
 	memset(&pkt, 0x00, sizeof(pkt));
 
-	_build_pkt(&pkt, NULL);
+	_build_pkt(&pkt, NULL, 0);
 	pkt.body_length = ntohl(size);
 	if(send(fd, &pkt, sizeof(pkt), 0) != sizeof(pkt)){
 		return -1;
 	}
 	return 0;
+}
+
+void *read_ptr(uint8_t **ppData){
+	uint8_t *data = *ppData;
+	
+	uintptr_t val = 0;
+	memcpy(&val, data, sizeof(val));
+	val = ntohl(val);
+
+	*ppData += sizeof(val);
+	return (void *)val;
 }
 
 int handle_client(int client){
@@ -201,13 +209,15 @@ int handle_client(int client){
 		uint8_t *data = mem;
 		SAFE_RECV(client, data, length, 0);
 
-		switch(*(data++)){
+		// prefer ptr-sized op, or all future accesses will be unaligned
+		unsigned op = (unsigned)read_ptr(&data);
+		switch(op){
 			case OP_INFO:{
 				DBG("OP_INFO");
 				#if defined(EZ_TARGET_POSIX)
-				send_str(client, "posix");
+				send_str(client, "posix"PTRSTR);
 				#elif defined(EZ_TARGET_WINDOWS)
-				send_str(client, "win32");
+				send_str(client, "win32"PTRSTR);
 				#else
 				#error "Unsupported build type"
 				#endif
@@ -228,27 +238,26 @@ int handle_client(int client){
 					DBG("dlopen(%s)", path);
 					handle = LIB_OPEN(path);
 				}
-				if(send_ptrstr(client, handle) != 0){
-					ERR("send_ptrstr failed");
+				if(send_ptrval(client, handle) != 0){
+					ERR("send_ptrval failed");
 					serve = 0;
 				}
 				break;
 			}
 			case OP_DLSYM:{
 				DBG("OP_DLSYM");
-				void *handle = (void *)strtoull(data, NULL, 16);
-				data = strchr(data, ' ') + 1;
+				void *handle = read_ptr(&data);
 				DBG("dlsym(%p, %s)", handle, data);
 				void *sym = LIB_GETSYM(handle, data);
-				if(send_ptrstr(client, sym) != 0){
-					ERR("send_ptrstr failed");
+				if(send_ptrval(client, sym) != 0){
+					ERR("send_ptrval failed");
 					serve = 0;
 				}
 				break;
 			}
 			case OP_DLCLOSE:{
 				DBG("OP_DLCLOSE");
-				void *handle = (void *)strtoull(data, NULL, 16);
+				void *handle = read_ptr(&data);
 				LIB_CLOSE(handle);
 				if(send_str(client, NULL) != 0){
 					ERR("send_str failed");
@@ -258,9 +267,8 @@ int handle_client(int client){
 			}
 			case OP_PEEK:{
 				DBG("OP_PEEK");
-				uint8_t *start_addr = (uint8_t *)strtoull(data, NULL, 16);
-				data = strchr(data, ' ') + 1;
-				unsigned int length = strtoul(data, NULL, 16);
+				uint8_t *start_addr = read_ptr(&data);
+				unsigned int length = (unsigned int)read_ptr(&data);
 				DBG("length: %u", length);
 				
 				int blocksize = 4096;
@@ -298,9 +306,8 @@ int handle_client(int client){
 			}
 			case OP_POKE:{
 				DBG("OP_POKE");
-				uint8_t *start_addr = (uint8_t *)strtoull(data, NULL, 16);
-				data = strchr(data, ' ') + 1;
-				unsigned int length = strtoul(data, NULL, 16);
+				uint8_t *start_addr = read_ptr(&data);
+				unsigned int length = (unsigned int)read_ptr(&data);
 				DBG("size: %u", length);
 
 				int blocksize = 4096;
@@ -327,19 +334,15 @@ int handle_client(int client){
 			case OP_CALL:{
 				DBG("OP_CALL");
 				uint8_t call_type = *(data++);
-				int nargs = strtoul(data, NULL, 16);
-				data = strchr(data, ' ') + 1;
-
-				void *addr = (void *)strtoull(data, NULL, 16);
-				data = strchr(data, ' ') + 1;
+				int nargs = (int)read_ptr(&data);
+				void *addr = read_ptr(&data);
 
 				if(nargs > 14) break;
 
 				void *a[15] = {NULL};
 				for(int i=0; i<nargs; i++){
-					a[i] = (void *)strtoull(data, NULL, 16);
+					a[i] = read_ptr(&data);
 					DBGPTR(a[i]);
-					data = strchr(data, ' ') + 1;
 				}
 
 				void *result = NULL;
@@ -356,8 +359,8 @@ int handle_client(int client){
 						break;
 				}
 
-				if(send_ptrstr(client, result) != 0){
-					ERR("send_ptrstr failed");
+				if(send_ptrval(client, result) != 0){
+					ERR("send_ptrval failed");
 					serve = 0;
 				}
 				break;
