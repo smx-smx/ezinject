@@ -57,7 +57,7 @@ uint8_t *inj_build_jump(void *dstAddr, void *srcAddr, size_t *jumpSzPtr){
 		return NULL;
 }
 
-#ifdef HAVE_CPU_VLE
+#ifdef USE_CAPSTONE
 int inj_getinsn_count(void *buf, size_t sz, unsigned int *validbytes){
 	csh handle;
 	cs_insn *insn;
@@ -100,29 +100,28 @@ int inj_getinsn_count(void *buf, size_t sz, unsigned int *validbytes){
 int inj_getbackup_size(void *codePtr, unsigned int payloadSz){
 	unsigned i = 0;
 	int opSz;
+#ifdef USE_CAPSTONE
+	unsigned int totalBytes = 0;
+	int total_insn = inj_getinsn_count(codePtr, payloadSz, &totalBytes);
+	if(total_insn <= 0 || totalBytes == 0)
+		return -1;
+	unsigned int dasmSize = payloadSz;
+	while(totalBytes < payloadSz){
+		total_insn += inj_getinsn_count(codePtr, ++dasmSize, &totalBytes);
+		DBG("VALID: %u  REQUIRED: %u", totalBytes, payloadSz);
+	}
+	DBG("Instruction Count: %d (size: %u)", total_insn, totalBytes);
+	return totalBytes;
+#else
 	if((opSz = inj_opcode_bytes()) > 0){ //fixed opcode size
 		while(i < payloadSz)
 			i += opSz;
 		return i;
 	} else { //dynamic opcode size
-#ifdef HAVE_CPU_VLE
-		unsigned int totalBytes = 0;
-		int total_insn = inj_getinsn_count(codePtr, payloadSz, &totalBytes);
-		if(total_insn <= 0 || totalBytes == 0)
-			return -1;
-		unsigned int dasmSize = payloadSz;
-		while(totalBytes < payloadSz){
-			total_insn += inj_getinsn_count(codePtr, ++dasmSize, &totalBytes);
-			DBG("VALID: %u  REQUIRED: %u", totalBytes, payloadSz);
-		}
-		DBG("Instruction Count: %d (size: %u)", total_insn, totalBytes);
-		return totalBytes;
-#else
-	UNUSED(codePtr);
-	return -1;
-#endif
+		UNUSED(codePtr);
+		return -1;
 	}
-	//return -1;
+#endif
 }
 
 /*
