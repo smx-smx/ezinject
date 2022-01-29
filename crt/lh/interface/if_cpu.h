@@ -73,7 +73,7 @@ struct user
 };
 #endif
 
-#ifdef HAVE_CPU_VLE
+#ifdef USE_CAPSTONE
 #include <capstone/capstone.h>
 #endif
 

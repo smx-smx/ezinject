@@ -24,11 +24,8 @@ inline int inj_opcode_bytes(){
 }
 
 inline int inj_absjmp_opcode_bytes() {
-	#ifdef USE_ARM_THUMB
-	return 4 + 4;
-	#else
-	return inj_opcode_bytes() * 2;
-	#endif
+	// ldr + addr (both ARM/THUMB)
+	return 8;
 }
 
 inline int inj_reljmp_opcode_bytes() {
