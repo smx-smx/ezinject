@@ -40,9 +40,20 @@ FRIDA_API(gum_interceptor_attach);
 FRIDA_API(gum_interceptor_replace);
 #endif
 
+#define INI_DEFAULT(name,value)\
+	ZVAL_NEW_STR(&tmp, zend_string_init(value, sizeof(value)-1, 1));\
+	zend_hash_str_update(configuration_hash, name, sizeof(name)-1, &tmp);\
+
+static void my_ini_defaults(HashTable *configuration_hash){
+	zval tmp;
+	INI_DEFAULT("ffi.enable", "1");
+}
+
 void *run_php(void *arg){
 	struct thread_arg *param = (struct thread_arg *)arg;
 	int rc = -1;
+
+	php_embed_module.ini_defaults = &my_ini_defaults;
 
 	putenv("PHP_INI_SCAN_DIR=/tmp");
 
