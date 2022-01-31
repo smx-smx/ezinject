@@ -25,6 +25,7 @@
 #cmakedefine USE_ANDROID_ASHMEM
 #cmakedefine USE_ARM_THUMB
 #cmakedefine USE_CAPSTONE
+#cmakedefine USE_FRIDA_GUM
 #cmakedefine UCLIBC_OLD
 #cmakedefine C_LIBRARY_NAME "@C_LIBRARY_NAME@"
 #cmakedefine DYN_LINKER_NAME "@DYN_LINKER_NAME@"

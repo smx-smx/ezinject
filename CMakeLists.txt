@@ -407,7 +407,7 @@ if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR (EZ_ARCH_ARM AND USE_ARM_THUMB))
 	set(HAVE_CPU_VLE ON)
 endif()
 
-if(HAVE_CPU_VLE OR USE_CAPSTONE)
+if(USE_CAPSTONE OR (HAVE_CPU_VLE AND NOT USE_FRIDA_GUM))
 	set(USE_CAPSTONE ON)
 	if(NOT CAPSTONE_PREFIX)
 		if(NOT CAPSTONE_INCLUDE_DIRS AND NOT CAPSTONE_LIBRARIES)
@@ -640,6 +640,100 @@ if(EZ_TARGET_POSIX)
 endif()
 
 add_subdirectory(crt)
+
+if(USE_FRIDA_GUM)
+	find_library(FRIDA_CAPSTONE_LIBRARY
+		PATHS ${FRIDA_PREFIX}
+		PATH_SUFFIXES lib
+		NAMES
+			libcapstone.a
+		REQUIRED
+		NO_CMAKE_FIND_ROOT_PATH
+		NO_DEFAULT_PATH
+	)
+
+	find_library(GLIB_LIBRARY
+		PATHS ${FRIDA_PREFIX}
+		PATH_SUFFIXES lib
+		NAMES
+			libglib-2.0.a
+		REQUIRED
+		NO_CMAKE_FIND_ROOT_PATH
+		NO_DEFAULT_PATH
+	)
+
+	if(EZ_ARCH_AMD64 OR EZ_ARCH_I386)
+		find_library(FADEC_LIBRARY
+			PATHS ${FRIDA_PREFIX}
+			PATH_SUFFIXES lib
+			NAMES
+				libfadec.a
+			REQUIRED
+			NO_CMAKE_FIND_ROOT_PATH
+			NO_DEFAULT_PATH
+		)
+	endif()
+
+	## non-diet mode libraries
+	find_library(LIBELF_LIBRARY
+		PATHS ${FRIDA_PREFIX}
+		PATH_SUFFIXES lib
+		NAMES
+			libelf.a
+		REQUIRED
+		NO_CMAKE_FIND_ROOT_PATH
+		NO_DEFAULT_PATH
+	)
+
+	find_library(GOBJECT_LIBRARY
+		PATHS ${FRIDA_PREFIX}
+		PATH_SUFFIXES lib
+		NAMES
+			libgobject-2.0.a
+		REQUIRED
+		NO_CMAKE_FIND_ROOT_PATH
+		NO_DEFAULT_PATH
+	)
+	find_library(FFI_LIBRARY
+		PATHS ${FRIDA_PREFIX}
+		PATH_SUFFIXES lib
+		NAMES
+			libffi.a
+		REQUIRED
+		NO_CMAKE_FIND_ROOT_PATH
+		NO_DEFAULT_PATH
+	)
+	##
+
+	find_library(FRIDA_GUM_LIBRARY
+		PATHS ${FRIDA_PREFIX}
+		PATH_SUFFIXES lib
+		NAMES
+			libfrida-gum-1.0.a
+		REQUIRED
+		NO_CMAKE_FIND_ROOT_PATH
+		NO_DEFAULT_PATH
+	)
+
+	add_link_options(-Wl,--gc-sections)
+
+	add_library(frida-gum-static STATIC IMPORTED)
+	set_target_properties(frida-gum-static PROPERTIES
+		IMPORTED_LOCATION ${FRIDA_GUM_LIBRARY}
+	)
+
+	target_link_libraries(frida-gum-static INTERFACE
+		${GOBJECT_LIBRARY} 
+		${GLIB_LIBRARY}
+		${FRIDA_CAPSTONE_LIBRARY}
+		${FFI_LIBRARY}
+		${LIBELF_LIBRARY}
+	)
+	if(EZ_ARCH_AMD64 OR EZ_ARCH_I386)
+		target_link_libraries(frida-gum-static INTERFACE ${FADEC_LIBRARY})
+	endif()
+endif()
+
 add_subdirectory(samples)
 
 include(CheckCXXCompilerFlag)

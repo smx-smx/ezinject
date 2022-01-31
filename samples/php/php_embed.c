@@ -26,6 +26,20 @@ struct thread_arg {
 	char **argv;
 };
 
+#ifdef USE_FRIDA_GUM
+#define FRIDA_API(x) \
+	extern void x(); \
+	void __attribute__ ((visibility ("hidden"))) \
+		(*__imported_ ## x) = &x
+
+FRIDA_API(glib_init);
+FRIDA_API(gum_init);
+FRIDA_API(gum_interceptor_begin_transaction);
+FRIDA_API(gum_make_call_listener);
+FRIDA_API(gum_interceptor_attach);
+FRIDA_API(gum_interceptor_replace);
+#endif
+
 void *run_php(void *arg){
 	struct thread_arg *param = (struct thread_arg *)arg;
 	int rc = -1;

@@ -1,5 +1,11 @@
+if(USE_FRIDA_GUM)
+	set(OPT_USE_LH "")
+else()
+	set(OPT_USE_LH "USE_LH")
+endif()
+
 add_ezinject_library(php
-	USE_LH
+	${OPT_USE_LH}
 	SOURCES
 		php_embed.c
 )
@@ -65,6 +71,12 @@ target_link_libraries(php
 	resolv rt m
 	dl 
 )
+
+if(USE_FRIDA_GUM)
+	target_link_libraries(php frida-gum-static)
+endif()
+
 target_link_options(php PRIVATE
 	-static-libgcc
+	-Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/php_embed.version
 )
