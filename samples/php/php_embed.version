@@ -10,6 +10,7 @@
     gum_interceptor_obtain;
     gum_interceptor_attach;
     gum_interceptor_replace;
+    gum_interceptor_revert;
 
   local:
     *;
