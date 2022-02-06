@@ -9,68 +9,91 @@ add_ezinject_library(php
 	SOURCES
 		php_embed.c
 )
-if(PHP_PREFIX)
-	target_include_directories(php PUBLIC
-		${PHP_PREFIX}/include/php
-		${PHP_PREFIX}/include/php/main
-		${PHP_PREFIX}/include/php/TSRM
-		${PHP_PREFIX}/include/php/Zend
-	)
-endif()
 
-#set_target_properties(php PROPERTIES
-#	LINK_SEARCH_START_STATIC 1
-#)
+macro(find_static_library var name)
+	find_library(${var} NAMES
+		${CMAKE_STATIC_LIBRARY_PREFIX}${name}${CMAKE_STATIC_LIBRARY_SUFFIX}
+	)
+endmacro()
+
+find_program(PHP_CONFIG_EXECUTABLE NAMES
+	php-config
+	HINTS
+		# use php-config from the sysroot (it's a shell script)
+		${CMAKE_SYSROOT}
+	PATH_SUFFIXES
+		bin
+		usr/bin
+	REQUIRED
+)
+message(STATUS "php-config: ${PHP_CONFIG_EXECUTABLE}")
+
+execute_process(
+	COMMAND ${PHP_CONFIG_EXECUTABLE} --includes
+	OUTPUT_VARIABLE PHP_INCLUDE_DIRS OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+execute_process(
+	COMMAND ${PHP_CONFIG_EXECUTABLE} --libs
+	OUTPUT_VARIABLE PHP_LIBS OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+string(REPLACE "-I" "" PHP_INCLUDE_DIRS ${PHP_INCLUDE_DIRS})
+separate_arguments(PHP_INCLUDE_DIRS)
+
+string(REPLACE "-l" "" PHP_LIBS ${PHP_LIBS})
+separate_arguments(PHP_LIBS)
 
 set_target_properties(php PROPERTIES
 	POSITION_INDEPENDENT_CODE ON
 )
 
+message(STATUS "php-config: ${PHP_EMBED_LIBRARY}")
+
+
 find_library(PHP_EMBED_LIBRARY
-	PATHS ${PHP_PREFIX}
-	PATH_SUFFIXES lib
+	PATHS
+		${CMAKE_SYSROOT}
+		${PHP_PREFIX}
+	PATH_SUFFIXES
+		lib
+		usr/lib
 	NAMES
 		php
 		php7
 	REQUIRED
+	# allow everywhere on the FS, to consider ${PHP_PREFIX} globally
 	NO_CMAKE_FIND_ROOT_PATH
 	NO_DEFAULT_PATH
 )
 
-message("=> ${PHP_EMBED_LIBRARY}")
-
-find_library(UTIL_LIBRARY NAMES
-	libutil.a
-	util
-	REQUIRED
-)
-find_library(CRYPT_LIBRARY NAMES
-	libcrypt.a
-	crypt
-	REQUIRED
-)
-find_library(RESOLV_LIBRARY NAMES
-	resolv
-	REQUIRED
-)
-find_library(FFI_LIBRARY NAMES
-	libffi.a
-	ffi
-	REQUIRED
-)
-find_library(PTHREAD_LIBRARY NAMES
-	pthread
-	REQUIRED
+# list of libraries that we want to use dynamically
+set(_static_excluded
+	resolv rt dl m
 )
 
-target_link_libraries(php 
-	${PHP_EMBED_LIBRARY}
-	${FFI_LIBRARY}
-	${PTHREAD_LIBRARY}
-	${UTIL_LIBRARY}
-	resolv rt m
-	dl 
+set(_libphp_libs "")
+foreach(lib ${PHP_LIBS})
+	if("${lib}" IN_LIST _static_excluded)
+		find_library(${lib}_LIBRARY NAMES ${lib})
+	else()
+		find_static_library(${lib}_LIBRARY ${lib})
+	endif()
+	message(STATUS "${lib} = ${${lib}_LIBRARY}")
+	if(NOT ${lib}_LIBRARY)
+		message(WARNING "library \"${lib}\" not found")
+	else()
+		list(APPEND _libphp_libs "${${lib}_LIBRARY}")
+	endif()
+endforeach()
+
+add_library(libphp UNKNOWN IMPORTED)
+set_target_properties(libphp PROPERTIES
+	IMPORTED_LOCATION "${PHP_EMBED_LIBRARY}"
+	INTERFACE_INCLUDE_DIRECTORIES "${PHP_INCLUDE_DIRS}"
+	INTERFACE_LINK_LIBRARIES "${_libphp_libs}"
 )
+
+target_link_libraries(php libphp dl)
 
 if(USE_FRIDA_GUM)
 	target_link_libraries(php frida-gum-static)
