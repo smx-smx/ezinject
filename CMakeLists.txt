@@ -642,96 +642,15 @@ endif()
 add_subdirectory(crt)
 
 if(USE_FRIDA_GUM)
-	find_library(FRIDA_CAPSTONE_LIBRARY
-		PATHS ${FRIDA_PREFIX}
-		PATH_SUFFIXES lib
-		NAMES
-			libcapstone.a
-		REQUIRED
-		NO_CMAKE_FIND_ROOT_PATH
-		NO_DEFAULT_PATH
-	)
+	find_package(PkgConfig REQUIRED)
 
-	find_library(GLIB_LIBRARY
-		PATHS ${FRIDA_PREFIX}
-		PATH_SUFFIXES lib
-		NAMES
-			libglib-2.0.a
+	pkg_check_modules(FRIDA_GUM
 		REQUIRED
-		NO_CMAKE_FIND_ROOT_PATH
-		NO_DEFAULT_PATH
+		IMPORTED_TARGET frida-gum-1.0 GLOBAL
 	)
-
-	if(EZ_ARCH_AMD64 OR EZ_ARCH_I386)
-		find_library(FADEC_LIBRARY
-			PATHS ${FRIDA_PREFIX}
-			PATH_SUFFIXES lib
-			NAMES
-				libfadec.a
-			REQUIRED
-			NO_CMAKE_FIND_ROOT_PATH
-			NO_DEFAULT_PATH
-		)
-	endif()
-
-	## non-diet mode libraries
-	find_library(LIBELF_LIBRARY
-		PATHS ${FRIDA_PREFIX}
-		PATH_SUFFIXES lib
-		NAMES
-			libelf.a
-		REQUIRED
-		NO_CMAKE_FIND_ROOT_PATH
-		NO_DEFAULT_PATH
-	)
-
-	find_library(GOBJECT_LIBRARY
-		PATHS ${FRIDA_PREFIX}
-		PATH_SUFFIXES lib
-		NAMES
-			libgobject-2.0.a
-		REQUIRED
-		NO_CMAKE_FIND_ROOT_PATH
-		NO_DEFAULT_PATH
-	)
-	find_library(FFI_LIBRARY
-		PATHS ${FRIDA_PREFIX}
-		PATH_SUFFIXES lib
-		NAMES
-			libffi.a
-		REQUIRED
-		NO_CMAKE_FIND_ROOT_PATH
-		NO_DEFAULT_PATH
-	)
-	##
-
-	find_library(FRIDA_GUM_LIBRARY
-		PATHS ${FRIDA_PREFIX}
-		PATH_SUFFIXES lib
-		NAMES
-			libfrida-gum-1.0.a
-		REQUIRED
-		NO_CMAKE_FIND_ROOT_PATH
-		NO_DEFAULT_PATH
-	)
+	_pkg_create_imp_target(FRIDA_GUM_STATIC 1)
 
 	add_link_options(-Wl,--gc-sections)
-
-	add_library(frida-gum-static STATIC IMPORTED)
-	set_target_properties(frida-gum-static PROPERTIES
-		IMPORTED_LOCATION ${FRIDA_GUM_LIBRARY}
-	)
-
-	target_link_libraries(frida-gum-static INTERFACE
-		${GOBJECT_LIBRARY} 
-		${GLIB_LIBRARY}
-		${FRIDA_CAPSTONE_LIBRARY}
-		${FFI_LIBRARY}
-		${LIBELF_LIBRARY}
-	)
-	if(EZ_ARCH_AMD64 OR EZ_ARCH_I386)
-		target_link_libraries(frida-gum-static INTERFACE ${FADEC_LIBRARY})
-	endif()
 endif()
 
 add_subdirectory(samples)

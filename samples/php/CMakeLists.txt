@@ -96,7 +96,7 @@ set_target_properties(libphp PROPERTIES
 target_link_libraries(php libphp dl)
 
 if(USE_FRIDA_GUM)
-	target_link_libraries(php frida-gum-static)
+	target_link_libraries(php PkgConfig::FRIDA_GUM_STATIC)
 endif()
 
 target_link_options(php PRIVATE
