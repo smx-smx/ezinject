@@ -82,6 +82,7 @@ struct ezinj_ctx {
 	// holds the overwritten ELF header
 	uint8_t *saved_sc_data;
 	ssize_t saved_sc_size;
+	int force_mmap_syscall;
 #endif
 	ez_addr libc;
 	ez_addr libdl;

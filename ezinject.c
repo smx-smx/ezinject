@@ -102,7 +102,11 @@ intptr_t setregs_syscall(
 	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
 #endif
 #ifdef EZ_TARGET_LINUX
-	rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
+	if(ctx->force_mmap_syscall){
+		rcall->libc_mmap = NULL;
+	} else {
+		rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
+	}
 	rcall->libc_open = (void *)ctx->libc_open.remote;
 	rcall->libc_read = (void *)ctx->libc_read.remote;
 #endif
@@ -731,14 +735,22 @@ int ezinject_main(
 
 	intptr_t err = -1;
 	do {
+		// creates the new payload area with mmap (invoked from EXEHDR)
 		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
+		#if defined(EZ_TARGET_LINUX)
 		if(remote_shm_ptr == 0){
-		#ifdef EZ_TARGET_WINDOWS
-			PERROR("VirtualAllocEx failed");
-		#else
-			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
+			// mmap(3) failed. try with mmap(2)
+			ctx->force_mmap_syscall = 1;
+			remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
+		}
 		#endif
-			break;
+
+		if(remote_shm_ptr == 0){
+			#if defined(EZ_TARGET_WINDOWS)
+			PERROR("VirtualAllocEx failed");
+			#else
+			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
+			#endif
 		}
 		DBG("remote payload base: %p", (void *)remote_shm_ptr);
 
