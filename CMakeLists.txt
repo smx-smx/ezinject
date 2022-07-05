@@ -644,10 +644,30 @@ add_subdirectory(crt)
 if(USE_FRIDA_GUM)
 	find_package(PkgConfig REQUIRED)
 
+	# do we have frida-gum?
+	pkg_check_modules(FRIDA_GUM
+		IMPORTED_TARGET frida-gum-1.0 GLOBAL
+	)
+
+	if(NOT FRIDA_GUM)
+		execute_process(
+			COMMAND ${CMAKE_COMMAND}
+				-G "${CMAKE_GENERATOR}"
+				-B "${CMAKE_BINARY_DIR}/external"
+				-S "${CMAKE_SOURCE_DIR}/external/frida-gum"
+			COMMAND ${CMAKE_COMMAND}
+				--build 
+				${CMAKE_SOURCE_DIR}/external/frida-gum
+		)
+	endif()
+
+	# check for it again, this time we must have it
 	pkg_check_modules(FRIDA_GUM
 		REQUIRED
 		IMPORTED_TARGET frida-gum-1.0 GLOBAL
 	)
+	# CMake's pkgconfig only creates a target for the dynamic library variant
+	# this workaround creates a static target as well
 	_pkg_create_imp_target(FRIDA_GUM_STATIC 1)
 
 	add_link_options(-Wl,--gc-sections)

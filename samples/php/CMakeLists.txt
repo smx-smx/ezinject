@@ -10,11 +10,15 @@ add_ezinject_library(php
 		php_embed.c
 )
 
-macro(find_static_library var name)
-	find_library(${var} NAMES
-		${CMAKE_STATIC_LIBRARY_PREFIX}${name}${CMAKE_STATIC_LIBRARY_SUFFIX}
-	)
+macro(static_library_name var name)
+	set(${var} ${CMAKE_STATIC_LIBRARY_PREFIX}${name}${CMAKE_STATIC_LIBRARY_SUFFIX})
 endmacro()
+
+function(find_static_library var name)
+	static_library_name(_lib_name "${name}")
+	find_library(_lib_path NAMES ${_lib_name})
+	set(${var} ${_lib_path} PARENT_SCOPE)
+endfunction()
 
 find_program(PHP_CONFIG_EXECUTABLE NAMES
 	php-config
@@ -47,19 +51,21 @@ set_target_properties(php PROPERTIES
 	POSITION_INDEPENDENT_CODE ON
 )
 
-message(STATUS "php-config: ${PHP_EMBED_LIBRARY}")
 
+static_library_name(_php_static php)
+static_library_name(_php7_static php7)
 
 find_library(PHP_EMBED_LIBRARY
 	PATHS
-		${CMAKE_SYSROOT}
 		${PHP_PREFIX}
+		${CMAKE_SYSROOT}
 	PATH_SUFFIXES
 		lib
 		usr/lib
 	NAMES
-		php
-		php7
+		${_php_static}
+		${_php7_static}
+		php php7
 	REQUIRED
 	# allow everywhere on the FS, to consider ${PHP_PREFIX} globally
 	NO_CMAKE_FIND_ROOT_PATH

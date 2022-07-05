@@ -10,7 +10,7 @@ fi
 cd "$(dirname "$0")"
 if [ "$1" == "clean" ]; then
 	echo "Removing build directory..."
-	rm -r build
+	rm -rf build
 	exit 0
 elif [ ! -z "$1" ] && [ -f "$1" ]; then
 	TOOLCHAINFILE="-DCMAKE_TOOLCHAIN_FILE=$1"

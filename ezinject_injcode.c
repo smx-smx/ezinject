@@ -352,6 +352,10 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	if(inj_load_library(ctx) != 0){
 		PCALL(ctx, inj_dchar, '!');
 		ctx->libdl.dlclose(ctx->h_libthread);
+		char *errstr = NULL;
+		if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
+			PCALL(ctx, inj_puts, errstr);
+		}
 		result = INJ_ERR_DLOPEN;
 		goto pl_exit;
 	}
