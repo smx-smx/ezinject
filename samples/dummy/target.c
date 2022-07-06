@@ -79,8 +79,10 @@ int main(int argc, char *argv[])
 	{
 		int val = func1(0, 1);
 		printf("return1() = %d\n", val);
-		if(!val)
+		if(!val){
+			puts("-- got 0, exiting");
 			break;
+		}
 		if(interactive)
 			fgetc(stdin);
 		else
