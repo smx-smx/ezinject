@@ -27,8 +27,6 @@ static ez_region region_sc_code = {
 	.end = (void *)&__stop_syscall
 };
 
-// injected_sc0..injected_sc6
-static off_t sc_offsets[7];
 // remote base of syscall code section
 static uintptr_t r_current_sc_base;
 
@@ -48,12 +46,6 @@ static off_t sc_read_offset;
  * - trampoline_entry
  * ==================
  * syscall/sc section
- * - injected_sc0
- * - injected_sc1
- * - injected_sc2
- * - injected_sc3
- * - injected_sc4
- * - injected_sc5
  * - injected_sc6
  * - injected_sc_wrapper
  * ==================
@@ -69,6 +61,8 @@ static off_t trampoline_entry_label;
 static off_t sc_offset;
 static size_t sc_size;
 
+static off_t sc_fn_offset;
+
 static void *code_data(void *code){
 #if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
 	return (void *)(UPTR(code) & ~1);
@@ -81,13 +75,7 @@ static void *code_data(void *code){
  * setup static shellcode invariants (offsets)
  **/
 static void _remote_sc_setup_offsets(){
-	sc_offsets[0] = PTRDIFF(&injected_sc0, region_sc_code.start);
-	sc_offsets[1] = PTRDIFF(&injected_sc1, region_sc_code.start);
-	sc_offsets[2] = PTRDIFF(&injected_sc2, region_sc_code.start);
-	sc_offsets[3] = PTRDIFF(&injected_sc3, region_sc_code.start);
-	sc_offsets[4] = PTRDIFF(&injected_sc4, region_sc_code.start);
-	sc_offsets[5] = PTRDIFF(&injected_sc5, region_sc_code.start);
-	sc_offsets[6] = PTRDIFF(&injected_sc6, region_sc_code.start);
+	sc_fn_offset = PTRDIFF(&injected_sc6, region_sc_code.start);
 	sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
 
 #ifdef EZ_TARGET_LINUX
@@ -277,11 +265,11 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 		}
 	}
 
-	return r_current_sc_base + sc_offsets[call->argc];
+	return r_current_sc_base + sc_fn_offset;
 }
 #else
 static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
-	return r_current_sc_base + sc_offsets[call->argc];
+	return r_current_sc_base + sc_fn_offset;
 }
 #endif
 
