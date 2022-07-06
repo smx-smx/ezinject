@@ -625,7 +625,16 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 	size_t code_size = (size_t)WORDALIGN(REGION_LENGTH(region_pl_code));
 
 	size_t stack_offset = br_size + code_size;
-	size_t mapping_size = PAGEALIGN(stack_offset + PL_STACK_SIZE);
+	size_t mapping_size = stack_offset + PL_STACK_SIZE;
+	#ifdef EZ_TARGET_WINDOWS
+	{
+		SYSTEM_INFO sysInfo;
+		GetSystemInfo(&sysInfo);
+		mapping_size = ALIGN(mapping_size, sysInfo.dwPageSize);
+	}
+	#else
+	mapping_size = PAGEALIGN(mapping_size);
+	#endif
 
 	DBG("br_size=%zu", br_size);
 	DBG("code_size=%zu", code_size);
