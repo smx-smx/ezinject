@@ -662,13 +662,17 @@ if(USE_FRIDA_GUM)
 	endif()
 
 	# check for it again, this time we must have it
-	pkg_check_modules(FRIDA_GUM
+	pkg_check_modules(FRIDA_GUM_STATIC
 		REQUIRED
 		IMPORTED_TARGET frida-gum-1.0 GLOBAL
 	)
-	# CMake's pkgconfig only creates a target for the dynamic library variant
-	# this workaround creates a static target as well
-	_pkg_create_imp_target(FRIDA_GUM_STATIC 1)
+
+	include(CMakePrintHelpers)
+	cmake_print_properties(TARGETS
+		PkgConfig::FRIDA_GUM_STATIC
+	PROPERTIES
+		INTERFACE_LINK_LIBRARIES
+	)
 
 	add_link_options(-Wl,--gc-sections)
 endif()

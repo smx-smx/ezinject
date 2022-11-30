@@ -86,7 +86,7 @@ foreach(lib ${PHP_LIBS})
 	else()
 		find_static_library(${var_name} ${lib})
 	endif()
-	message(STATUS "${lib} [${var_name}] = ${${var_name}}")
+	message(STATUS "php ${lib} [${var_name}] = ${${var_name}}")
 	if(NOT ${var_name})
 		message(WARNING "library \"${lib}\" not found")
 	else()
@@ -104,6 +104,41 @@ set_target_properties(libphp PROPERTIES
 target_link_libraries(php libphp dl)
 
 if(USE_FRIDA_GUM)
+	# get library names
+	get_property(_frida_libs TARGET PkgConfig::FRIDA_GUM_STATIC PROPERTY INTERFACE_LINK_LIBRARIES)
+
+	set(_frida_libraries "")
+
+	# construct new list
+	foreach(lib ${_frida_libs})
+		get_filename_component(lib_name "${lib}" NAME)
+		set(_old_lib_filename "${lib_name}")
+
+		string(REGEX REPLACE "^${CMAKE_SHARED_LIBRARY_PREFIX}" "" lib_name "${lib_name}")
+		string(REGEX REPLACE "^${CMAKE_STATIC_LIBRARY_PREFIX}" "" lib_name "${lib_name}")
+		string(REGEX REPLACE "${CMAKE_SHARED_LIBRARY_SUFFIX}$" "" lib_name "${lib_name}")
+		string(REGEX REPLACE "${CMAKE_STATIC_LIBRARY_SUFFIX}$" "" lib_name "${lib_name}")
+
+		set(var_name "${lib_name}_LIBRARY")
+		if("${lib_name}" IN_LIST _static_excluded)
+			find_library(${var_name} ${lib_name})
+		else()
+			find_static_library(${var_name} ${lib_name})
+		endif()
+		set(lib "${${var_name}}")
+
+		get_filename_component(_new_lib_filename "${lib}" NAME)
+		if(NOT "${_old_lib_filename}" STREQUAL "${_new_lib_filename}")
+			message(STATUS "frida ${lib_name} : ${_old_lib_filename} => ${_new_lib_filename}")
+		endif()
+		list(APPEND _frida_libraries "${lib}")
+	endforeach()
+
+	# set new list
+	set_target_properties(PkgConfig::FRIDA_GUM_STATIC
+		PROPERTIES INTERFACE_LINK_LIBRARIES "${_frida_libraries}"
+	)
+
 	target_link_libraries(php PkgConfig::FRIDA_GUM_STATIC)
 endif()
 
