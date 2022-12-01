@@ -62,7 +62,7 @@ static void *code_data(void *code){
 uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 #endif
 
-int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size);
+size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout);
 int resolve_libc_symbols(struct ezinj_ctx *ctx);
 
 /**
@@ -102,7 +102,11 @@ intptr_t setregs_syscall(
 	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
 #endif
 #ifdef EZ_TARGET_LINUX
-	rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
+	if(ctx->force_mmap_syscall){
+		rcall->libc_mmap = NULL;
+	} else {
+		rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
+	}
 	rcall->libc_open = (void *)ctx->libc_open.remote;
 	rcall->libc_read = (void *)ctx->libc_read.remote;
 #endif
@@ -545,12 +549,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #undef PUSH_STRING
 
 	size_t dyn_total_size = dyn_ptr_size + dyn_str_size;
-	size_t mapping_size;
-
-	if(allocate_shm(ctx, dyn_total_size, &ctx->pl, &mapping_size) != 0){
-		ERR("Could not allocate shared memory");
-		return NULL;
-	}
+	size_t mapping_size = create_layout(ctx, dyn_total_size, &ctx->pl);
 
 	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
 	memset(br, 0x00, sizeof(*br));
@@ -619,7 +618,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	return br;
 }
 
-int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size){
+size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout){
 	// br + argv
 	size_t br_size = (size_t)WORDALIGN(sizeof(struct injcode_bearing) + dyn_total_size);
 	// size of code payload
@@ -627,6 +626,15 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 
 	size_t stack_offset = br_size + code_size;
 	size_t mapping_size = stack_offset + PL_STACK_SIZE;
+	#ifdef EZ_TARGET_WINDOWS
+	{
+		SYSTEM_INFO sysInfo;
+		GetSystemInfo(&sysInfo);
+		mapping_size = ALIGN(mapping_size, sysInfo.dwPageSize);
+	}
+	#else
+	mapping_size = PAGEALIGN(mapping_size);
+	#endif
 
 	DBG("br_size=%zu", br_size);
 	DBG("code_size=%zu", code_size);
@@ -636,8 +644,6 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	void *mapped_mem = calloc(1, mapping_size);
 
 	ctx->mapped_mem.local = (uintptr_t)mapped_mem;
-
-	*allocated_size = mapping_size;
 
 	/** prepare payload layout **/
 
@@ -659,7 +665,8 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	#else
 	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(sizeof(void *)));
 	#endif
-	return 0;
+
+	return mapping_size;
 }
 
 void cleanup_mem(struct ezinj_ctx *ctx){
@@ -731,14 +738,22 @@ int ezinject_main(
 
 	intptr_t err = -1;
 	do {
+		// creates the new payload area with mmap (invoked from EXEHDR)
 		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
+		#if defined(EZ_TARGET_LINUX)
 		if(remote_shm_ptr == 0){
-		#ifdef EZ_TARGET_WINDOWS
-			PERROR("VirtualAllocEx failed");
-		#else
-			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
+			// mmap(3) failed. try with mmap(2)
+			ctx->force_mmap_syscall = 1;
+			remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
+		}
 		#endif
-			break;
+
+		if(remote_shm_ptr == 0){
+			#if defined(EZ_TARGET_WINDOWS)
+			PERROR("VirtualAllocEx failed");
+			#else
+			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
+			#endif
 		}
 		DBG("remote payload base: %p", (void *)remote_shm_ptr);
 

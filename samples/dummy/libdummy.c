@@ -28,8 +28,6 @@ int myCustomFn(int arg1, int arg2){
 int myCustomFn(int arg1, int arg2){
 	DBG("original arguments: %d, %d", arg1, arg2);
 
-	arg2 = 0;
-
 	DBG("calling original(%d,%d)", arg1, arg2);
 	// call the original function
 	int origRet = pfnOrigTestFunc(arg1, arg2);

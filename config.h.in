@@ -1,3 +1,4 @@
+#cmakedefine CMAKE_SIZEOF_VOID_P @CMAKE_SIZEOF_VOID_P@
 #cmakedefine DEBUG
 #cmakedefine EZ_ARCH_ARM
 #cmakedefine EZ_ARCH_ARM64
