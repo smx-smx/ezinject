@@ -121,6 +121,14 @@ darwin_x64_task:
   #test_script:
   #  - (cd build; ctest -V)
 
+darwin_m1_task:
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-ventura-base:latest
+
+  install_script: brew install pkg-config cmake capstone
+  script:
+    - ./build.sh
+
 windows_x64_task:
   timeout_in: 90m
   windows_container:
