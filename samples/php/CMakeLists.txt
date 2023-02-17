@@ -75,7 +75,7 @@ find_library(PHP_EMBED_LIBRARY
 
 # list of libraries that we want to use dynamically
 set(_static_excluded
-	resolv rt dl m
+	resolv rt dl m pthread crypt
 )
 
 set(_libphp_libs "")
