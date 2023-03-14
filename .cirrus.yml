@@ -27,6 +27,18 @@ linux_x64_task:
   #test_script:
   #  - (cd build; ctest -V)
 
+# targeting LG NC4/WebOS (ARM Cortex A9, glibc 2.12)
+linux_lgtv_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  env:
+    PATH: /opt/arm-lgtv-linux-gnueabi_sdk-buildroot/bin:${PATH}
+    LD_LIBRARY_PATH: /opt/arm-lgtv-linux-gnueabi_sdk-buildroot/lib:${LD_LIBRARY_PATH}
+
+  script:
+   - ./build.sh /opt/arm-lgtv-linux-gnueabi_sdk-buildroot/share/buildroot/toolchainfile.cmake
+
 linux_android_armel_task:
   container:
     dockerfile: .ci/linux/Dockerfile

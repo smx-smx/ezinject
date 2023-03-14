@@ -425,7 +425,7 @@ if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR (EZ_ARCH_ARM AND USE_ARM_THUMB))
 	set(HAVE_CPU_VLE ON)
 endif()
 
-if(HAVE_CPU_VLE OR USE_CAPSTONE)
+if(USE_CAPSTONE OR (HAVE_CPU_VLE AND NOT USE_FRIDA_GUM))
 	set(USE_CAPSTONE ON)
 	if(NOT CAPSTONE_PREFIX)
 		if(NOT CAPSTONE_INCLUDE_DIRS AND NOT CAPSTONE_LIBRARIES)
@@ -663,6 +663,43 @@ if(EZ_TARGET_POSIX)
 endif()
 
 add_subdirectory(crt)
+
+if(USE_FRIDA_GUM)
+	find_package(PkgConfig REQUIRED)
+
+	# do we have frida-gum?
+	pkg_check_modules(FRIDA_GUM
+		IMPORTED_TARGET frida-gum-1.0 GLOBAL
+	)
+
+	if(NOT FRIDA_GUM)
+		execute_process(
+			COMMAND ${CMAKE_COMMAND}
+				-G "${CMAKE_GENERATOR}"
+				-B "${CMAKE_BINARY_DIR}/external"
+				-S "${CMAKE_SOURCE_DIR}/external/frida-gum"
+			COMMAND ${CMAKE_COMMAND}
+				--build 
+				${CMAKE_SOURCE_DIR}/external/frida-gum
+		)
+	endif()
+
+	# check for it again, this time we must have it
+	pkg_check_modules(FRIDA_GUM_STATIC
+		REQUIRED
+		IMPORTED_TARGET frida-gum-1.0 GLOBAL
+	)
+
+	include(CMakePrintHelpers)
+	cmake_print_properties(TARGETS
+		PkgConfig::FRIDA_GUM_STATIC
+	PROPERTIES
+		INTERFACE_LINK_LIBRARIES
+	)
+
+	add_link_options(-Wl,--gc-sections)
+endif()
+
 add_subdirectory(samples)
 
 include(CheckCXXCompilerFlag)

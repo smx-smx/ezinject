@@ -15,6 +15,9 @@
  * Relocates code pointed by codePtr from sourcePC to destPC
  */
 int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *destPC){
+#ifndef USE_CAPSTONE
+	return 0;
+#else
 	csh handle;
 	cs_insn *insns;
 	size_t count;
@@ -105,4 +108,5 @@ int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *
 		ERR("cs_disasm failed!");
 		cs_close(&handle);
 		return -1;
+#endif
 }

@@ -41,3 +41,10 @@ RUN mkdir -p /opt/ttgo/gcc-3.3.4_glibc-2.3.2 && \
 	cd /opt/ttgo/gcc-3.3.4_glibc-2.3.2 && \
 	curl -L -o - https://github.com/smx-smx/ttgo-arm-linux/archive/refs/heads/master.tar.gz |\
 	tar --strip-components=1 -xzf -
+
+RUN mkdir -p /opt/arm-lgtv-linux-gnueabi_sdk-buildroot && \
+	cd /opt/arm-lgtv-linux-gnueabi_sdk-buildroot && \
+	curl -L -o - https://github.com/openlgtv/buildroot-nc4/releases/download/webos-2974f83/arm-lgtv-linux-gnueabi_sdk-buildroot.tar.gz |\
+	tar --strip-components=1 -xzf - && \
+	./relocate-sdk.sh && \
+	(rm bin/cmake* || true)
