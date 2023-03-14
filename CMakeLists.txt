@@ -268,9 +268,10 @@ endif()
 macro(find_uclibc)
 	find_library(DYN_LINKER
 		NAMES ld-uClibc.so.0
-		REQUIRED
 	)	
-	get_filename_component(DYN_LINKER_NAME "${DYN_LINKER}" NAME)
+	if(DYN_LINKER)
+		get_filename_component(DYN_LINKER_NAME "${DYN_LINKER}" NAME)
+	endif()
 endmacro()
 
 macro(export_var var)
@@ -279,7 +280,8 @@ macro(export_var var)
 	endif()
 endmacro()
 
-function(libc_autodetect)
+macro(libc_type_autodetect)
+	# handle windows platform early, as it's special
 	if(EZ_TARGET_WINDOWS)
 		check_library_exists("${C_LIBRARY}" "LdrLoadDll" "" HAVE_LDR_LOAD_DLL)
 		check_library_exists("${DL_LIBRARY}" "LoadLibraryA" "" HAVE_LOADLIBRARY)
@@ -295,25 +297,47 @@ function(libc_autodetect)
 		return()
 	endif()
 
+	# check if we have __libc_dlopen_mode (glibc)
 	check_library_exists("${C_LIBRARY}" "__libc_dlopen_mode" "" HAVE_LIBC_DLOPEN_MODE)
 	export_var(HAVE_LIBC_DLOPEN_MODE)
 
-	if(EZ_TARGET_LINUX
-	AND NOT HAVE_LIBC_DLOPEN_MODE)
-		find_uclibc()
-		export_var(DYN_LINKER_NAME)
-		check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
+	if(HAVE_LIBC_DLOPEN_MODE)
+		return()
 	endif()
 
-
+	# check if libc contains dlopen/dlsym (freebsd/glibc >= 2.34)
 	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
 	check_library_exists("${C_LIBRARY}" "dlopen" "" HAVE_DLSYM)
+
 	if(HAVE_DLOPEN AND HAVE_DLSYM)
 		set(HAVE_LIBDL_IN_LIBC TRUE)
 		export_var(HAVE_LIBDL_IN_LIBC)
-	else()
-		unset(HAVE_DLOPEN CACHE)
-		unset(HAVE_DLSYM CACHE)
+		return()
+	endif()
+
+	# check if we're targeting uClibc
+	find_uclibc()
+	if(DYN_LINKER)
+		export_var(DYN_LINKER_NAME)
+		check_library_exists("${DYN_LINKER}" "_dl_load_shared_library" "" HAVE_DL_LOAD_SHARED_LIBRARY)
+
+		if(EZ_ARCH_MIPS)
+			# FIXME: how to better check for uClibc version?
+			# assuming MIPS uses old uClibc for now (which isn't always true)
+			set(UCLIBC_OLD TRUE)
+			export_var(UCLIBC_OLD)
+		endif()
+		
+		return()
+	endif()
+
+	message(FATAL_ERROR "Unsupported C library")
+endmacro()
+
+macro(linker_type_autodetect)
+	if(EZ_TARGET_WINDOWS)
+		# Windows always uses kernel32 (win9x) and/or ntdll (NT)
+		return()
 	endif()
 
 	check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
@@ -326,6 +350,7 @@ function(libc_autodetect)
 	export_var(HAVE_DLOPEN)
 	export_var(HAVE_DLSYM)
 
+	# set dynamic linker name
 	if(EZ_TARGET_FREEBSD)
 		if(EZ_ARCH_I386)
 			set(lib_name ld-elf32.so.1)
@@ -346,21 +371,14 @@ function(libc_autodetect)
 		set(DYN_LINKER_NAME "libdyld.dylib")
 		export_var(DYN_LINKER_NAME)
 	endif()
+endmacro()
 
-	if(NOT EZ_TARGET_ANDROID
-	AND NOT HAVE_LIBC_DLOPEN_MODE
-	AND NOT HAVE_DL_LOAD_SHARED_LIBRARY
-	AND NOT HAVE_LIBDL_IN_LIBC
-	AND NOT EZ_TARGET_DARWIN
-	)
-		message(FATAL_ERROR "Unsupported C library")
-	endif()
+function(libc_autodetect)
+	## check libc type
+	libc_type_autodetect()
 
-	if(EZ_ARCH_MIPS)
-		# TODO: check headers?
-		set(UCLIBC_OLD TRUE)
-		export_var(UCLIBC_OLD)
-	endif()
+	## now check for libdl
+	linker_type_autodetect()
 endfunction()
 
 if(NOT DEFINED EZ_LIBC)
@@ -533,6 +551,11 @@ if(EZ_TARGET_POSIX)
 		elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
 			list(APPEND lib_sources
 				os/linux/libc_uclibc.c
+			)
+		# new glibc/generic
+		else()
+			list(APPEND lib_sources
+				os/linux/libc_generic.c
 			)
 		endif()
 	elseif(EZ_TARGET_FREEBSD)

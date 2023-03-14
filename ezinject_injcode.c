@@ -211,7 +211,7 @@ intptr_t PLAPI inj_fetchsym(
 #include "ezinject_injcode_darwin.c"
 #endif
 
-#if defined(EZ_TARGET_LINUX) && !defined(EZ_TARGET_ANDROID)
+#if defined(EZ_TARGET_LINUX) && !defined(EZ_TARGET_ANDROID) && !defined(HAVE_LIBDL_IN_LIBC)
 	#if defined(HAVE_LIBC_DLOPEN_MODE) || defined(HAVE_LIBC_DL_OPEN)
 		#include "ezinject_injcode_glibc.c"
 	#elif defined(HAVE_DL_LOAD_SHARED_LIBRARY)

@@ -368,7 +368,12 @@ struct ezinj_str ezstr_new(char *str){
 #define LIBC_SEARCH C_LIBRARY_NAME
 #endif
 
-int libc_init(struct ezinj_ctx *ctx){
+/**
+ * @brief default implementation of libc lookup
+ * 
+ * @param ctx 
+ */
+static int libc_init_default(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
 
 	INFO("Looking up " C_LIBRARY_NAME);
@@ -399,6 +404,13 @@ int libc_init(struct ezinj_ctx *ctx){
 			return 1;
 		}
 
+		/**
+		 * $FIXME:
+		 * this is platform dependent and is left here as a default. it should be moved to the posix target
+		 * this code will try to lookup dlopen/dlsym from libdl (the most common scenario)
+		 * there are some platforms where this doesn't work (e.g. Windows), but this lookup isn't fatal
+		 **/
+
 		ez_addr libdl = {
 			.local = (uintptr_t)get_base(getpid(), "libdl", NULL),
 			.remote = (uintptr_t)get_base(ctx->target, "libdl", NULL)
@@ -426,12 +438,8 @@ int libc_init(struct ezinj_ctx *ctx){
 		LIB_CLOSE(h_libdl);
 	}
 
-	if(resolve_libc_symbols(ctx) != 0){
-		return 1;
-	}
-
-#define USE_LIBC_SYM(name) do { \
-	ctx->libc_##name = sym_addr(h_libc, #name, libc); \
+	#define USE_LIBC_SYM(name) do { \
+	ctx->libc_##name = sym_addr(h_libc, #name, ctx->libc); \
 	DBGPTR(ctx->libc_##name.local); \
 	DBGPTR(ctx->libc_##name.remote); \
 } while(0)
@@ -440,6 +448,18 @@ int libc_init(struct ezinj_ctx *ctx){
 #undef USE_LIBC_SYM
 
 	LIB_CLOSE(h_libc);
+	return 0;
+}
+
+int libc_init(struct ezinj_ctx *ctx){
+	if(libc_init_default(ctx) != 0){
+		return 1;
+	}
+
+	if(resolve_libc_symbols(ctx) != 0){
+		return 1;
+	}
+
 	return 0;
 }
 
