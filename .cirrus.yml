@@ -123,16 +123,6 @@ freebsd_x64_task:
   test_script:
     - (cd build; ctest -V)
 
-darwin_x64_task:
-  macos_instance:
-    image: big-sur-xcode-12.4
-
-  install_script: brew install pkg-config cmake capstone
-  script:
-    - ./build.sh
-  #test_script:
-  #  - (cd build; ctest -V)
-
 windows_x64_task:
   timeout_in: 90m
   windows_container:
