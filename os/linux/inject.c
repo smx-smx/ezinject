@@ -20,11 +20,11 @@
 #include "log.h"
 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
-	uintptr_t result = RSCALL6(ctx, __NR_mmap2,
+	uintptr_t result = CHECK(RSCALL6(ctx, __NR_mmap2,
 		NULL, mapping_size,
 		PROT_READ | PROT_WRITE | PROT_EXEC,
 		MAP_PRIVATE | MAP_ANONYMOUS, -1, 0
-	);
+	));
 	if(result == (uintptr_t)MAP_FAILED){
 		return 0;
 	}
@@ -95,9 +95,9 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 	do {
 		int r_fd = -1;
 		#if defined(__NR_open)
-		r_fd = RSCALL2(ctx, __NR_open, r_pl_filename, O_RDONLY);
+		r_fd = CHECK(RSCALL2(ctx, __NR_open, r_pl_filename, O_RDONLY));
 		#elif defined(__NR_openat)
-		r_fd = RSCALL3(ctx, __NR_openat, AT_FDCWD, r_pl_filename, O_RDONLY);
+		r_fd = CHECK(RSCALL3(ctx, __NR_openat, AT_FDCWD, r_pl_filename, O_RDONLY));
 		#else
 		#error "Unsupported platform"
 		#endif
@@ -108,12 +108,12 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 		}
 		DBG("remote fd: %d", r_fd);
 
-		if((ssize_t)RSCALL3(ctx, __NR_read, r_fd, ctx->mapped_mem.remote, br->mapping_size) != br->mapping_size){
+		if((ssize_t)CHECK(RSCALL3(ctx, __NR_read, r_fd, ctx->mapped_mem.remote, br->mapping_size) != br->mapping_size)){
 			ERR("remote read(2) failed");
 			break;
 		}
 
-		if(RSCALL1(ctx, __NR_close, r_fd) < 0){
+		if(CHECK(RSCALL1(ctx, __NR_close, r_fd)) < 0){
 			ERR("remote close(2) failed");
 			break;
 		}

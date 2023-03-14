@@ -16,6 +16,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <ctype.h>
 
 #include "config.h"
 
@@ -41,7 +42,7 @@
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
-LOG_SETUP(V_DBG);
+LOG_SETUP(V_INFO);
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
@@ -190,7 +191,10 @@ intptr_t setregs_syscall(
 
 	// update stack pointer
 	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
+
+#ifdef DEBUG
 	DBGPTR((void *)REG(*new_ctx, REG_SP));
+#endif
 
 #if defined(EZ_ARCH_ARM) && defined(HAVE_PSR_T_BIT)
 	// set the ARM/Thumb flag for the shellcode invocation
@@ -290,7 +294,9 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		sizeof(uintptr_t)
 	);
 
+#ifdef DEBUG
 	DBG("[RET] = %"PRIdPTR, call->rcall.result);
+#endif
 
 	if(remote_getregs(ctx, &new_ctx) < 0){
 		ERR("remote_getregs failed");
@@ -337,6 +343,7 @@ intptr_t remote_call(
 		.syscall_mode = ctx->syscall_mode,
 		.argmask = argmask
 	};
+	DBG("=====================");
 
 	va_list ap;
 	va_start(ap, argmask);
@@ -741,6 +748,7 @@ int ezinject_main(
 	uintptr_t r_sc_vmem = 0;
 
 	// allocate initial shellcode on the ELF header
+	INFO("target: allocating sc");
 	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
 		ERR("remote_sc_alloc: failed to overwrite ELF header");
 		return -1;
@@ -759,11 +767,13 @@ int ezinject_main(
 	intptr_t err = -1;
 	do {
 		// creates the new payload area with mmap (invoked from EXEHDR)
+		INFO("target: allocating %zu bytes", br->mapping_size);
 		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
 		#if defined(EZ_TARGET_LINUX)
 		if(remote_shm_ptr == 0){
 			// mmap(3) failed. try with mmap(2)
 			ctx->force_mmap_syscall = 1;
+			WARN("mmap(3) failed, trying mmap(2)");
 			remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
 		}
 		#endif
@@ -775,7 +785,7 @@ int ezinject_main(
 			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
 			#endif
 		}
-		DBG("remote payload base: %p", (void *)remote_shm_ptr);
+		INFO("target: payload base: %p", (void *)remote_shm_ptr);
 
 		ctx->mapped_mem.remote = remote_shm_ptr;
 
@@ -785,11 +795,13 @@ int ezinject_main(
 			PL_REMOTE(ctx, pl->code_start) + PTRDIFF(addr, region_pl_code.start)
 
 		#if defined(EZ_TARGET_LINUX)
+		INFO("target: copying payload (using files)");
 		if(remote_pl_copy(ctx) != 0){
 			ERR("remote_pl_copy failed");
 			break;
 		}
 		#else
+		INFO("target: copying payload (using debugger)")
 		if(remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
 			PERROR("remote_write failed");
 		}
@@ -798,6 +810,7 @@ int ezinject_main(
 		// allocate new shellcode on a new memory map
 		// the current shellcode is used for the allocation
 		// this must be done before switching to payload mode
+		INFO("target: relocating sc");
 		if(remote_sc_alloc(ctx, SC_ALLOC_MMAP, &r_sc_vmem) != 0){
 			ERR("remote_sc_alloc: mmap failed");
 			return -1;
@@ -837,6 +850,7 @@ int ezinject_main(
 		#undef PLAPI_SET
 
 		// when syscall_mode = 0, SC is skipped
+		INFO("target: calling payload at %p", pl->br_start);
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
 		
 		/**
@@ -849,6 +863,7 @@ int ezinject_main(
 		// restore syscall behavior (to call munmap, if needed by the target)
 		ctx->syscall_mode = 1;
 		ctx->pl_stack.remote = 0;
+		INFO("target: freeing payload memory");
 		remote_pl_free(ctx, remote_shm_ptr);
 
 		// switch back to the ELF header, to free vmem
@@ -889,11 +904,18 @@ int main(int argc, char *argv[]){
 
 	{
 		int c;
-		while ((c = getopt (argc, argv, "d")) != -1){
+		while ((c = getopt (argc, argv, "dv:")) != -1){
 			switch(c){
 				case 'd':
 					WARN("payload debugging enabled, the target **WILL** freeze");
 					ctx.pl_debug = 1;
+					break;
+				case 'v':;
+					switch(toupper(*optarg)){
+						case 'D':
+							verbosity = V_DBG;
+							break;
+					}
 					break;
 			}
 		}

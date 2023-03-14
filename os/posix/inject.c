@@ -104,10 +104,10 @@ uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 	if((flags & SC_ALLOC_ELFHDR) == SC_ALLOC_ELFHDR){
 		sc_base = (uintptr_t)get_base(ctx->target, NULL, NULL);
 	} else if((flags & SC_ALLOC_MMAP) == SC_ALLOC_MMAP){
-		sc_base = RSCALL6(ctx, __NR_mmap2,
+		sc_base = CHECK(RSCALL6(ctx, __NR_mmap2,
 			0, size, PROT_READ | PROT_WRITE | PROT_EXEC,
 			MAP_SHARED | MAP_ANONYMOUS,
-			-1, 0);
+			-1, 0));
 		if(sc_base == (uintptr_t)MAP_FAILED){
 			sc_base = 0;
 		}
@@ -217,7 +217,7 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base){
 			ctx->saved_sc_data = NULL;
 		}
 	} else if((flags & SC_ALLOC_MMAP) == SC_ALLOC_MMAP){
-		if(RSCALL2(ctx, __NR_munmap, sc_base, ctx->saved_sc_size) != 0){
+		if(CHECK(RSCALL2(ctx, __NR_munmap, sc_base, ctx->saved_sc_size)) != 0){
 			ERR("remote munmap failed");
 			return -1;
 		}
