@@ -133,7 +133,7 @@ struct injcode_plapi {
 };
 
 /**
- * 
+ *
  * this structure is pushed on the stack
  * within the target process
  **/
@@ -145,7 +145,7 @@ struct injcode_call {
 	void *(*libc_mmap)(void *addr, size_t length, int prot, int flags,
                   int fd, off_t offset);
 	int (*libc_open)(const char *pathname, int flags, ...);
-	ssize_t (*libc_read)(int fd, void *buf, size_t count); 
+	ssize_t (*libc_read)(int fd, void *buf, size_t count);
 #endif
 
 	/** PLAPI **/

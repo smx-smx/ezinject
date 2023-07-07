@@ -75,7 +75,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	if (NULL == hProcess){
 		ERR("OpenProcess() failed");
 		return NULL;
-	}					
+	}
 
 	void *base = NULL;
 	do {
@@ -93,7 +93,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 		{
 			DWORD bytesNeeded = 0;
 			EnumProcessModules(hProcess, NULL, 0, &bytesNeeded);
-			
+
 			modules = calloc(1, bytesNeeded);
 			EnumProcessModules(hProcess, modules, bytesNeeded, &bytesNeeded);
 

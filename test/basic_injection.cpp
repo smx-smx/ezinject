@@ -194,7 +194,7 @@ int main(int argc, char *argv[]){
 	char *target = argv[1];
 	char *ezinject = argv[2];
 	char *library = argv[3];
-	
+
 	struct test_state ctx = {};
 	ctx.target = target;
 	ctx.ezinject = ezinject;

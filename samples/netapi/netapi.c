@@ -54,7 +54,7 @@ LOG_SETUP(V_DBG);
 #define OP_DLSYM 0x53 // S
 #define OP_PEEK 0x52 // R
 #define OP_POKE 0x57 // W
-#define OP_CALL 0x43 // C 
+#define OP_CALL 0x43 // C
 #define OP_QUIT 0x51 // Q
 
 #define C_CDECL 0x43 // C
@@ -109,7 +109,7 @@ intptr_t safe_send(int fd, void *buf, size_t length, int flags){
 
 intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
 	uint8_t *pb = (uint8_t *)buf;
-	
+
 	ssize_t acc = 0;
 	while(acc < length){
 		ssize_t received = recv(fd, &pb[acc], length - acc, 0);
@@ -164,7 +164,7 @@ intptr_t send_datahdr(int fd, unsigned size){
 
 void *read_ptr(uint8_t **ppData){
 	uint8_t *data = *ppData;
-	
+
 	uintptr_t val = 0;
 	memcpy(&val, data, sizeof(val));
 	val = ntohl(val);
@@ -194,7 +194,7 @@ int handle_client(int client){
 			PERROR("recv"); \
 			serve = 0; break; \
 			break; \
-		} \ 
+		} \
 	} while(0)
 
 
@@ -270,7 +270,7 @@ int handle_client(int client){
 				uint8_t *start_addr = read_ptr(&data);
 				unsigned int length = (unsigned int)read_ptr(&data);
 				DBG("length: %u", length);
-				
+
 				int blocksize = 4096;
 				int nblocks = length / blocksize;
 				int blockoff = length % blocksize;
@@ -323,7 +323,7 @@ int handle_client(int client){
 				if(blockoff > 0){
 					SAFE_RECV(client, start_addr, blockoff, 0);
 				}
-				
+
 				if(send_str(client, NULL) != 0){
 					ERR("send_str failed");
 					serve = 0;
@@ -349,7 +349,7 @@ int handle_client(int client){
 
 				switch(call_type){
 					case C_CDECL:
-						switch(nargs){					
+						switch(nargs){
 							#include "calls.c"
 						}
 						break;
@@ -372,7 +372,7 @@ int handle_client(int client){
 				serve = 0;
 				break;
 			}
-				
+
 		}
 
 		free(mem);

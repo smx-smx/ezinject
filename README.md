@@ -17,7 +17,7 @@ Porting ezinejct is **simple**: No assembly code is required other than a few in
 
 As proof, it has been ported and battle-tested on a wild variety of Linux devices such as:
 
-- Asus DSL-N55U D1, a Mips BE DSL modem running uClibc and Linux 2.6 
+- Asus DSL-N55U D1, a Mips BE DSL modem running uClibc and Linux 2.6
 - ADB/DLink DVA-5592, an ARM v7 FPU-less xDSL modem running uClibc and Linux 3.0
 - Samsung GT-i9003 (latona), an Android 2.3 smartphone running Linux 2.6
 - Samsung GT-i9070 (janice), running Android 4
@@ -25,7 +25,7 @@ As proof, it has been ported and battle-tested on a wild variety of Linux device
 - pocophone F1 (beryllium), running Android 10
 - TomTom GO 910, a standalone GPS nav running glibc 2.3 and Linux 2.6
 
-as well as wildly different (both POSIX and non-POSIX OSes) such as 
+as well as wildly different (both POSIX and non-POSIX OSes) such as
 
 - Windows
 - FreeBSD
@@ -66,7 +66,7 @@ See the php module for an example
   - mips
   - x86
   - amd64
-  
+
 - Windows: x86, x64
 - FreeBSD: x86, x64
 - Darwin: x64

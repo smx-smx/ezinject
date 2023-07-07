@@ -31,7 +31,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 		if(filled < 2){
 			continue;
 		}
-		
+
 		// pointer to the last character in the path
 		char *end = (char *)&path[0] + strlen(path);
 

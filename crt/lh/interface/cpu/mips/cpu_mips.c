@@ -102,7 +102,7 @@ int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *jump_opcod
 
 int inj_build_abs_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address) {
 	UNUSED(jump_opcode_address);
-	
+
 	uintptr_t target = (uintptr_t)jump_destination;
 
 	/** FIXME: this clobbers ($at) **/

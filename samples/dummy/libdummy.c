@@ -45,7 +45,7 @@ void installHooks(){
 	void *self = GetModuleHandle(NULL);
 	#else
 	void *self = dlopen(NULL, RTLD_NOW);
-	#endif 
+	#endif
 	if(self == NULL){
 		ERR("dlopen failed: %s", LIB_ERROR());
 		return;

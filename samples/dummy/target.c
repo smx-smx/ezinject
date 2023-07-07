@@ -47,7 +47,7 @@ void print_maps(){
 		if(!fh){
 			return;
 		}
-		
+
 		char line[256];
 		while(!feof(fh)){
 			fgets(line, sizeof(line), fh);

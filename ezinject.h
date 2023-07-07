@@ -159,7 +159,7 @@ struct ezinj_str {
 struct call_req {
 	uintptr_t insn_addr;
 	uintptr_t stack_addr;
-	
+
 	unsigned int argmask;
 	uintptr_t argv[CALL_MAX_ARGS];
 	int syscall_mode;
@@ -195,7 +195,7 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal);
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size);
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
 
-/** injection api **/ 
+/** injection api **/
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);
 EZAPI remote_pl_copy(struct ezinj_ctx *ctx);
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr);

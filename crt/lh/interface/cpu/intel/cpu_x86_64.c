@@ -60,11 +60,11 @@ int inj_build_abs_jump(uint8_t *buffer, void *jump_destination, void *jump_opcod
 	uint32_t lo = target & 0xFFFFFFFF;
 	uint32_t hi = ((target >> 32) & 0xFFFFFFFF);
 
-	// 0: 68 44 33 22 11    push $11223344	
+	// 0: 68 44 33 22 11    push $11223344
 	WRITE8(buffer, 0x68);
 	WRITE32(buffer, lo);
-	
-	// 5: c7 44 24 04 88 77 66 55    mov 4(%rsp), 55667788  # upper 4 bytes	
+
+	// 5: c7 44 24 04 88 77 66 55    mov 4(%rsp), 55667788  # upper 4 bytes
 	WRITE32(buffer, 0x042444C7);
 	WRITE32(buffer, hi);
 

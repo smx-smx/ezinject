@@ -86,13 +86,13 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	UNUSED(ignores);
 
 	/**
-	 * this is dirty, but doing it properly seems to require using the 
+	 * this is dirty, but doing it properly seems to require using the
 	 * undocumented PrivateFramework "Symbolication"
 	 * using mach_vm_region_recurse will *NOT* contain all information
 	 **/
 	char cmd[128];
 	snprintf(cmd, sizeof(cmd), "vmmap -w -noCoalesce -noMalloc -interleaved -excludePersonalInfo %u", pid);
-	
+
 	void *h = popen(cmd, "r");
 	if(!h){
 		// failure to spawn vmmap

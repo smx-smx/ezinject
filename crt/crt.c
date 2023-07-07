@@ -101,7 +101,7 @@ void *crt_user_entry(void *arg) {
 
 	// prepare argv
 	char **dynPtr = &br->argv[0];
-	
+
 	char *stbl = BR_STRTBL(br) + br->argv_offset;
 	for(int i=0; i<br->argc; i++){
 		char *arg = NULL;

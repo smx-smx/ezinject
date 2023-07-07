@@ -19,7 +19,7 @@
 void *get_base(pid_t pid, char *substr, char **ignores) {
 	struct kinfo_vmentry *freep, *kve;
 	unsigned int cnt;
-	
+
 	struct procstat *procstat = procstat_open_sysctl();
 
 	unsigned int nprocs;
@@ -38,7 +38,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	}
 
 	void *base = NULL;
-	
+
 	for (unsigned int i = 0; i < cnt; i++) {
 		kve = &freep[i];
 		char *path = kve->kve_path;

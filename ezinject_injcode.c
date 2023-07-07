@@ -101,7 +101,7 @@ void PLAPI trampoline(){
 	 * this is a problem because we risk running the prologue of this function
 	 * and cause a stack misalignment
 	 * we must emit NOPs that are at least as big as the syscall instruction
-	 * 
+	 *
 	 **/
 	asm volatile("nop\n");
 	asm volatile("nop\n");
@@ -163,7 +163,7 @@ struct injcode_ctx {
 	struct thread_api libthread;
 	struct injcode_plapi plapi;
 	char *stbl;
-	
+
 	char *libdl_name;
 	char *libpthread_name;
 	char *userlib_name;

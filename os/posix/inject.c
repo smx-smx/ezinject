@@ -40,7 +40,7 @@ static off_t sc_read_offset;
 
 /**
  * layout of injected shellcode
- * 
+ *
  * ==================
  * trampoline
  * - trampoline_entry
@@ -141,7 +141,7 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *out_sc_base){
 	if((flags & SC_ALLOC_ELFHDR) == SC_ALLOC_ELFHDR){
 		ctx->saved_sc_data = calloc(dataLength, 1);
 		ctx->saved_sc_size = dataLength;
-	
+
 		if(remote_read(ctx, ctx->saved_sc_data, sc_base, dataLength) != dataLength){
 			ERR("failed to backup data");
 			return -1;
@@ -232,7 +232,7 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 	 *  a1: syscall number
 	 *  a2: syscall arg1
 	 *  a3: syscall arg2
-	 * 
+	 *
 	 * this means we can only do syscalls with 2 arguments, which is insufficient for
 	 *  open(2), read(2) and mmap(2)
 	 * which we need to perform the injection
