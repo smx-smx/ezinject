@@ -1,0 +1,30 @@
+# auto-detect text files; use LF
+* text=auto eol=lf
+
+# binary extensions
+*.bin binary
+
+# text extensions
+*.txt text
+*.md text
+*.c text
+*.h text
+*.h.in text
+*.S text
+*.cpp text
+*.php text
+*.yml text
+*.cmake text
+
+# important that these use LF
+*.sh text eol=lf
+*.expect text eol=lf
+
+# specific text filenames
+.gitattributes text
+.gitignore text
+.git-blame-ignore-revs text
+.editorconfig text
+AUTHORS text
+COPYING text
+Dockerfile text
