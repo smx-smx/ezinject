@@ -274,13 +274,15 @@ macro(find_uclibc)
 	endif()
 endmacro()
 
-macro(export_var var)
-	if(DEFINED ${var})
-		set(${var} "${${var}}" PARENT_SCOPE)
-	endif()
-endmacro()
+function(export_var var)
+	get_property(libc_props GLOBAL PROPERTY libc_props)
+	list(APPEND libc_props "${var}")
+	set_property(GLOBAL PROPERTY libc_props "${libc_props}")
 
-macro(libc_type_autodetect)
+	set_property(GLOBAL PROPERTY "${var}" "${${var}}")
+endfunction()
+
+function(libc_type_autodetect)
 	# handle windows platform early, as it's special
 	if(EZ_TARGET_WINDOWS)
 		check_library_exists("${C_LIBRARY}" "LdrLoadDll" "" HAVE_LDR_LOAD_DLL)
@@ -327,28 +329,25 @@ macro(libc_type_autodetect)
 			set(UCLIBC_OLD TRUE)
 			export_var(UCLIBC_OLD)
 		endif()
-		
-		return()
 	endif()
+endfunction()
 
-	message(FATAL_ERROR "Unsupported C library")
-endmacro()
-
-macro(linker_type_autodetect)
+function(linker_type_autodetect)
 	if(EZ_TARGET_WINDOWS)
 		# Windows always uses kernel32 (win9x) and/or ntdll (NT)
 		return()
 	endif()
 
-	check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
-	check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)
+	if(NOT EZ_TARGET_DARWIN)
+		check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
+		check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)	
+		if(NOT HAVE_DLOPEN OR NOT HAVE_DLSYM)
+			message(FATAL_ERROR "Invalid libdl.so library")
+		endif()
 
-	if(NOT HAVE_DLOPEN OR NOT HAVE_DLSYM)
-		message(FATAL_ERROR "Invalid libdl.so library")
+		export_var(HAVE_DLOPEN)
+		export_var(HAVE_DLSYM)
 	endif()
-
-	export_var(HAVE_DLOPEN)
-	export_var(HAVE_DLSYM)
 
 	# set dynamic linker name
 	if(EZ_TARGET_FREEBSD)
@@ -371,7 +370,7 @@ macro(linker_type_autodetect)
 		set(DYN_LINKER_NAME "libdyld.dylib")
 		export_var(DYN_LINKER_NAME)
 	endif()
-endmacro()
+endfunction()
 
 function(libc_autodetect)
 	## check libc type
@@ -379,6 +378,13 @@ function(libc_autodetect)
 
 	## now check for libdl
 	linker_type_autodetect()
+
+	get_property(libc_props GLOBAL PROPERTY libc_props)
+	foreach(prop ${libc_props})
+		get_property(prop_value GLOBAL PROPERTY ${prop})
+		set(${prop} "${prop_value}" PARENT_SCOPE)
+	endforeach()
+	
 endfunction()
 
 if(NOT DEFINED EZ_LIBC)

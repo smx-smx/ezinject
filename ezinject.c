@@ -801,7 +801,7 @@ int ezinject_main(
 			break;
 		}
 		#else
-		INFO("target: copying payload (using debugger)")
+		INFO("target: copying payload (using debugger)");
 		if(remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
 			PERROR("remote_write failed");
 		}
