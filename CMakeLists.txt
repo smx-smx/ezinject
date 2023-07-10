@@ -315,6 +315,9 @@ function(libc_type_autodetect)
 		set(HAVE_LIBDL_IN_LIBC TRUE)
 		export_var(HAVE_LIBDL_IN_LIBC)
 		return()
+	else()
+		unset(HAVE_DLOPEN CACHE)
+		unset(HAVE_DLSYM CACHE)
 	endif()
 
 	# check if we're targeting uClibc
