@@ -46,7 +46,7 @@ uint8_t *inj_build_jump(void *dstAddr, void *srcAddr, size_t *jumpSzPtr){
 	#endif
 	if(jumpSzPtr)
 		*jumpSzPtr = jumpSz;
-	
+
 	if(verbosity > 3){
 		INFO("jump");
 		hexdump(buffer, jumpSz);
@@ -176,7 +176,7 @@ void *inj_backup_function(void *original_code, size_t *num_saved_bytes, int opco
 	INFO("Opcode bytes to save: %d", num_opcode_bytes);
 
 	void *jump_origin = (void *)(UPTR(original_code) + num_opcode_bytes);
-	
+
 	size_t jumpSz;
 	uint8_t *jump_back;			//custom -> original
 	// JUMP from Replacement back to Original code (skip the original bytes that have been replaced to avoid loop)

@@ -42,7 +42,7 @@ int resolve_libc_symbols_android10(struct ezinj_ctx *ctx){
 	void *loader_dlopen = NULL;
 	void *loader_dlclose = NULL;
 	void *loader_dlsym = NULL;
-	
+
 	do {
 		loader_dlopen = elfparse_getfuncaddr(elfh_linker, "__loader_dlopen");
 		loader_dlclose = elfparse_getfuncaddr(elfh_linker, "__loader_dlclose");
@@ -107,10 +107,10 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ez_addr linker_dlopen = sym_addr(libdl, "dlopen", linker);
 	ez_addr linker_dlclose = sym_addr(libdl, "dlclose", linker);
 	ez_addr linker_dlsym = sym_addr(libdl, "dlsym", linker);
-	
+
 	DBGPTR(linker_dlopen.local);
 	DBGPTR(linker_dlopen.remote);
-	
+
 	// the real libdl is the linker (which holds the implementation of dl* symbols)
 	ctx->libdl = linker;
 	ctx->libc_dlopen = linker_dlopen;

@@ -68,7 +68,7 @@ INLINE intptr_t inj_thread_wait(
 
 	void *result = NULL;
 	api->pthread_join(br->user_tid, &result);
-	
+
 	*pExitStatus = (intptr_t)result;
 	return 0;
 }

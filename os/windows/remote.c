@@ -143,7 +143,7 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 		if(ev->dwDebugEventCode == EXCEPTION_DEBUG_EVENT){
 			if(ev->u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_BREAKPOINT){
 				DBG("Got debugbreak");
-				break;	
+				break;
 			}
 			DBG("Unknown exception, target will likely crash");
 			DBG("ExceptionCode: 0x%08lX", ev->u.Exception.ExceptionRecord.ExceptionCode);
@@ -159,7 +159,7 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 		}
 	}
 	DBG("Ready");
-	
+
 	/**
 	 *  we stopped on a breakpoint
 	 * get a handle to the thread that generated this event

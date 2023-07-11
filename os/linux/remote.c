@@ -64,7 +64,7 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uintptr_t *destWords = (uintptr_t *)dest;
-	
+
 	size_t read;
 	for(read=0; read < size; read+=sizeof(uintptr_t), destWords++){
 		*destWords = (uintptr_t)ptrace(PTRACE_PEEKTEXT, ctx->target, source + read, 0);
@@ -74,7 +74,7 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	uintptr_t *sourceWords = (uintptr_t *)source;
-	
+
 	size_t written;
 	for(written=0; written < size; written+=sizeof(uintptr_t), sourceWords++){
 		if(ptrace(PTRACE_POKETEXT, ctx->target, dest + written, *sourceWords) < 0){

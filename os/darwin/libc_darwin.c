@@ -38,7 +38,7 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 		dlclose(h_self);
 		return 1;
 	}
-	
+
 	// the real libdl is the linker (which holds the implementation of dl* symbols)
 	ctx->libdl = linker;
 	ctx->libc_dlopen = linker_dlopen;

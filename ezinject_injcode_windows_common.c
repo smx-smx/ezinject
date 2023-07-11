@@ -16,7 +16,7 @@ void PLAPI inj_puts(struct injcode_ctx *ctx, char *str){
 
 	PPEB peb = br->RtlGetCurrentPeb();
 	PINT_RTL_USER_PROCESS_PARAMETERS params = (PINT_RTL_USER_PROCESS_PARAMETERS)peb->ProcessParameters;
-	
+
 	HANDLE h = params->StandardOutput;
 	if(h == INVALID_HANDLE_VALUE){
 		return;

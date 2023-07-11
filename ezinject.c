@@ -69,7 +69,7 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx);
 /**
  * Prepares the target process for a call invocation with syscall convention
  * NOTE: this function can be used to call anything, not just system calls
- * 
+ *
  * @param[in]  orig_ctx	 the current process context
  * @param[out] new_ctx   the new process context
  * @param[in]  call      call arguments and options
@@ -84,7 +84,7 @@ intptr_t setregs_syscall(
 
 	// this will be passed on the stack
 	struct injcode_call *rcall = &call->rcall;
-	
+
 	uintptr_t target_sp = 0;
 	if(call->stack_addr != 0){
 		target_sp = call->stack_addr;
@@ -135,11 +135,11 @@ intptr_t setregs_syscall(
 	 * this target supports true system calls
 	 * use a wrapper in-between to avoid stack corruption
 	 * in some scenarios
-	 * 
+	 *
 	 * trampoline -> wrapper -> syscall
 	 **/
 	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
-	if(call->syscall_mode){	
+	if(call->syscall_mode){
 		/**
 		 * set the branch target
 		 * (based on the number of syscall arguments)
@@ -377,8 +377,8 @@ struct ezinj_str ezstr_new(char *str){
 
 /**
  * @brief default implementation of libc lookup
- * 
- * @param ctx 
+ *
+ * @param ctx
  */
 static int libc_init_default(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
@@ -472,10 +472,10 @@ int libc_init(struct ezinj_ctx *ctx){
 
 /**
  * Marshals the string @str into @strData, advancing the data pointer as needed
- * 
+ *
  * @param[in]  str
  * 	structure describing the string to copy
- * @param[out] strData  
+ * @param[out] strData
  * 	pointer (pass by reference) to a block of memory where the string will be copied
  * 	the pointer will be incremented by the number of bytes copied
  **/
@@ -499,7 +499,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	size_t dyn_str_size = 0;
 
 	struct ezinj_str args[32];
-	
+
 	int num_strings = 0;
 	int argi = 0;
 	off_t argv_offset = 0;
@@ -715,7 +715,7 @@ void print_maps(){
 		if(!fh){
 			return;
 		}
-		
+
 		char line[256];
 		while(!feof(fh)){
 			fgets(line, sizeof(line), fh);
@@ -743,7 +743,7 @@ int ezinject_main(
 		return -1;
 	}
 
-	
+
 	uintptr_t r_sc_elf = 0;
 	uintptr_t r_sc_vmem = 0;
 
@@ -852,7 +852,7 @@ int ezinject_main(
 		// when syscall_mode = 0, SC is skipped
 		INFO("target: calling payload at %p", pl->br_start);
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
-		
+
 		/**
 		 * if payload debugging is on, skip any cleanup
 		 **/

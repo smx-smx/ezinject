@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 set(HAVE_CMAKE314 TRUE)
-if(${CMAKE_VERSION} VERSION_LESS "3.14") 
+if(${CMAKE_VERSION} VERSION_LESS "3.14")
 	# 3.14 requirement: https://cmake.org/cmake/help/latest/policy/CMP0083.html
     message(WARNING "CMake older than 3.14 detected. You might experience problems with Android builds")
 	set(HAVE_CMAKE314 FALSE)
@@ -31,7 +31,7 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
 	SET(CMAKE_FIND_LIBRARY_SUFFIXES "" ".a" ".dylib")
 	set(EZ_TARGET_DARWIN TRUE)
-	
+
 	message(STATUS "SDK Path: ${CMAKE_OSX_SYSROOT}")
 else()
 	message(FATAL_ERROR "Unsupported OS ${CMAKE_SYSTEM_NAME}")
@@ -268,7 +268,7 @@ endif()
 macro(find_uclibc)
 	find_library(DYN_LINKER
 		NAMES ld-uClibc.so.0
-	)	
+	)
 	if(DYN_LINKER)
 		get_filename_component(DYN_LINKER_NAME "${DYN_LINKER}" NAME)
 	endif()
@@ -343,7 +343,7 @@ function(linker_type_autodetect)
 
 	if(NOT EZ_TARGET_DARWIN)
 		check_library_exists("${DL_LIBRARY}" "dlopen" "" HAVE_DLOPEN)
-		check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)	
+		check_library_exists("${DL_LIBRARY}" "dlsym" "" HAVE_DLSYM)
 		if(NOT HAVE_DLOPEN OR NOT HAVE_DLSYM)
 			message(FATAL_ERROR "Invalid libdl.so library")
 		endif()
@@ -365,7 +365,7 @@ function(linker_type_autodetect)
 			PATHS /libexec
 			NAMES ${lib_name}
 			REQUIRED
-		)	
+		)
 		set(DYN_LINKER_NAME "${DYN_LINKER}")
 		export_var(DYN_LINKER_NAME)
 	elseif(EZ_TARGET_DARWIN)
@@ -387,7 +387,6 @@ function(libc_autodetect)
 		get_property(prop_value GLOBAL PROPERTY ${prop})
 		set(${prop} "${prop_value}" PARENT_SCOPE)
 	endforeach()
-	
 endfunction()
 
 if(NOT DEFINED EZ_LIBC)
@@ -447,7 +446,7 @@ if(USE_CAPSTONE OR (HAVE_CPU_VLE AND NOT USE_FRIDA_GUM))
 				NO_DEFAULT_PATH
 				PATHS ${CAPSTONE_PREFIX}/lib
 				NAMES libcapstone.a capstone
-				CMAKE_FIND_ROOT_PATH_BOTH 
+				CMAKE_FIND_ROOT_PATH_BOTH
 		)
 		include_directories(${CAPSTONE_PREFIX}/include)
 	endif()
@@ -525,7 +524,7 @@ string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_flags})
 string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_flags})
 
 
-set(lib_sources 
+set(lib_sources
 	ezinject_util.c
 )
 set(target_sources "")
@@ -688,7 +687,7 @@ if(USE_FRIDA_GUM)
 				-B "${CMAKE_BINARY_DIR}/external"
 				-S "${CMAKE_SOURCE_DIR}/external/frida-gum"
 			COMMAND ${CMAKE_COMMAND}
-				--build 
+				--build
 				${CMAKE_SOURCE_DIR}/external/frida-gum
 		)
 	endif()

@@ -38,7 +38,7 @@ INLINE intptr_t inj_thread_wait(
 
 	DWORD result = api->WaitForSingleObject(br->hEvent, INFINITE);
 	api->CloseHandle(br->hEvent);
-	
+
 	if(result != WAIT_OBJECT_0){
 		return -1;
 	}
@@ -51,7 +51,7 @@ INLINE intptr_t inj_thread_wait(
 	} while(result != FALSE && exitStatus == STILL_ACTIVE);
 
 	PCALL(ctx, inj_dbgptr, exitStatus);
-	
+
 	*pExitStatus = exitStatus;
 	return 0;
 }
@@ -62,7 +62,7 @@ INLINE void *_inj_get_kernel32(struct injcode_bearing *br){
 
 	// kernel32.dll length in utf16
 	const int NAME_LENGTH = 24;
-	
+
 	/** poor man's UTF16 conversion of "kernel32.dll" **/
 	char buf[NAME_LENGTH];
 	for(int i=0; i<NAME_LENGTH; i+=2){

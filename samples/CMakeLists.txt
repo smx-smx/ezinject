@@ -16,7 +16,7 @@ if(NOT EZ_TARGET_ANDROID AND NOT EZ_TARGET_WINDOWS)
 endif()
 
 if(EZ_TARGET_LINUX)
-	include(CheckSymbolExists) 
+	include(CheckSymbolExists)
 	check_symbol_exists("__NR_memfd_create" "asm/unistd.h" HAVE_NR_MEMFD_CREATE)
 	if(HAVE_NR_MEMFD_CREATE)
 		add_subdirectory(memloader)

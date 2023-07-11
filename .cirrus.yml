@@ -108,14 +108,14 @@ linux_glibc_armv4_task:
     PATH: /opt/ttgo/gcc-3.3.4_glibc-2.3.2/bin:${PATH}
 
   script:
-    - ./build.sh targets/ttgo-arm-linux.cmake 
+    - ./build.sh targets/ttgo-arm-linux.cmake
         -DEZ_LIBC=glibc-old
 
 freebsd_x64_task:
   freebsd_instance:
     image_family: freebsd-12-2
 
-  install_script: 
+  install_script:
     - pkg update
     - pkg install -y bash cmake capstone pkgconf
   script:
@@ -187,7 +187,7 @@ windows_x64_task:
         del -Force -Recurse -ErrorAction SilentlyContinue C:\tools\msys64\var\cache\pacman\pkg
         tar cf C:\tools\archive\msys64.tar -C C:\tools\ msys64
         Write-Output "Package archive time taken: $((Get-Date).Subtract($start_time))"
-        del -Force -Recurse -ErrorAction SilentlyContinue c:\tools\msys64 
+        del -Force -Recurse -ErrorAction SilentlyContinue c:\tools\msys64
   install_script:
     - |
       $start_time = Get-Date

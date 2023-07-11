@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 		char *patchdata = malloc(patchsz);
 		fread(patchdata, 1, patchsz, patchfile);
 		fclose(patchfile);
-		
+
 		INFO("Applying patch: %s -> %s", funcname, filename);
 		DBG("%u bytes at at %p", patchsz, funcadr);
 		apply_patch(target, funcadr, patchdata, patchsz);
