@@ -12,7 +12,7 @@
 #include "config.h"
 
 #if defined(EZ_TARGET_WINDOWS)
-# include <Windows.h>
+# include <windows.h>
 # define LIB_HANDLE HMODULE
 # define LIB_OPEN(path) LoadLibraryA(path)
 # define LIB_GETSYM(handle, sym) (void *)GetProcAddress(handle, sym)

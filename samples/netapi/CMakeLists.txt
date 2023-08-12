@@ -8,6 +8,6 @@ if(EZ_TARGET_POSIX)
 		target_link_libraries(netapi pthread)
 	endif()
 elseif(EZ_TARGET_WINDOWS)
-	target_link_libraries(netapi ws2_32)
+	target_link_libraries(netapi ws2_32 pthread)
 endif()
 

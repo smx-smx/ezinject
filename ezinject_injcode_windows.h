@@ -10,7 +10,7 @@
 #ifndef __EZINJECT_INJCODE_WINDOWS_H
 #define __EZINJECT_INJCODE_WINDOWS_H
 
-#include <Windows.h>
+#include <windows.h>
 
 struct dl_api {
 	/** LoadLibraryA **/

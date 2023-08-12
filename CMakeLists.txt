@@ -25,7 +25,7 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
 	set(EZ_TARGET_FREEBSD TRUE)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
-	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll")
+	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll" ".a")
 	set(EZ_TARGET_WINDOWS TRUE)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
@@ -180,9 +180,11 @@ elseif(EZ_TARGET_DARWIN)
 	list(APPEND EXTRA_SEARCH_PATHS "/usr/lib/system")
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND C_LIBRARY_NAMES
-		ntdll.dll
+		ntdll
 	)
-	list(APPEND EXTRA_SEARCH_PATHS "$ENV{SystemRoot}\\System32")
+	if(NOT CMAKE_CROSSCOMPILING)
+		list(APPEND EXTRA_SEARCH_PATHS "$ENV{SystemRoot}\\System32")
+	endif()
 endif()
 
 find_library(C_LIBRARY
@@ -205,7 +207,7 @@ if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD)
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND DL_LIBRARY_NAMES
 		# implements LoadLibraryA
-		Kernel32.dll
+		kernel32
 	)
 endif()
 
