@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,7 +11,6 @@
 #include "log.h"
 #include "util.h"
 #include "interface/if_hook.h"
-#include "interface/cpu/if_sljit.h"
 #include "ezinject_injcode.h"
 
 #include "coreclr_delegates.h"

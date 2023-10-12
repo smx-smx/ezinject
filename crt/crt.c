@@ -1,6 +1,13 @@
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #include "config.h"
 
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -9,9 +16,7 @@
 #include <sched.h>
 #include <pthread.h>
 #include <unistd.h>
-#ifdef HAVE_SYS_SHM_H
-#include <sys/shm.h>
-#endif
+
 #ifdef EZ_TARGET_LINUX
 #include <sys/prctl.h>
 #endif
@@ -35,10 +40,8 @@
 #include <fcntl.h>
 
 #include <pthread.h>
-#include <dlfcn.h>
 
 #include "ezinject.h"
-#include "ezinject_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_injcode.h"
 
@@ -64,29 +67,11 @@ extern int crt_userinit(struct injcode_bearing *br);
 
 void* crt_user_entry(void *arg);
 
-__attribute__((constructor)) void ctor(void)
-{
+int crt_init(struct injcode_bearing *br){
 	LOG_INIT("/tmp/"MODULE_NAME".log");
 	INFO("library loaded!");
-}
 
-
-int crt_init(struct injcode_bearing *br){
 	INFO("initializing");
-
-	// copy local br (excluding code and stack)
-	size_t br_size = SIZEOF_BR(*br);
-	struct injcode_bearing *local_br = malloc(br_size);
-	if(!local_br){
-		PERROR("malloc");
-		return -2;
-	}
-	memcpy(local_br, br, br_size);
-
-	struct crt_ctx ctx = {
-		.shared_br = br,
-		.local_br = local_br
-	};
 
 	// workaround for old uClibc (see http://lists.busybox.net/pipermail/uclibc/2009-October/043122.html)
 	// https://github.com/kraj/uClibc/commit/cfa1d49e87eae4d46e0f0d568627b210383534f3
@@ -95,14 +80,12 @@ int crt_init(struct injcode_bearing *br){
 	#endif
 
 	DBG("crt_thread_create");
-	// user thread must run against the local copy of br
-	if(crt_thread_create(&ctx, crt_user_entry) < 0){
+	if(crt_thread_create(br, crt_user_entry) < 0){
 		ERR("crt_thread_create failed");
 		return -1;
 	}
 	DBG("crt_thread_notify");
-	// notification must be done over the (possibly shared) br
-	if(crt_thread_notify(&ctx) < 0){
+	if(crt_thread_notify(br) < 0){
 		ERR("crt_thread_notify failed");
 		return -1;
 	}
@@ -118,7 +101,7 @@ void *crt_user_entry(void *arg) {
 
 	// prepare argv
 	char **dynPtr = &br->argv[0];
-	
+
 	char *stbl = BR_STRTBL(br) + br->argv_offset;
 	for(int i=0; i<br->argc; i++){
 		char *arg = NULL;
@@ -130,19 +113,11 @@ void *crt_user_entry(void *arg) {
 	hexdump(br, SIZEOF_BR(*br));
 #endif
 
-	enum userlib_return_action result;
-
-	crt_userinit(br);
-	if(br->user.persist){
-		result = userlib_persist;
-	} else {
-		result = userlib_unload;
-	}
+	int result = crt_userinit(br);
 
 	DBG("ret");
 	LOG_FINI();
 
-	free(br);
 	return (void *)result;
 }
 

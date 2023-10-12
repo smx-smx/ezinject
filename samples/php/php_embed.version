@@ -1,0 +1,17 @@
+{
+  global:
+    lib_preinit;
+    lib_main;
+    crt_init;
+    gum_init;
+    gum_interceptor_begin_transaction;
+    gum_interceptor_end_transaction;
+    gum_make_call_listener;
+    gum_interceptor_obtain;
+    gum_interceptor_attach;
+    gum_interceptor_replace;
+    gum_interceptor_revert;
+
+  local:
+    *;
+};

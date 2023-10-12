@@ -1,18 +1,18 @@
 add_executable(target target.c)
 
-set(ARG_USE_LH "")
-if(NOT EZ_TARGET_WINDOWS)
-	set(ARG_USE_LH "USE_LH")
-endif()
+#set(ARG_USE_LH "")
+#if(NOT EZ_TARGET_WINDOWS)
+#	set(ARG_USE_LH "USE_LH")
+#endif()
 
 add_ezinject_library(dummy
-	${ARG_USE_LH}
+	USE_LH
 	#USE_LOG
 	SOURCES libdummy.c
 )
 
 set(required_libs "")
-if(NOT ANDROID)
+if(NOT ANDROID AND EZ_TARGET_POSIX)
 	list(APPEND required_libs dl)
 endif()
 

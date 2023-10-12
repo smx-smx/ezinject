@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #include <stdlib.h>
 
 #include <sys/types.h>
@@ -17,7 +25,7 @@ EZAPI remote_attach(struct ezinj_ctx *ctx){
 	pid_t 	pid;
 	task_t	task;
 	kern_return_t kr;
-	
+
 	kr = task_for_pid(mach_task_self(), ctx->target, &task);
 	if(kr != KERN_SUCCESS){
 		ERR("task_for_pid failed: %s", mach_error_string(kr));
@@ -64,7 +72,7 @@ EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
 		ERR("thread_get_state failed: %s", mach_error_string(kr));
 		return -1;
 	}
-	
+
 	return 0;
 }
 
@@ -74,7 +82,7 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 		ctx->thread, MACHINE_THREAD_STATE,
 		(thread_state_t)regs, count
 	);
-	
+
 	if(kr != KERN_SUCCESS){
 		ERR("thread_set_state failed: %s", mach_error_string(kr));
 		return -1;
@@ -110,7 +118,7 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	kern_return_t kr;
 	vm_size_t pageSz = getpagesize();
-	
+
 	void *mem = NULL;
 	if(posix_memalign(&mem, pageSz, size) < 0 || mem == NULL){
 		PERROR("posix_memalign");

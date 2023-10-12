@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,12 +15,18 @@
 
 #define UNUSED(x) (void)x
 
-int func1(int arg1, int arg2) {
+#ifdef EZ_TARGET_WINDOWS
+#define EXPORT __declspec(dllexport)
+#else
+#define EXPORT extern
+#endif
+
+EXPORT int func1(int arg1, int arg2) {
 	printf("arg1: %d, arg2: %d\n", arg1, arg2);
 	return arg1 + arg2;
 }
 
-void func2(void) {
+EXPORT void func2(void) {
 	puts("Func2 called!");
 }
 
@@ -42,7 +47,7 @@ void print_maps(){
 		if(!fh){
 			return;
 		}
-		
+
 		char line[256];
 		while(!feof(fh)){
 			fgets(line, sizeof(line), fh);
@@ -74,8 +79,10 @@ int main(int argc, char *argv[])
 	{
 		int val = func1(0, 1);
 		printf("return1() = %d\n", val);
-		if(!val)
+		if(!val){
+			puts("-- got 0, exiting");
 			break;
+		}
 		if(interactive)
 			fgetc(stdin);
 		else

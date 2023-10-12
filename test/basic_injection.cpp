@@ -1,4 +1,3 @@
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,7 +57,7 @@ int delegate_invoke(delegate *cb, void *arg){
 	return cb->callback(cb->state, arg);
 }
 
-int expect(FILE *fh, char *str, int maxLines, delegate *cb){
+int expect(FILE *fh, const char *str, int maxLines, delegate *cb){
 	char line[256];
 	memset(line, 0x00, sizeof(line));
 
@@ -107,15 +106,12 @@ int run_on_return1(void *state, void *arg){
 
 	struct test_state *ctx = (struct test_state *)state;
 	char *cmd = asprintf_ex("%s %u %s 1 2 3 4 5 6", ctx->ezinject, ctx->pid, ctx->library);
+	printf("[+] running ezinject: %s\n", cmd);
 	ctx->ezinjectRunner = std::thread([=](){
-		FILE *hCmd = popen(cmd, "r");
+		system(cmd);
 		free(cmd);
-		char buf[255];
-		while(fgets(buf, sizeof(buf), hCmd) != NULL){
-			//fputs(buf, stdout);
-		}
-		pclose(hCmd);
 	});
+
 	return 0;
 }
 
@@ -124,6 +120,7 @@ int run(struct test_state *ctx){
 	if(!hTarget){
 		return -1;
 	}
+	setvbuf(hTarget, NULL, _IONBF, 0);
 
 	delegate on_pid = {
 		.state = ctx,
@@ -151,6 +148,20 @@ int run(struct test_state *ctx){
 		rc = 0;
 	} while(0);
 
+	// keep reading the target output until it is killed
+	std::thread targetConsumer = std::thread([=](){
+		char buf[255];
+		while(fgets(buf, sizeof(buf), hTarget) != NULL){
+			//fputs(buf, stdout);
+		}
+	});
+
+	// wait for ezinject to complete first
+	if(ctx->ezinjectRunner.joinable()){
+		ctx->ezinjectRunner.join();
+	}
+
+	// kill the process
 	if(ctx->pid > 0){
 	#if defined(EZ_TARGET_POSIX)
 		kill(ctx->pid, SIGKILL);
@@ -163,11 +174,11 @@ int run(struct test_state *ctx){
 	#endif
 	}
 
-	pclose(hTarget);
-
-	if(ctx->ezinjectRunner.joinable()){
-		ctx->ezinjectRunner.join();
+	// wait for the target consumer to terminate (after issuing the process kill)
+	if(targetConsumer.joinable()){
+		targetConsumer.join();
 	}
+	pclose(hTarget);
 
 	return rc;
 }
@@ -183,10 +194,8 @@ int main(int argc, char *argv[]){
 	char *target = argv[1];
 	char *ezinject = argv[2];
 	char *library = argv[3];
-	
-	struct test_state ctx;
-	memset(&ctx, 0x00, sizeof(ctx));
 
+	struct test_state ctx = {};
 	ctx.target = target;
 	ctx.ezinject = ezinject;
 	ctx.library = library;

@@ -1,4 +1,11 @@
-#define _GNU_SOURCE
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -9,17 +16,12 @@
 #include <limits.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <ctype.h>
 
 #include "config.h"
 
 #include <fcntl.h>
-#include <dlfcn.h>
 #include <sched.h>
-
-
-#ifdef HAVE_SYS_SHM_H
-#include <sys/shm.h>
-#endif
 
 #ifdef EZ_TARGET_POSIX
 #include <sys/types.h>
@@ -33,29 +35,20 @@
 
 #include <sys/stat.h>
 
-#if defined(EZ_TARGET_LINUX) && !defined(HAVE_SHM_SYSCALLS)
-#include <asm-generic/ipc.h>
-#endif
-
+#include "dlfcn_compat.h"
 #include "ezinject_util.h"
 #include "ezinject.h"
-#include "ezinject_compat.h"
 #include "ezinject_common.h"
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
-enum verbosity_level verbosity = V_DBG;
+LOG_SETUP(V_INFO);
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
 static ez_region region_pl_code = {
 	.start = (void *)&__start_payload,
 	.end = (void *)&__stop_payload
-};
-
-static ez_region region_sc_code = {
-	.start = (void *)&__start_syscall,
-	.end = (void *)&__stop_syscall
 };
 
 static void *code_data(void *code){
@@ -66,37 +59,17 @@ static void *code_data(void *code){
 #endif
 }
 
-/**
- * Get the address of the call wrapper
- **/
-uintptr_t get_wrapper_address(struct ezinj_ctx *ctx){
-	uintptr_t codeBase = (uintptr_t) get_base(ctx->target, NULL, NULL);
-	if(codeBase == 0){
-		ERR("Could not obtain code base");
-		return 0;
-	}
-	DBGPTR(codeBase);
+#ifdef HAVE_SC
+uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
+#endif
 
-	off_t trampoline_offset = 0;
-	size_t trampoline_size = ROUND_UP(
-		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline)),
-		sizeof(uintptr_t)
-	);
-
-	off_t sc_offset = trampoline_offset + trampoline_size;
-	uintptr_t r_sc_base = codeBase + sc_offset;
-
-	uintptr_t sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
-	return r_sc_base + sc_wrapper_offset;
-}
-
-int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size);
+size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout);
 int resolve_libc_symbols(struct ezinj_ctx *ctx);
 
 /**
  * Prepares the target process for a call invocation with syscall convention
  * NOTE: this function can be used to call anything, not just system calls
- * 
+ *
  * @param[in]  orig_ctx	 the current process context
  * @param[out] new_ctx   the new process context
  * @param[in]  call      call arguments and options
@@ -109,39 +82,64 @@ intptr_t setregs_syscall(
 ){
 	REG(*new_ctx, REG_PC) = call->insn_addr;
 
+	// this will be passed on the stack
 	struct injcode_call *rcall = &call->rcall;
-	
+
 	uintptr_t target_sp = 0;
 	if(call->stack_addr != 0){
 		target_sp = call->stack_addr;
 	} else {
 		target_sp = REG(*orig_ctx, REG_SP);
 	}
+	// allocate remote call on the stack
 	uintptr_t r_call_args = target_sp - sizeof(*rcall);
 
 	rcall->argc = 0;
 	rcall->result = 0;
+	// copy call arguments
 	memcpy(&rcall->argv, &call->argv, sizeof(call->argv));
 
 #ifdef EZ_TARGET_POSIX
 	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
 #endif
+#ifdef EZ_TARGET_LINUX
+	if(ctx->force_mmap_syscall){
+		rcall->libc_mmap = NULL;
+	} else {
+		rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
+	}
+	rcall->libc_open = (void *)ctx->libc_open.remote;
+	rcall->libc_read = (void *)ctx->libc_read.remote;
+#endif
 
-	// skip syscall nr
+#define PLAPI_USE(fn) rcall->plapi.fn = (void *)ctx->plapi.fn;
+	PLAPI_USE(inj_memset);
+	PLAPI_USE(inj_puts);
+	PLAPI_USE(inj_dchar);
+	PLAPI_USE(inj_dbgptr);
+	PLAPI_USE(inj_fetchsym);
+#undef PLAPI_USE
+
+	// set the call structure as argument for the function being called
+	rcall->trampoline.fn_arg = r_call_args;
+
+	// count syscall arguments excluding syscall number
 	for(int i=1; i<SC_MAX_ARGS; i++){
 		if(CALL_HAS_ARG(*call, i)){
 			rcall->argc++;
 		}
 	}
 
+	#ifdef HAVE_SC
 	/**
-	 * set trampoline params
+	 * this target supports true system calls
+	 * use a wrapper in-between to avoid stack corruption
+	 * in some scenarios
+	 *
+	 * trampoline -> wrapper -> syscall
 	 **/
-	rcall->trampoline.fn_arg = r_call_args;
-
-	#if defined(EZ_TARGET_POSIX) && !defined(EZ_TARGET_DARWIN)
 	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
-	if(call->syscall_mode){	
+	if(call->syscall_mode){
 		/**
 		 * set the branch target
 		 * (based on the number of syscall arguments)
@@ -151,10 +149,11 @@ intptr_t setregs_syscall(
 			return -1;
 		}
 	} else {
-		// set the user supplied branch target
+		// call the user supplied target through the wrapper
 		rcall->wrapper.target = ctx->branch_target.remote;
 	}
 	#else
+	// call the user supplied target through the trampoline
 	rcall->trampoline.fn_addr = ctx->branch_target.remote;
 	#endif
 
@@ -165,8 +164,8 @@ intptr_t setregs_syscall(
 		}
 	}
 
-	size_t backupSize = ROUND_UP(sizeof(*rcall), sizeof(uintptr_t));
-	
+	// backup the stack area being overwritten
+	ssize_t backupSize = (ssize_t)WORDALIGN(sizeof(*rcall));
 	uint8_t *saved_stack = calloc(backupSize, 1);
 	if(remote_read(ctx, saved_stack, r_call_args, backupSize) != backupSize){
 		ERR("failed to backup stack");
@@ -174,6 +173,7 @@ intptr_t setregs_syscall(
 		return -1;
 	}
 
+	// write the remote call onto the stack
 	if(remote_write(
 		ctx,
 		r_call_args,
@@ -184,14 +184,20 @@ intptr_t setregs_syscall(
 		return -1;
 	}
 
+	// save original info for later
 	call->backup_addr = r_call_args;
 	call->backup_data = saved_stack;
 	call->backup_size = backupSize;
 
+	// update stack pointer
 	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
-	DBGPTR((void *)REG(*new_ctx, REG_SP));
 
-#ifdef EZ_ARCH_ARM
+#ifdef DEBUG
+	DBGPTR((void *)REG(*new_ctx, REG_SP));
+#endif
+
+#if defined(EZ_ARCH_ARM) && defined(HAVE_PSR_T_BIT)
+	// set the ARM/Thumb flag for the shellcode invocation
 	#ifdef USE_ARM_THUMB
 	REG(*new_ctx, ARM_cpsr) = REG(*new_ctx, ARM_cpsr) | PSR_T_BIT;
 	#else
@@ -224,7 +230,7 @@ intptr_t remote_call_setup(struct ezinj_ctx *ctx, struct call_req *call, regs_t 
 	return 0;
 }
 
-uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
+intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	regs_t orig_ctx, new_ctx;
 	if(remote_call_setup(ctx, call, &orig_ctx, &new_ctx) < 0){
 		ERR("remote_call_setup failed");
@@ -236,10 +242,38 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
-	if(remote_wait(ctx, 0) < 0){
-		ERR("remote_wait failed");
-		return -1;
-	}
+	int wait = 0;
+	do {
+		intptr_t status = remote_wait(ctx, 0);
+		if(status < 0){
+			ERR("remote_wait failed");
+			return -1;
+		}
+
+	#ifdef EZ_TARGET_POSIX
+	// this may be defined to a runtime call (!!)
+	// in that case, it will return the *current* SIGRTMIN, which is not what we want
+	#undef SIGRTMIN
+	#define SIGRTMIN 32
+		#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
+
+		wait = 0;
+
+		int signal = WSTOPSIG(status);
+		DBG("signal: %d", signal);
+		/**
+		 * some glibc versions use SIGRTMIN for thread management
+		 * we need to forward those signals so that
+		 * `pthread_create` and `pthread_join`
+		 * can work correctly
+		 */
+		if(call->syscall_mode == 0 && IS_IGNORED_SIG(signal)){
+			INFO("forwarding signal %d", signal);
+			remote_continue(ctx, signal);
+			wait = 1;
+		}
+	#endif
+	} while(wait);
 
 	if(call->syscall_mode == 0 && ctx->pl_debug){
 		return -1;
@@ -253,13 +287,21 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		}
 	}
 
+	// read the rcall result from the stack
 	remote_read(ctx,
 		&call->rcall.result,
 		RCALL_FIELD_ADDR(&call->rcall, result),
 		sizeof(uintptr_t)
 	);
 
+#ifdef DEBUG
 	DBG("[RET] = %"PRIdPTR, call->rcall.result);
+#endif
+
+	if(remote_getregs(ctx, &new_ctx) < 0){
+		ERR("remote_getregs failed");
+		return -1;
+	}
 
 	/**
 	  * the payload is expected to use its own stack
@@ -282,6 +324,7 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	}
 
 #ifdef DEBUG
+	DBG("SP: %p", (void *)((uintptr_t)REG(new_ctx, REG_SP)));
 	DBG("PC: %p => %p",
 		(void *)call->insn_addr,
 		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
@@ -290,16 +333,17 @@ uintptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	return call->rcall.result;
 }
 
-uintptr_t remote_call(
+intptr_t remote_call(
 	struct ezinj_ctx *ctx,
 	unsigned int argmask, ...
 ){
 	struct call_req call = {
-		.insn_addr = ctx->trampoline_insn.remote,
+		.insn_addr = ctx->entry_insn.remote,
 		.stack_addr = ctx->pl_stack.remote,
 		.syscall_mode = ctx->syscall_mode,
 		.argmask = argmask
 	};
+	DBG("=====================");
 
 	va_list ap;
 	va_start(ap, argmask);
@@ -313,19 +357,16 @@ uintptr_t remote_call(
 
 struct ezinj_str ezstr_new(char *str){
 	struct ezinj_str bstr = {
-		.len = STRSZ(str),
+		/**
+		 * align the size of the string entry
+		 * since some architectures (e.g. ARMv4)
+		 * don't like doing unaligned accesses
+		 * and will corrupt memory
+		 */
+		.len = WORDALIGN(STRSZ(str)),
 		.str = str
 	};
 	return bstr;
-}
-
-ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
-	uintptr_t sym_addr = (uintptr_t)dlsym(handle, sym_name);
-	ez_addr sym = {
-		.local = sym_addr,
-		.remote = (sym_addr == 0) ? 0 : EZ_REMOTE(lib, sym_addr)
-	};
-	return sym;
 }
 
 #ifdef EZ_TARGET_LINUX
@@ -334,7 +375,12 @@ ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
 #define LIBC_SEARCH C_LIBRARY_NAME
 #endif
 
-int libc_init(struct ezinj_ctx *ctx){
+/**
+ * @brief default implementation of libc lookup
+ *
+ * @param ctx
+ */
+static int libc_init_default(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
 
 	INFO("Looking up " C_LIBRARY_NAME);
@@ -352,18 +398,25 @@ int libc_init(struct ezinj_ctx *ctx){
 	}
 	ctx->libc = libc;
 
-	void *h_libc = dlopen(C_LIBRARY_NAME, RTLD_LAZY);
+	void *h_libc = LIB_OPEN(C_LIBRARY_NAME);
 	if(!h_libc){
-		ERR("dlopen("C_LIBRARY_NAME") failed: %s", dlerror());
+		ERR("dlopen("C_LIBRARY_NAME") failed: %s", LIB_ERROR());
 		return 1;
 	}
 
 	{
-		void *h_libdl = dlopen(DL_LIBRARY_NAME, RTLD_LAZY);
+		void *h_libdl = LIB_OPEN(DL_LIBRARY_NAME);
 		if(!h_libdl){
-			ERR("dlopen("DL_LIBRARY_NAME") failed: %s", dlerror());
+			ERR("dlopen("DL_LIBRARY_NAME") failed: %s", LIB_ERROR());
 			return 1;
 		}
+
+		/**
+		 * $FIXME:
+		 * this is platform dependent and is left here as a default. it should be moved to the posix target
+		 * this code will try to lookup dlopen/dlsym from libdl (the most common scenario)
+		 * there are some platforms where this doesn't work (e.g. Windows), but this lookup isn't fatal
+		 **/
 
 		ez_addr libdl = {
 			.local = (uintptr_t)get_base(getpid(), "libdl", NULL),
@@ -374,30 +427,26 @@ int libc_init(struct ezinj_ctx *ctx){
 		DBGPTR(libdl.local);
 		DBGPTR(libdl.remote);
 
-		void *dlopen_local = dlsym(h_libdl, "dlopen");
+		void *dlopen_local = LIB_GETSYM(h_libdl, "dlopen");
 		off_t dlopen_offset = (off_t)PTRDIFF(dlopen_local, libdl.local);
 		DBG("dlopen offset: 0x%lx", dlopen_offset);
 		ctx->dlopen_offset = dlopen_offset;
 
-		void *dlclose_local = dlsym(h_libdl, "dlclose");
+		void *dlclose_local = LIB_GETSYM(h_libdl, "dlclose");
 		off_t dlclose_offset = (off_t)PTRDIFF(dlclose_local, libdl.local);
 		DBG("dlclose offset: 0x%lx", dlclose_offset);
 		ctx->dlclose_offset = dlclose_offset;
 
-		void *dlsym_local = dlsym(h_libdl, "dlsym");
+		void *dlsym_local = LIB_GETSYM(h_libdl, "dlsym");
 		off_t dlsym_offset = (off_t)PTRDIFF(dlsym_local, libdl.local);
 		DBG("dlsym offset: 0x%lx", dlsym_offset);
 		ctx->dlsym_offset = dlsym_offset;
 
-		dlclose(h_libdl);
+		LIB_CLOSE(h_libdl);
 	}
 
-	if(resolve_libc_symbols(ctx) != 0){
-		return 1;
-	}
-
-#define USE_LIBC_SYM(name) do { \
-	ctx->libc_##name = sym_addr(h_libc, #name, libc); \
+	#define USE_LIBC_SYM(name) do { \
+	ctx->libc_##name = sym_addr(h_libc, #name, ctx->libc); \
 	DBGPTR(ctx->libc_##name.local); \
 	DBGPTR(ctx->libc_##name.remote); \
 } while(0)
@@ -405,26 +454,42 @@ int libc_init(struct ezinj_ctx *ctx){
 	USE_LIBC_SYM(syscall);
 #undef USE_LIBC_SYM
 
-	dlclose(h_libc);
+	LIB_CLOSE(h_libc);
+	return 0;
+}
+
+int libc_init(struct ezinj_ctx *ctx){
+	if(libc_init_default(ctx) != 0){
+		return 1;
+	}
+
+	if(resolve_libc_symbols(ctx) != 0){
+		return 1;
+	}
+
 	return 0;
 }
 
 /**
  * Marshals the string @str into @strData, advancing the data pointer as needed
- * 
+ *
  * @param[in]  str
  * 	structure describing the string to copy
- * @param[out] strData  
+ * @param[out] strData
  * 	pointer (pass by reference) to a block of memory where the string will be copied
  * 	the pointer will be incremented by the number of bytes copied
  **/
 void strPush(char **strData, struct ezinj_str str){
 	// write the number of bytes we need to skip to get to the next string
-	*(unsigned int *)(*strData) = sizeof(unsigned int) + str.len;
+	unsigned int entry_sz = sizeof(unsigned int) + str.len;
+	memcpy(*strData, &entry_sz, sizeof(unsigned int));
+
 	*strData += sizeof(unsigned int);
 
 	// write the string itself
-	memcpy(*strData, str.str, str.len);
+	unsigned int str_len = STRSZ(str.str);
+	memcpy(*strData, str.str, str_len);
+
 	*strData += str.len;
 }
 
@@ -434,7 +499,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	size_t dyn_str_size = 0;
 
 	struct ezinj_str args[32];
-	
+
 	int num_strings = 0;
 	int argi = 0;
 	off_t argv_offset = 0;
@@ -491,15 +556,27 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	for(int i=1; i < argc; i++){
 		PUSH_STRING(argv[i]);
 	}
+
+#ifdef EZ_TARGET_LINUX
+	off_t pl_filename_offset = dyn_str_size;
+	/**
+	 * construct tempory payload filename
+	 * yes, we use tempnam as we don't know
+	 * the system temporary directory
+	 **/
+	char *pl_filename = tempnam(NULL, "ezpl");
+	if(pl_filename == NULL){
+		PERROR("tmpnam");
+		return NULL;
+	}
+
+	PUSH_STRING(pl_filename);
+#endif
+
 #undef PUSH_STRING
 
 	size_t dyn_total_size = dyn_ptr_size + dyn_str_size;
-	size_t mapping_size;
-
-	if(allocate_shm(ctx, dyn_total_size, &ctx->pl, &mapping_size) != 0){
-		ERR("Could not allocate shared memory");
-		return NULL;
-	}
+	size_t mapping_size = create_layout(ctx, dyn_total_size, &ctx->pl);
 
 	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
 	memset(br, 0x00, sizeof(*br));
@@ -526,6 +603,10 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->RtlGetCurrentPeb = (void *)ctx->nt_get_peb.remote;
 	br->NtQueryInformationProcess = (void *)ctx->nt_query_proc.remote;
 	br->NtWriteFile = (void *)ctx->nt_write_file.remote;
+	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
+	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
+	br->ntdll_base = (void *)ctx->libc.remote;
+	br->AllocConsole = (void *)ctx->alloc_console.remote;
 #endif
 
 	br->dlopen_offset = ctx->dlopen_offset;
@@ -546,19 +627,25 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->dyn_size = dyn_total_size;
 	br->num_strings = num_strings;
 	br->argv_offset = argv_offset;
+#ifdef EZ_TARGET_LINUX
+	br->pl_filename_offset = pl_filename_offset;
+#endif
 
 	char *stringData = (char *)br + sizeof(*br) + dyn_ptr_size;
 	for(int i=0; i<num_strings; i++){
 		strPush(&stringData, args[i]);
 	}
 
+#ifdef EZ_TARGET_LINUX
+	free(pl_filename);
+#endif
+
 	// copy code
 	memcpy(ctx->pl.code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
-
 	return br;
 }
 
-int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout, size_t *allocated_size){
+size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout){
 	// br + argv
 	size_t br_size = (size_t)WORDALIGN(sizeof(struct injcode_bearing) + dyn_total_size);
 	// size of code payload
@@ -566,33 +653,24 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 
 	size_t stack_offset = br_size + code_size;
 	size_t mapping_size = stack_offset + PL_STACK_SIZE;
+	#ifdef EZ_TARGET_WINDOWS
+	{
+		SYSTEM_INFO sysInfo;
+		GetSystemInfo(&sysInfo);
+		mapping_size = ALIGN(mapping_size, sysInfo.dwPageSize);
+	}
+	#else
+	mapping_size = PAGEALIGN(mapping_size);
+	#endif
 
 	DBG("br_size=%zu", br_size);
 	DBG("code_size=%zu", code_size);
 	DBG("stack_offset=%zu", stack_offset);
 	DBG("mapping_size=%zu", mapping_size);
 
-	#ifdef USE_SHM
-	int shm_id;
-	if((shm_id = shmget(ctx->target, mapping_size, IPC_CREAT | IPC_EXCL | S_IRWXU | S_IRWXG | S_IRWXO)) < 0){
-		PERROR("shmget");
-		return 1;
-	}
-	INFO("SHM id: %u", shm_id);
-	ctx->shm_id = shm_id;
-
-	void *mapped_mem = shmat(shm_id, NULL, SHM_EXEC);
-	if(mapped_mem == MAP_FAILED){
-		PERROR("shmat");
-		return 1;
-	}
-	#else
 	void *mapped_mem = calloc(1, mapping_size);
-	#endif
 
 	ctx->mapped_mem.local = (uintptr_t)mapped_mem;
-
-	*allocated_size = mapping_size;
 
 	/** prepare payload layout **/
 
@@ -614,28 +692,12 @@ int allocate_shm(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *
 	#else
 	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(sizeof(void *)));
 	#endif
-	return 0;
+
+	return mapping_size;
 }
 
 void cleanup_mem(struct ezinj_ctx *ctx){
-	#ifdef USE_SHM
-	if(ctx->mapped_mem.local != 0){
-		if(shmdt((void *)ctx->mapped_mem.local) < 0){
-			PERROR("shmdt");
-		} else {
-			ctx->mapped_mem.local = 0;
-		}
-	}
-	if(ctx->shm_id > -1){
-		if(shmctl(ctx->shm_id, IPC_RMID, NULL) < 0){
-			PERROR("shmctl (IPC_RMID)");
-		} else {
-			ctx->shm_id = -1;
-		}
-	}
-	#else
 	free((void *)ctx->mapped_mem.local);
-	#endif
 }
 
 void sigint_handler(int signum){
@@ -653,7 +715,7 @@ void print_maps(){
 		if(!fh){
 			return;
 		}
-		
+
 		char line[256];
 		while(!feof(fh)){
 			fgets(line, sizeof(line), fh);
@@ -681,10 +743,17 @@ int ezinject_main(
 		return -1;
 	}
 
-	if(remote_sc_alloc(ctx) != 0){
-		ERR("remote_sc_alloc failed");
+
+	uintptr_t r_sc_elf = 0;
+	uintptr_t r_sc_vmem = 0;
+
+	// allocate initial shellcode on the ELF header
+	INFO("target: allocating sc");
+	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
+		ERR("remote_sc_alloc: failed to overwrite ELF header");
 		return -1;
 	}
+	remote_sc_set(ctx, r_sc_elf);
 
 	// wait for a single syscall
 	ctx->syscall_mode = 1;
@@ -697,66 +766,92 @@ int ezinject_main(
 
 	intptr_t err = -1;
 	do {
+		// creates the new payload area with mmap (invoked from EXEHDR)
+		INFO("target: allocating %zu bytes", br->mapping_size);
 		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
+		#if defined(EZ_TARGET_LINUX)
 		if(remote_shm_ptr == 0){
-		#ifdef EZ_TARGET_WINDOWS
-			PERROR("VirtualAllocEx failed");
-		#else
-			ERR("Remote shmat failed: %p", (void *)remote_shm_ptr);
-		#endif
-			break;
+			// mmap(3) failed. try with mmap(2)
+			ctx->force_mmap_syscall = 1;
+			WARN("mmap(3) failed, trying mmap(2)");
+			remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
 		}
-		DBG("remote payload base: %p", (void *)remote_shm_ptr);
+		#endif
+
+		if(remote_shm_ptr == 0){
+			#if defined(EZ_TARGET_WINDOWS)
+			PERROR("VirtualAllocEx failed");
+			#else
+			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
+			#endif
+		}
+		INFO("target: payload base: %p", (void *)remote_shm_ptr);
 
 		ctx->mapped_mem.remote = remote_shm_ptr;
 
 		struct ezinj_pl *pl = &ctx->pl;
 
-		#define PL_REMOTE(pl_addr) \
-			UPTR(remote_shm_ptr + PTRDIFF(pl_addr, ctx->mapped_mem.local))
-
 		#define PL_REMOTE_CODE(addr) \
-			PL_REMOTE(pl->code_start) + PTRDIFF(addr, region_pl_code.start)
+			PL_REMOTE(ctx, pl->code_start) + PTRDIFF(addr, region_pl_code.start)
 
-		#ifdef __GNUC__
-		{
-			void *flush_start = br;
-			void *flush_end = (void *)(UPTR(br) + br->mapping_size);
-			__builtin___clear_cache(flush_start, flush_end);
+		#if defined(EZ_TARGET_LINUX)
+		INFO("target: copying payload (using files)");
+		if(remote_pl_copy(ctx) != 0){
+			ERR("remote_pl_copy failed");
+			break;
 		}
 		#else
-		usleep(50000);
-		#endif
-
-		
-		#ifndef USE_SHM
+		INFO("target: copying payload (using debugger)");
 		if(remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
 			PERROR("remote_write failed");
-		}		
+		}
 		#endif
+
+		// allocate new shellcode on a new memory map
+		// the current shellcode is used for the allocation
+		// this must be done before switching to payload mode
+		INFO("target: relocating sc");
+		if(remote_sc_alloc(ctx, SC_ALLOC_MMAP, &r_sc_vmem) != 0){
+			ERR("remote_sc_alloc: mmap failed");
+			return -1;
+		}
+		remote_sc_set(ctx, r_sc_vmem);
+
+		// restore the ELF header
+		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+			ERR("remote_sc_free: ELF header restore failed");
+			return -1;
+		}
 
 		// switch to SIGSTOP wait mode
 		ctx->syscall_mode = 0;
 
-		// switch to user stack
+		/**
+		 * now that PL is available and mapped, we can use it
+		 * for stack and entry point
+		 **/
+
+		// switch to stack on PL
 		uintptr_t *target_sp = (uintptr_t *)pl->stack_top;
-		ctx->pl_stack.remote = (uintptr_t)PL_REMOTE(target_sp);
+		ctx->pl_stack.remote = (uintptr_t)PL_REMOTE(ctx, target_sp);
 
-		// set trampoline parameters
+		// use trampoline on PL
+		ctx->entry_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
+		// tell the trampoline to call the main injcode
 		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
-		ctx->trampoline_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
 
-		DBG("\n"
-			"==== call chain:\n"
-			"0: %p [trampoline]\n"
-			"1: %p [wrapper]\n" 
-			"2: %p [target]\n",
-			ctx->trampoline_insn.remote,
-			get_wrapper_address(ctx),
-			ctx->branch_target.remote
-		);
+		// init plapi
+		#define PLAPI_SET(ctx, fn) ctx->plapi.fn = PL_REMOTE_CODE(&fn)
+		PLAPI_SET(ctx, inj_memset);
+		PLAPI_SET(ctx, inj_puts);
+		PLAPI_SET(ctx, inj_dchar);
+		PLAPI_SET(ctx, inj_dbgptr);
+		PLAPI_SET(ctx, inj_fetchsym);
+		#undef PLAPI_SET
 
-		err = CHECK(RSCALL0(ctx, PL_REMOTE(pl->br_start)));
+		// when syscall_mode = 0, SC is skipped
+		INFO("target: calling payload at %p", pl->br_start);
+		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
 
 		/**
 		 * if payload debugging is on, skip any cleanup
@@ -765,13 +860,28 @@ int ezinject_main(
 			return -1;
 		}
 
-		// restore syscall behavior (to call shmdt, if needed by the target)
+		// restore syscall behavior (to call munmap, if needed by the target)
 		ctx->syscall_mode = 1;
 		ctx->pl_stack.remote = 0;
+		INFO("target: freeing payload memory");
 		remote_pl_free(ctx, remote_shm_ptr);
 
-		if(remote_sc_free(ctx) != 0){
-			ERR("remote_sc_free failed!");
+		// switch back to the ELF header, to free vmem
+		if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
+			ERR("remote_sc_alloc: failed to overwrite ELF header");
+			return -1;
+		}
+		remote_sc_set(ctx, r_sc_elf);
+
+		// free memory mapped sc
+		if(remote_sc_free(ctx, SC_ALLOC_MMAP, r_sc_vmem) != 0){
+			ERR("remote_sc_free: failed to free memory map");
+			return -1;
+		}
+
+		// now free the ELF header once more (no syscalls allowed after this point)
+		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+			ERR("remote_sc_free: ELF header restore failed");
 			return -1;
 		}
 	} while(0);
@@ -794,11 +904,18 @@ int main(int argc, char *argv[]){
 
 	{
 		int c;
-		while ((c = getopt (argc, argv, "d")) != -1){
+		while ((c = getopt (argc, argv, "dv:")) != -1){
 			switch(c){
 				case 'd':
 					WARN("payload debugging enabled, the target **WILL** freeze");
 					ctx.pl_debug = 1;
+					break;
+				case 'v':;
+					switch(toupper(*optarg)){
+						case 'D':
+							verbosity = V_DBG;
+							break;
+					}
 					break;
 			}
 		}

@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #include <windows.h>
 #include <debugapi.h>
 #include <sys/types.h>
@@ -64,7 +72,10 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	size_t written = 0;
+	DWORD oldProtect = 0;
+	VirtualProtectEx(ctx->hProc, (LPVOID)dest, size, PAGE_EXECUTE_READWRITE, &oldProtect);
 	WriteProcessMemory(ctx->hProc, (LPVOID)dest, source, size, &written);
+	VirtualProtectEx(ctx->hProc, (LPVOID)dest, size, oldProtect, &oldProtect);
 	return written;
 }
 
@@ -132,7 +143,7 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 		if(ev->dwDebugEventCode == EXCEPTION_DEBUG_EVENT){
 			if(ev->u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_BREAKPOINT){
 				DBG("Got debugbreak");
-				break;	
+				break;
 			}
 			DBG("Unknown exception, target will likely crash");
 			DBG("ExceptionCode: 0x%08lX", ev->u.Exception.ExceptionRecord.ExceptionCode);
@@ -148,7 +159,7 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 		}
 	}
 	DBG("Ready");
-	
+
 	/**
 	 *  we stopped on a breakpoint
 	 * get a handle to the thread that generated this event

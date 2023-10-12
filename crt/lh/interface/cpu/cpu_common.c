@@ -1,8 +1,15 @@
+/*
+ * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+ * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+ *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+ *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+ *  3. This notice may not be removed or altered from any source distribution.
+ */
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/mman.h>
 
 #include "log.h"
 #include "ezinject_util.h"
@@ -12,6 +19,10 @@
 
 #include "ezinject_common.h"
 #include "config.h"
+
+#ifdef EZ_TARGET_POSIX
+#include <sys/mman.h>
+#endif
 
 size_t inj_getjmp_size(){
 	#ifdef LH_JUMP_ABS
@@ -35,7 +46,7 @@ uint8_t *inj_build_jump(void *dstAddr, void *srcAddr, size_t *jumpSzPtr){
 	#endif
 	if(jumpSzPtr)
 		*jumpSzPtr = jumpSz;
-	
+
 	if(verbosity > 3){
 		INFO("jump");
 		hexdump(buffer, jumpSz);
@@ -46,7 +57,7 @@ uint8_t *inj_build_jump(void *dstAddr, void *srcAddr, size_t *jumpSzPtr){
 		return NULL;
 }
 
-#ifdef HAVE_CPU_VLE
+#ifdef USE_CAPSTONE
 int inj_getinsn_count(void *buf, size_t sz, unsigned int *validbytes){
 	csh handle;
 	cs_insn *insn;
@@ -87,31 +98,30 @@ int inj_getinsn_count(void *buf, size_t sz, unsigned int *validbytes){
 #endif
 
 int inj_getbackup_size(void *codePtr, unsigned int payloadSz){
-	uint i = 0;
+	unsigned i = 0;
 	int opSz;
+#ifdef USE_CAPSTONE
+	unsigned int totalBytes = 0;
+	int total_insn = inj_getinsn_count(codePtr, payloadSz, &totalBytes);
+	if(total_insn <= 0 || totalBytes == 0)
+		return -1;
+	unsigned int dasmSize = payloadSz;
+	while(totalBytes < payloadSz){
+		total_insn += inj_getinsn_count(codePtr, ++dasmSize, &totalBytes);
+		DBG("VALID: %u  REQUIRED: %u", totalBytes, payloadSz);
+	}
+	DBG("Instruction Count: %d (size: %u)", total_insn, totalBytes);
+	return totalBytes;
+#else
 	if((opSz = inj_opcode_bytes()) > 0){ //fixed opcode size
 		while(i < payloadSz)
 			i += opSz;
 		return i;
 	} else { //dynamic opcode size
-#ifdef HAVE_CPU_VLE
-		unsigned int totalBytes = 0;
-		int total_insn = inj_getinsn_count(codePtr, payloadSz, &totalBytes);
-		if(total_insn <= 0 || totalBytes == 0)
-			return -1;
-		unsigned int dasmSize = payloadSz;
-		while(totalBytes < payloadSz){
-			total_insn += inj_getinsn_count(codePtr, ++dasmSize, &totalBytes);
-			DBG("VALID: %u  REQUIRED: %u", totalBytes, payloadSz);
-		}
-		DBG("Instruction Count: %d (size: %u)", total_insn, totalBytes);
-		return totalBytes;
-#else
-	UNUSED(codePtr);
-	return -1;
-#endif
+		UNUSED(codePtr);
+		return -1;
 	}
-	//return -1;
+#endif
 }
 
 /*
@@ -166,7 +176,7 @@ void *inj_backup_function(void *original_code, size_t *num_saved_bytes, int opco
 	INFO("Opcode bytes to save: %d", num_opcode_bytes);
 
 	void *jump_origin = (void *)(UPTR(original_code) + num_opcode_bytes);
-	
+
 	size_t jumpSz;
 	uint8_t *jump_back;			//custom -> original
 	// JUMP from Replacement back to Original code (skip the original bytes that have been replaced to avoid loop)
@@ -180,9 +190,25 @@ void *inj_backup_function(void *original_code, size_t *num_saved_bytes, int opco
 	// Unlike needle variant, we call mmap here, as we're in the user process
 	size_t payloadSz = num_opcode_bytes + jumpSz;
 
-	void *pMem = mmap(0, payloadSz, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+	void *pMem = NULL;
+#if defined(EZ_TARGET_POSIX)
+	pMem = mmap(0, payloadSz, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 	if(pMem == MAP_FAILED){
 		PERROR("mmap");
+		return NULL;
+	}
+#elif defined(EZ_TARGET_WINDOWS)
+	pMem = calloc(1, payloadSz);
+	DWORD oldProtect = 0;
+	if(!VirtualProtect(pMem, payloadSz, PAGE_EXECUTE_READWRITE, &oldProtect)){
+		ERR("VirtualProtect failed");
+		return NULL;
+	}
+#else
+#error "Unsupported Target"
+#endif
+	if(pMem == NULL){
+		ERR("malloc failed");
 		return NULL;
 	}
 	uint8_t *remote_code = (uint8_t *)pMem;

@@ -21,4 +21,6 @@ if(EZ_ARCH_I386 OR EZ_ARCH_AMD64)
 	target_link_libraries(lh_ifcpu libcpu_intel)
 endif()
 
-add_subdirectory(sljit)
+if(USE_CAPSTONE)
+	target_link_libraries(lh_ifcpu ${CAPSTONE_LIBRARIES})
+endif()

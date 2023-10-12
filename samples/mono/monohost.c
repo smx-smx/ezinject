@@ -1,7 +1,6 @@
 /**
  * Copyright (C) 2020 Stefano Moioli <smxdev4@gmail.com>
  */
-#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -19,7 +18,6 @@
 #include <mono/utils/mono-error.h>
 
 #include "log.h"
-#include "ezinject_compat.h"
 #include "ezinject_injcode.h"
 #include "util.h"
 

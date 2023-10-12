@@ -1,65 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <dlfcn.h>
 
 #include "config.h"
 #include "log.h"
 #include "interface/if_hook.h"
-#include "interface/cpu/if_sljit.h"
 
+#include "dlfcn_compat.h"
 #include "ezinject_util.h"
 #include "ezinject_injcode.h"
 
 LOG_SETUP(V_DBG);
 
-// $TODO
-#ifndef EZ_TARGET_WINDOWS
-#define USE_SLJIT
 #define USE_LH
-#endif
 
-#ifdef USE_SLJIT
-/**
- * Sample function that demonstrates the use of sljit
- **/
-void *sljit_build_sample(void **ppCodeMem){
-	void *sljit_code = NULL;
-	struct sljit_compiler *compiler = sljit_create_compiler(NULL);
-	if(!compiler){
-		ERR("Unable to create sljit compiler instance");
-		return NULL;
-	}
-
-	/** Simple routine that returns 1337 **/
-	sljit_emit_enter(compiler, 0, 0, 0, 0, 0, 0, 0);
-	sljit_emit_op1(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 0, SLJIT_IMM, 1337);
-	sljit_emit_return(compiler, SLJIT_MOV, SLJIT_RETURN_REG, 1337);
-
-	sljit_code = sljit_generate_code(compiler);
-	if(sljit_code == NULL){
-		ERR("Unable to build JIT Code");
-		return NULL;
-	}
-	if(ppCodeMem != NULL){
-		*ppCodeMem = sljit_code;
-	}
-	sljit_code += compiler->executable_offset;	
-
-	if(compiler){
-		sljit_free_compiler(compiler);
-	}
-
-	INFO("JIT code");
-	hexdump(sljit_code, compiler->executable_size);
-
-	return sljit_code;
-}
-#endif
 
 typedef int(*testFunc_t)(int arg1, int arg2);
 
 static testFunc_t pfnOrigTestFunc = NULL;
-static testFunc_t sljitCode = NULL;
 
 #ifdef UCLIBC_OLD
 int myCustomFn(int arg1, int arg2){
@@ -70,13 +27,6 @@ int myCustomFn(int arg1, int arg2){
 #else
 int myCustomFn(int arg1, int arg2){
 	DBG("original arguments: %d, %d", arg1, arg2);
-
-	#ifdef USE_SLJIT
-	// call the sljit code sample
-	arg1 = sljitCode(arg1, arg2);
-	#endif
-
-	arg2 = 0;
 
 	DBG("calling original(%d,%d)", arg1, arg2);
 	// call the original function
@@ -91,9 +41,13 @@ int myCustomFn(int arg1, int arg2){
 
 #ifdef USE_LH
 void installHooks(){
-	void *self = dlopen(NULL, RTLD_LAZY);
+	#ifdef EZ_TARGET_WINDOWS
+	void *self = GetModuleHandle(NULL);
+	#else
+	void *self = dlopen(NULL, RTLD_NOW);
+	#endif
 	if(self == NULL){
-		ERR("dlopen failed: %s", dlerror());
+		ERR("dlopen failed: %s", LIB_ERROR());
 		return;
 	}
 
@@ -101,15 +55,15 @@ void installHooks(){
 	int error = 1;
 
 	do {
+		#ifdef EZ_TARGET_WINDOWS
+		testFunc_t pfnTestFunc = (testFunc_t) GetProcAddress(self, "func1");
+		#else
 		testFunc_t pfnTestFunc = dlsym(self, "func1");
+		#endif
 		if(pfnTestFunc == NULL){
-			ERR("Couldn't locate test function: %s", dlerror());
+			ERR("Couldn't locate test function: %s", LIB_ERROR());
 			break;
 		}
-
-		#ifdef USE_SLJIT
-		sljitCode = sljit_build_sample(&codeMem);
-		#endif
 
 		/**
 		 * create a trampoline to call the original function once the hook is installed
@@ -135,12 +89,9 @@ void installHooks(){
 
 	if(error){
 		INFO("failed to install hooks");
-		#ifdef USE_SLJIT
-		if(codeMem != NULL){
-			sljit_free_exec(codeMem);
-		}
-		#endif
+		#ifndef EZ_TARGET_WINDOWS
 		dlclose(self);
+		#endif
 	} else {
 		INFO("hooks installed succesfully");
 	}
@@ -159,6 +110,12 @@ int lib_preinit(struct injcode_user *user){
 }
 
 int lib_main(int argc, char *argv[]){
+	#ifdef EZ_TARGET_LINUX
+	char cmd[128];
+	sprintf(cmd, "cat /proc/%u/maps", getpid());
+	system(cmd);
+	#endif
+
 	lputs("Hello World from main");
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);

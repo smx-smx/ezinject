@@ -1,42 +1,51 @@
-linux_x64_task:
-  container:
+linux_arm64_task:
+  arm_container:
     image: gcc:10.3.0-buster
 
   env:
     PATH: /usr/local/bin:${PATH}
 
   install_script:
-    - wget -O cmake.sh https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh
-    - sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
-    - apt-get update -qq
-    - apt-get install -y libcapstone-dev
+    - apt-get -qq update
+    - apt-get install -y cmake
+
+  script:
+    - ./build.sh
+
+  test_script:
+    - (cd build; ctest -V)
+
+linux_x64_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  env:
+    PATH: /usr/local/bin:${PATH}
+
   script:
     - ./build.sh
   #test_script:
   #  - (cd build; ctest -V)
 
+# targeting LG NC4/WebOS (ARM Cortex A9, glibc 2.12)
+linux_lgtv_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  env:
+    PATH: /opt/arm-lgtv-linux-gnueabi_sdk-buildroot/bin:${PATH}
+    LD_LIBRARY_PATH: /opt/arm-lgtv-linux-gnueabi_sdk-buildroot/lib:${LD_LIBRARY_PATH}
+
+  script:
+   - ./build.sh /opt/arm-lgtv-linux-gnueabi_sdk-buildroot/share/buildroot/toolchainfile.cmake
+
 linux_android_armel_task:
   container:
-    image: gcc:10.3.0-buster
+    dockerfile: .ci/linux/Dockerfile
 
   env:
     PATH: /usr/local/bin:/opt/android-ndk-r14b-android-9/bin:${PATH}
 
-  submodules_script:
-    - git submodule update --init --recursive
-
-  android_ndk_script:
-    - wget -O cmake.sh https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh
-    - sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
-    - apt-get update -qq
-    - apt-get install -y libcapstone-dev
-    - (cd /tmp; curl -LO https://dl.google.com/android/repository/android-ndk-r14b-linux-x86_64.zip)
-    - (cd /opt; unzip -q /tmp/android-ndk-r14b-linux-x86_64.zip)
-    - python /opt/android-ndk-r14b/build/tools/make_standalone_toolchain.py
-        --arch arm
-        --api 9
-        --install-dir /opt/android-ndk-r14b-android-9
-  
   build_capstone_script:
     - (
         mkdir staging;
@@ -49,65 +58,70 @@ linux_android_armel_task:
     - ./build.sh ./targets/arm-android.cmake
         -DEZ_LIBC=bionic
         -DEZ_LIBC_VARIANT=android-10
-        -DENABLE_STATIC=OFF
         -DANDROID_ABI=armeabi-v7a
         -DCMAKE_SYSTEM_VERSION=9
-        -DUSE_ANDROID_ASHMEM=ON
         -DUSE_ARM_THUMB=ON
         -DCAPSTONE_PREFIX=$(readlink -f ./staging/capstone/out/usr)
 
 linux_android_aarch64_task:
   container:
-    image: gcc:10.3.0-buster
+    dockerfile: .ci/linux/Dockerfile
 
   env:
     PATH: /usr/local/bin:/opt/android-ndk-r14b-android-21-arm64/bin:${PATH}
-
-  submodules_script:
-    - git submodule update --init --recursive
-
-  android_ndk_script:
-    - wget -O cmake.sh https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh
-    - sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local
-    - apt-get update -qq
-    - apt-get install -y cmake libcapstone-dev
-    - (cd /tmp; curl -LO https://dl.google.com/android/repository/android-ndk-r14b-linux-x86_64.zip)
-    - (cd /opt; unzip -q /tmp/android-ndk-r14b-linux-x86_64.zip)
-    - python /opt/android-ndk-r14b/build/tools/make_standalone_toolchain.py
-        --arch arm64
-        --api 21
-        --install-dir /opt/android-ndk-r14b-android-21-arm64
-
   script:
     - ./build.sh ./targets/arm64-android.cmake
         -DEZ_LIBC=bionic
         -DEZ_LIBC_VARIANT=android-10
-        -DENABLE_STATIC=OFF
         -DANDROID_ABI=arm64-v8a
         -DCMAKE_SYSTEM_VERSION=21
-        -DUSE_ANDROID_ASHMEM=ON
+
+# targeting ADB Epicentro/DLink DVA 5592 (Broadcom Armv7)
+linux_uclibc_armel_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  env:
+    PATH: /opt/arm-buildroot-linux-uclibcgnueabi/bin:${PATH}
+    LD_LIBRARY_PATH: /opt/arm-buildroot-linux-uclibcgnueabi/lib:${LD_LIBRARY_PATH}
+
+  script:
+    - ./build.sh ./targets/arm-buildroot-bcm-uclibc.cmake
+
+# targeting Asus DSL-N55U D1 (TrendChip MIPS BE)
+linux_uclibc_mipsbe_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  env:
+    PATH: /opt/trendchip/mips-linux-uclibc/usr/bin:${PATH}
+
+  script:
+    - ./build.sh ./targets/trendchip.cmake
+
+# targeting TomTom GO
+linux_glibc_armv4_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  env:
+    PATH: /opt/ttgo/gcc-3.3.4_glibc-2.3.2/bin:${PATH}
+
+  script:
+    - ./build.sh targets/ttgo-arm-linux.cmake
+        -DEZ_LIBC=glibc-old
 
 freebsd_x64_task:
   freebsd_instance:
     image_family: freebsd-12-2
 
-  install_script: 
+  install_script:
     - pkg update
     - pkg install -y bash cmake capstone pkgconf
   script:
     - ./build.sh
   test_script:
     - (cd build; ctest -V)
-
-darwin_x64_task:
-  macos_instance:
-    image: big-sur-xcode-12.4
-
-  install_script: brew install pkg-config cmake capstone
-  script:
-    - ./build.sh
-  #test_script:
-  #  - (cd build; ctest -V)
 
 windows_x64_task:
   timeout_in: 90m
@@ -118,7 +132,7 @@ windows_x64_task:
     CIRRUS_SHELL: powershell
     MSYS: winsymlinks:nativestrict
     MSYSTEM: MINGW64
-    MSYS2_URL: https://github.com/msys2/msys2-installer/releases/download/2021-04-19/msys2-base-x86_64-20210419.sfx.exe
+    MSYS2_URL: https://github.com/msys2/msys2-installer/releases/download/2021-11-30/msys2-base-x86_64-20211130.sfx.exe
     MSYS2_FINGERPRINT: 0
     MSYS2_PACKAGES: "
       diffutils git grep make pkgconf sed
@@ -127,7 +141,6 @@ windows_x64_task:
       mingw-w64-x86_64-cmake
       mingw-w64-x86_64-pkgconf
       mingw-w64-x86_64-capstone
-      mingw-w64-x86_64-dlfcn
     "
     CHERE_INVOKING: 1
   msys2_cache:
@@ -174,7 +187,7 @@ windows_x64_task:
         del -Force -Recurse -ErrorAction SilentlyContinue C:\tools\msys64\var\cache\pacman\pkg
         tar cf C:\tools\archive\msys64.tar -C C:\tools\ msys64
         Write-Output "Package archive time taken: $((Get-Date).Subtract($start_time))"
-        del -Force -Recurse -ErrorAction SilentlyContinue c:\tools\msys64 
+        del -Force -Recurse -ErrorAction SilentlyContinue c:\tools\msys64
   install_script:
     - |
       $start_time = Get-Date
