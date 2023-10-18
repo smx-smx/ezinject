@@ -67,6 +67,9 @@ extern int crt_userinit(struct injcode_bearing *br);
 
 void* crt_user_entry(void *arg);
 
+/**
+ * called from injcode
+ */
 int crt_init(struct injcode_bearing *br){
 	LOG_INIT("/tmp/"MODULE_NAME".log");
 	INFO("library loaded!");
@@ -84,17 +87,12 @@ int crt_init(struct injcode_bearing *br){
 		ERR("crt_thread_create failed");
 		return -1;
 	}
-	DBG("crt_thread_notify");
-	if(crt_thread_notify(br) < 0){
-		ERR("crt_thread_notify failed");
-		return -1;
-	}
 	return 0;
 }
 
 
 /**
- * User code: runs on mmap'd stack
+ * User thread: runs on a new stack created by pthread_create
  **/
 void *crt_user_entry(void *arg) {
 	struct injcode_bearing *br = arg;
@@ -115,9 +113,13 @@ void *crt_user_entry(void *arg) {
 
 	int result = crt_userinit(br);
 
+	br->thread_exit_code = result;
+
+	DBG("crt_thread_notify");
+	if(crt_thread_notify(br) < 0){
+		ERR("crt_thread_notify failed");
+	}
 	DBG("ret");
 	LOG_FINI();
-
-	return (void *)result;
+	return NULL;
 }
-

@@ -56,6 +56,8 @@ INLINE intptr_t inj_thread_wait(
 	struct injcode_bearing *br = ctx->br;
 	struct thread_api *api = &ctx->libthread;
 
+	// wait for user thread to die
+	PCALL(ctx, inj_dchar, 'j');
 
 	api->pthread_mutex_lock(&br->mutex);
 	while(!br->loaded_signal){
@@ -63,13 +65,7 @@ INLINE intptr_t inj_thread_wait(
 	}
 	api->pthread_mutex_unlock(&br->mutex);
 
-	// wait for user thread to die
-	PCALL(ctx, inj_dchar, 'j');
-
-	void *result = NULL;
-	api->pthread_join(br->user_tid, &result);
-
-	*pExitStatus = (intptr_t)result;
+	*pExitStatus = br->thread_exit_code;
 	return 0;
 }
 
@@ -101,7 +97,6 @@ INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_unlock);
 	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_init);
 	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_wait);
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_join);
 	if(result != 0){
 		return -1;
 	}

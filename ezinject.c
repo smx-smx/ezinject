@@ -523,7 +523,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	PUSH_STRING("pthread_mutex_unlock");
 	PUSH_STRING("pthread_cond_init");
 	PUSH_STRING("pthread_cond_wait");
-	PUSH_STRING("pthread_join");
 #elif defined(EZ_TARGET_WINDOWS)
 	PUSH_STRING("CreateEventA");
 	PUSH_STRING("CreateThread");

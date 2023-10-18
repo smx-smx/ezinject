@@ -19,6 +19,7 @@ EZAPI crt_thread_create(struct injcode_bearing *br, crt_thread_func_t pfnThreadE
 		PERROR("pthread_create");
 		return -1;
 	}
+	pthread_detach(tid);
 	br->user_tid = tid;
 	return 0;
 }
