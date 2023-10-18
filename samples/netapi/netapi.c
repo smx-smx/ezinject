@@ -447,6 +447,6 @@ int lib_main(int argc, char *argv[]){
 	int port = strtoul(argv[1], NULL, 10);
 	pthread_t tid;
 	pthread_create(&tid, NULL, start_server, port);
-
+	pthread_detach(tid);
 	return 0;
 }

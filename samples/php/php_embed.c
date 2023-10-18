@@ -97,5 +97,6 @@ int lib_main(int argc, char *argv[]){
 
 	pthread_t tid;
 	pthread_create(&tid, NULL, run_php, arg);
+	pthread_detach(tid);
 	return rc;
 }
