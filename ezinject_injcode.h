@@ -147,6 +147,19 @@ struct injcode_call {
 	int (*libc_open)(const char *pathname, int flags, ...);
 	ssize_t (*libc_read)(int fd, void *buf, size_t count);
 #endif
+#ifdef EZ_TARGET_WINDOWS
+	LPVOID WINAPI (*VirtualAlloc)(
+    	LPVOID lpAddress,
+        SIZE_T dwSize,
+        DWORD flAllocationType,
+        DWORD flProtect
+    );
+	BOOL WINAPI (*VirtualFree)(
+		LPVOID lpAddress,
+		SIZE_T dwSize,
+		DWORD dwFreeType
+	);
+#endif
 
 	/** PLAPI **/
 	struct injcode_plapi plapi;
@@ -156,7 +169,7 @@ struct injcode_call {
 	intptr_t result2;
 	uintptr_t argv[SC_MAX_ARGS];
 
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
 	/**
 	 * syscall wrapper parameters
 	 **/
@@ -258,6 +271,7 @@ struct injcode_bearing
 	);
 	BOOL WINAPI (*AllocConsole)(void);
 	uintptr_t ntdll_base;
+	uintptr_t kernel32_base;
 #endif
 	off_t dlopen_offset;
 	off_t dlclose_offset;
@@ -346,6 +360,11 @@ extern intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_open(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_read(volatile struct injcode_call *sc);
+#endif
+
+#ifdef EZ_TARGET_WINDOWS
+intptr_t SCAPI injected_virtual_alloc(volatile struct injcode_call *sc);
+intptr_t SCAPI injected_virtual_free(volatile struct injcode_call *sc);
 #endif
 
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args);

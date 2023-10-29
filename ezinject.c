@@ -111,6 +111,10 @@ intptr_t setregs_syscall(
 	rcall->libc_open = (void *)ctx->libc_open.remote;
 	rcall->libc_read = (void *)ctx->libc_read.remote;
 #endif
+#ifdef EZ_TARGET_WINDOWS
+	rcall->VirtualAlloc = (void *)ctx->virtual_alloc.remote;
+	rcall->VirtualFree = (void *)ctx->virtual_free.remote;
+#endif
 
 #define PLAPI_USE(fn) rcall->plapi.fn = (void *)ctx->plapi.fn;
 	PLAPI_USE(inj_memset);
@@ -605,6 +609,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
 	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
 	br->ntdll_base = (void *)ctx->libc.remote;
+	br->kernel32_base = (void *)ctx->libdl.remote;
 	br->AllocConsole = (void *)ctx->alloc_console.remote;
 #endif
 

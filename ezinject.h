@@ -80,7 +80,7 @@ struct ezinj_ctx {
 	task_t task;
 	thread_t thread;
 #endif
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
 	// holds the overwritten ELF header
 	uint8_t *saved_sc_data;
 	ssize_t saved_sc_size;
@@ -108,6 +108,8 @@ struct ezinj_ctx {
 	ez_addr uclibc_dl_fixup;
 #endif
 #ifdef EZ_TARGET_WINDOWS
+	ez_addr virtual_alloc;
+	ez_addr virtual_free;
 	ez_addr alloc_console;
 	ez_addr create_file;
 	ez_addr write_file;

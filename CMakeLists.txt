@@ -182,7 +182,7 @@ elseif(EZ_TARGET_DARWIN)
 	list(APPEND EXTRA_SEARCH_PATHS "/usr/lib/system")
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND C_LIBRARY_NAMES
-		ntdll
+		kernel32
 	)
 	if(NOT CMAKE_CROSSCOMPILING)
 		list(APPEND EXTRA_SEARCH_PATHS "$ENV{SystemRoot}\\System32")
@@ -598,6 +598,7 @@ elseif(EZ_TARGET_WINDOWS)
 		os/windows/libc_windows.c
 	)
 	list(APPEND target_sources
+		os/posix/inject.c
 		os/windows/inject.c
 	)
 endif()

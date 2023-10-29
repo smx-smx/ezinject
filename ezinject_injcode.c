@@ -73,6 +73,20 @@ intptr_t SCAPI injected_read(volatile struct injcode_call *sc){
 #endif
 
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+INLINE void injected_sc_stop(volatile struct injcode_call *sc){
+	sc->libc_syscall(__NR_kill,
+		sc->libc_syscall(__NR_getpid),
+		SIGTRAP
+	);
+}
+#elif defined(EZ_TARGET_WINDOWS)
+INLINE void injected_sc_stop(volatile struct injcode_call *sc){
+	UNUSED(sc);
+	asm volatile("int $3\n");
+}
+#endif
+
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
 /**
  * On ARM/Linux + glibc, making system calls and writing their results in the same function
  * seems to cause a very subtle stack corruption bug that ultimately causes dlopen/dlsym to segfault
@@ -81,10 +95,7 @@ intptr_t SCAPI injected_read(volatile struct injcode_call *sc){
  **/
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
 	args->result = args->wrapper.target(args);
-	args->libc_syscall(__NR_kill,
-		args->libc_syscall(__NR_getpid),
-		SIGTRAP
-	);
+	injected_sc_stop(args);
 	while(1);
 }
 #endif
