@@ -110,6 +110,8 @@ struct ezinj_ctx {
 #ifdef EZ_TARGET_WINDOWS
 	ez_addr virtual_alloc;
 	ez_addr virtual_free;
+	ez_addr suspend_thread;
+	ez_addr get_current_thread;
 	ez_addr alloc_console;
 	ez_addr create_file;
 	ez_addr write_file;

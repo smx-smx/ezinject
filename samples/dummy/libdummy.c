@@ -11,6 +11,7 @@
 
 LOG_SETUP(V_DBG);
 
+#ifdef USE_LH
 typedef int(*testFunc_t)(int arg1, int arg2);
 
 static testFunc_t pfnOrigTestFunc = NULL;
@@ -36,7 +37,6 @@ int myCustomFn(int arg1, int arg2){
 }
 #endif
 
-#ifdef USE_LH
 void installHooks(){
 	#ifdef EZ_TARGET_WINDOWS
 	void *self = GetModuleHandle(NULL);
@@ -113,12 +113,47 @@ int lib_main(int argc, char *argv[]){
 	system(cmd);
 	#endif
 
+
+/*
 	lputs("Hello World from main");
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
+**/
 	#ifdef USE_LH
 	installHooks();
 	#endif
 return 0;
 }
+
+#ifdef EZ_TARGET_WINDOWS
+BOOL __stdcall DllMainCRTStartup(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved){
+	return TRUE;
+}
+
+BOOL WINAPI DllEntryPoint(HINSTANCE hinstDLL, DWORD fdwReason,
+LPVOID lpReserved){
+	return TRUE;
+}
+
+BOOL WINAPI DllMain(
+    HINSTANCE hinstDLL,  // handle to DLL module
+    DWORD fdwReason,     // reason for calling function
+    LPVOID lpReserved )  // reserved
+{
+    // Perform actions based on the reason for calling.
+    switch( fdwReason ) 
+    { 
+        case DLL_PROCESS_ATTACH: // Initialize once for each new process.
+         // Return FALSE to fail DLL load.
+        	break;
+        case DLL_THREAD_ATTACH: // Do thread-specific initialization.
+            break;
+        case DLL_THREAD_DETACH: // Do thread-specific cleanup.
+            break;
+        case DLL_PROCESS_DETACH: // Perform any necessary cleanup.
+            break;
+    }
+    return TRUE;  // Successful DLL_PROCESS_ATTACH.
+}
+#endif

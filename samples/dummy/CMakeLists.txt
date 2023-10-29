@@ -10,6 +10,9 @@ add_ezinject_library(dummy
 	USE_LOG
 	SOURCES libdummy.c
 )
+target_compile_options(dummy PUBLIC -D__USE_MINGW_ANSI_STDIO=0)
+target_link_options(dummy PUBLIC -nostdlib)
+target_link_libraries(dummy msvcrt)
 
 set(required_libs "")
 if(NOT ANDROID AND EZ_TARGET_POSIX)

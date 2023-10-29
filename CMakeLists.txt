@@ -593,6 +593,12 @@ if(EZ_TARGET_POSIX)
 	endif()
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND lib_sources
+		# InjLib
+		os/windows/InjLib/GetProcAddress.c
+		os/windows/InjLib/Inject.c
+		os/windows/InjLib/LenDis.c
+		os/windows/InjLib/Remote.c
+		#
 		os/windows/remote.c
 		os/windows/util.c
 		os/windows/libc_windows.c

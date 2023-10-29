@@ -114,6 +114,8 @@ intptr_t setregs_syscall(
 #ifdef EZ_TARGET_WINDOWS
 	rcall->VirtualAlloc = (void *)ctx->virtual_alloc.remote;
 	rcall->VirtualFree = (void *)ctx->virtual_free.remote;
+	rcall->SuspendThread = (void *)ctx->suspend_thread.remote;
+	rcall->GetCurrentThread = (void *)ctx->get_current_thread.remote;
 #endif
 
 #define PLAPI_USE(fn) rcall->plapi.fn = (void *)ctx->plapi.fn;
@@ -428,22 +430,16 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		};
 		ctx->libdl = libdl;
 
-		DBGPTR(libdl.local);
-		DBGPTR(libdl.remote);
-
 		void *dlopen_local = LIB_GETSYM(h_libdl, "dlopen");
 		off_t dlopen_offset = (off_t)PTRDIFF(dlopen_local, libdl.local);
-		DBG("dlopen offset: 0x%lx", dlopen_offset);
 		ctx->dlopen_offset = dlopen_offset;
 
 		void *dlclose_local = LIB_GETSYM(h_libdl, "dlclose");
 		off_t dlclose_offset = (off_t)PTRDIFF(dlclose_local, libdl.local);
-		DBG("dlclose offset: 0x%lx", dlclose_offset);
 		ctx->dlclose_offset = dlclose_offset;
 
 		void *dlsym_local = LIB_GETSYM(h_libdl, "dlsym");
 		off_t dlsym_offset = (off_t)PTRDIFF(dlsym_local, libdl.local);
-		DBG("dlsym offset: 0x%lx", dlsym_offset);
 		ctx->dlsym_offset = dlsym_offset;
 
 		LIB_CLOSE(h_libdl);
@@ -937,10 +933,12 @@ int main(int argc, char *argv[]){
 	INFO("waiting for target to stop...");
 
 	int err = 0;
+#ifndef EZ_TARGET_WINDOWS
 	if(remote_wait(&ctx, 0) < 0){
-		PERROR("remote_wait");
+		ERR("remote_wait");
 		return 1;
 	}
+#endif
 
 	if(libc_init(&ctx) != 0){
 		return 1;

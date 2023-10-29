@@ -63,8 +63,12 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 
 	ez_addr virtual_alloc = sym_addr(h_kernel32, "VirtualAlloc", kernel32);
 	ez_addr virtual_free = sym_addr(h_kernel32, "VirtualFree", kernel32);
+	ez_addr suspend_thread = sym_addr(h_kernel32, "SuspendThread", kernel32);
+	ez_addr get_current_thread = sym_addr(h_kernel32, "GetCurrentThread", kernel32);
 	ctx->virtual_alloc = virtual_alloc;
 	ctx->virtual_free = virtual_free;
+	ctx->suspend_thread = suspend_thread;
+	ctx->get_current_thread = get_current_thread;
 
 	ez_addr create_file = sym_addr(h_kernel32, "CreateFileA", kernel32);
 	ez_addr write_file = sym_addr(h_kernel32, "WriteFile", kernel32);

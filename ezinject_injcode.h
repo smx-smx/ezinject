@@ -17,9 +17,12 @@
 #include "config.h"
 
 #ifdef EZ_TARGET_WINDOWS
+#include "os/windows/InjLib/Struct.h"
+/*
 #include <windows.h>
 #include <ntdef.h>
 #include <winternl.h>
+*/
 #endif
 
 #define SC_MAX_ARGS 8
@@ -159,6 +162,8 @@ struct injcode_call {
 		SIZE_T dwSize,
 		DWORD dwFreeType
 	);
+	DWORD WINAPI (*SuspendThread)(HANDLE hThread);
+	HANDLE WINAPI (*GetCurrentThread)(VOID);
 #endif
 
 	/** PLAPI **/
@@ -301,6 +306,7 @@ enum userlib_return_action {
 
 
 #ifdef EZ_TARGET_WINDOWS
+/*
 typedef struct _CURDIR {
      UNICODE_STRING DosPath;
      PVOID Handle;
@@ -344,6 +350,7 @@ typedef struct {
      RTL_DRIVE_LETTER_CURDIR CurrentDirectores[32];
      ULONG EnvironmentSize;
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
+*/
 #endif
 
 #ifdef EZ_TARGET_POSIX
@@ -360,6 +367,10 @@ extern intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_open(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_read(volatile struct injcode_call *sc);
+#endif
+
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
+extern void sc_wrapper_end();
 #endif
 
 #ifdef EZ_TARGET_WINDOWS

@@ -119,6 +119,11 @@ static void _remote_sc_setup_offsets(){
 	);
 }
 
+uintptr_t _remote_sc_addr(struct ezinj_ctx *ctx, uintptr_t addr){
+	off_t rela_offset = PTRDIFF(addr, region_sc_code.start);
+	return r_current_sc_base + rela_offset;
+}
+
 uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 	uintptr_t sc_base = 0;
 	if((flags & SC_ALLOC_ELFHDR) == SC_ALLOC_ELFHDR){
@@ -175,7 +180,7 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *out_sc_base){
 		ctx->saved_sc_size = dataLength;
 
 		if(remote_read(ctx, ctx->saved_sc_data, sc_base, dataLength) != dataLength){
-			ERR("failed to backup data");
+			PERROR("failed to backup data");
 			return -1;
 		}
 	}

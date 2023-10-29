@@ -6,13 +6,10 @@
  *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
-#include <windows.h>
-#include <debugapi.h>
-#include <sys/types.h>
-#include <tlhelp32.h>
 
+#include "InjLib/Remote.h"
 #include "ezinject.h"
-#include "log.h"
+
 
 static EZAPI _grant_debug_privileges(){
 	HANDLE token = NULL;
@@ -50,7 +47,9 @@ static EZAPI _grant_debug_privileges(){
 }
 
 EZAPI remote_attach(struct ezinj_ctx *ctx){
-#if 1
+	Initialization();
+
+#if 0
 	if(_grant_debug_privileges() < 0){
 		ERR("_grant_debug_privileges failed");
 		return -1;
@@ -63,22 +62,25 @@ EZAPI remote_attach(struct ezinj_ctx *ctx){
 		return -1;
 	}
 	ctx->hProc = hProc;
+
+	DWORD main_tid = _GetProcessThread(ctx->target);
+	HANDLE hThread = _OpenThread(THREAD_ALL_ACCESS, FALSE, main_tid);
+	if(hThread == NULL || hThread == INVALID_HANDLE_VALUE){
+		PERROR("OpenThread");
+		return -1;
+	}
+	ctx->hThread = hThread;
+
 	if(remote_suspend(ctx) != 0){
 		ERR("remote_suspend failed");
 		return -1;
 	}
-#if 0
-	if(DebugSetProcessKillOnExit(FALSE) == FALSE){
-		PERROR("DebugSetProcessKillOnExit failed");
-		return -1;
-	}
-#endif
 	return 0;
 }
 
 EZAPI remote_suspend(struct ezinj_ctx *ctx){
-	if(DebugActiveProcess(ctx->target) == FALSE){
-		PERROR("DebugActiveProcess failed");
+	if(SuspendThread(ctx->hThread) == (DWORD)-1){
+		PERROR("SuspendThread");
 		return -1;
 	}
 	return 0;
@@ -87,10 +89,10 @@ EZAPI remote_suspend(struct ezinj_ctx *ctx){
 EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 	UNUSED(signal);
 
-	DBG("Resuming %lu %lu", ctx->ev.dwProcessId, ctx->ev.dwThreadId);
-	//ctx->hThread = INVALID_HANDLE_VALUE
-	if(ContinueDebugEvent(ctx->ev.dwProcessId, ctx->ev.dwThreadId, DBG_EXCEPTION_HANDLED) == FALSE){
+	if(ResumeThread(ctx->hThread) == (DWORD)-1){
+		/*PERROR("ResumeThread");
 		return -1;
+		*/
 	}
 	return 0;
 }
@@ -100,14 +102,7 @@ EZAPI remote_step(struct ezinj_ctx *ctx, int signal){
 }
 
 EZAPI remote_detach(struct ezinj_ctx *ctx){
-	// we need to dispatch the last debug event first
 	remote_continue(ctx, 0);
-
-#if 1
-	if(DebugActiveProcessStop(ctx->target) == FALSE){
-		return -1;
-	}
-#endif
 	return 0;
 }
 
@@ -185,84 +180,58 @@ static EZAPI _get_user_tid(struct ezinj_ctx *ctx, DWORD entryTid, DWORD *pTid){
 EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 	UNUSED(expected_signal);
 
-	DEBUG_EVENT *ev = &ctx->ev;
-	DWORD target_tid = 0;
-
-	/**
-	 * on resume, the thread exits the debug status
-	 * we loop until the payload emits the breakpoint
-	 **/
+	regs_t regs;
 	while(1){
-		if(WaitForDebugEvent(ev, INFINITE) == FALSE){
+		if(remote_getregs(ctx, &regs) < 0){
+			ERR("remote_getregs failed");
 			return -1;
 		}
-		DBG("Received Debug Event: %lu", ev->dwDebugEventCode);
-		if(ev->dwDebugEventCode == EXIT_PROCESS_DEBUG_EVENT){
-			DBG("EXIT_PROCESS_DEBUG_EVENT");
-			// remote process is exiting, this is unexpected
-			return -1;
-		}
-		else if(ev->dwDebugEventCode == CREATE_PROCESS_DEBUG_EVENT){
-			DBG("CREATE_PROCESS_DEBUG_EVENT");
-			ctx->hThread = ev->u.CreateProcessInfo.hThread;
-			//DBG("Initial TID: %lu", GetThreadId(ctx->hThread));
-			CloseHandle(ev->u.CreateProcessInfo.hFile);
-		}
-		else if(ev->dwDebugEventCode == CREATE_THREAD_DEBUG_EVENT){
-			DBG("CREATE_THREAD_DEBUG_EVENT");
-			DBG("Thread ID: %lu", ev->dwThreadId);
-		}
-		else if(ev->dwDebugEventCode == EXIT_THREAD_DEBUG_EVENT){
-			DBG("EXIT_THREAD_DEBUG_EVENT");
-			DBG("Thread ID: %lu", ev->dwThreadId);
-		}
-		else if(ev->dwDebugEventCode == LOAD_DLL_DEBUG_EVENT){
-			DBG("LOAD_DLL_DEBUG_EVENT");
-			CloseHandle(ev->u.LoadDll.hFile);
-			LPVOID ptrAddr = ev->u.LoadDll.lpImageName;
-			do {
-				if(ptrAddr == NULL){
-					break;
-				}
-				LPVOID ptr = NULL;
-				remote_read(ctx, &ptr, (uintptr_t)ptrAddr, sizeof(LPVOID));
-				if(ptr == NULL){
-					break;
-				}
 
-				uint8_t buf[MAX_PATH];
-				remote_read(ctx, buf, (uintptr_t)ptr, sizeof(buf));
-				if(ev->u.LoadDll.fUnicode){
-					DBG("LoadDLL[W]: %p -> %ls", ev->u.LoadDll.lpBaseOfDll, (wchar_t *)buf);
-				} else {
-					DBG("LoadDLL[A]: %p -> %s", ev->u.LoadDll.lpBaseOfDll, (char *)buf);
-				}
-			} while(0);
+		uintptr_t buf = 0;
+		uintptr_t addr = REG(regs, REG_PC) + 2;
+		if(remote_read(ctx, &buf, addr, sizeof(buf)) != sizeof(buf)){
+			ERR("remote_read failed");
+			return -1;
 		}
-		/**
-		 * we swallow all process,thread and DLL events
-		 * we then stop when we hit the first thread breakpoint
-		 **/
-		if(ev->dwDebugEventCode == EXCEPTION_DEBUG_EVENT){
-			DBG("Got exception, tid: %lu", ev->dwThreadId);
-			if(ev->u.Exception.ExceptionRecord.ExceptionCode == EXCEPTION_BREAKPOINT){
-				DBG("Got debugbreak, tid: %lu", ev->dwThreadId);
+
+		if(buf == 0xdeadbeef){
+			DBG("Ready");
+			return 0;
+		}
+
+		Sleep(100);
+	}
+
+	/*while(1){
+		nSameCount = 0;
+		if(remote_getregs(ctx, &regs) < 0){
+			ERR("remote_getregs failed");
+			return -1;
+		}
+		initial_pc = REG(regs, REG_PC);
+
+		while(nSameCount < 150){
+			if(remote_getregs(ctx, &regs) < 0){
+				ERR("remote_getregs failed");
+				return -1;
+			}
+			last_pc = REG(regs, REG_PC);
+			if(last_pc == initial_pc){
+				++nSameCount;
+			} else {
+				// PC was not identical. repeat search
 				break;
 			}
-			DBG("Unknown exception, target will likely crash");
-			DBG("ExceptionCode: 0x%08lX", ev->u.Exception.ExceptionRecord.ExceptionCode);
-			DBG("ExceptionAddr: %p", ev->u.Exception.ExceptionRecord.ExceptionAddress);
-			#ifdef USE_EXTERNAL_DEBUGGER
-			DBG("Press Enter to continue");
-			getchar();
-			#endif
+			Sleep(1);
 		}
-		ContinueDebugEvent(ev->dwProcessId, ev->dwThreadId, DBG_EXCEPTION_NOT_HANDLED);
-		if(ev->dwDebugEventCode == EXIT_THREAD_DEBUG_EVENT){
-			DBG("Thread resumed, waiting for debugbreak");
+
+		DBGPTR(REG(regs, REG_AX));
+
+		if(nSameCount >= 150 && (uint32_t)REG(regs, REG_AX) == 0x455A535450){
+			DBG("Ready");
+			return 0;
 		}
-	}
-	DBG("Ready");
+	}*/
 
 	/**
 	 *  we stopped on a breakpoint
