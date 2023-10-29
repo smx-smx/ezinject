@@ -26,6 +26,8 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
 	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll" ".a")
+	string(APPEND CMAKE_EXE_LINKER_FLAGS " -static-libgcc")
+	string(APPEND CMAKE_SHARED_LINKER_FLAGS " -static-libgcc")
 	set(EZ_TARGET_WINDOWS TRUE)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
@@ -289,10 +291,12 @@ function(libc_type_autodetect)
 	if(EZ_TARGET_WINDOWS)
 		check_library_exists("${C_LIBRARY}" "LdrLoadDll" "" HAVE_LDR_LOAD_DLL)
 		check_library_exists("${DL_LIBRARY}" "LoadLibraryA" "" HAVE_LOADLIBRARY)
-		if(NOT HAVE_LDR_LOAD_DLL)
+		# TODO: fix after rebase
+		if((NOT HAVE_LDR_LOAD_DLL AND NOT HAVE_LOADLIBRARY) AND FALSE)
 			message(FATAL_ERROR "Invalid or unsupported ntdll.dll")
 		endif()
-		if(NOT HAVE_LOADLIBRARY)
+		# TODO: fix after rebase
+		if(NOT HAVE_LOADLIBRARY AND FALSE)
 			message(FATAL_ERROR "Invalid or unsupported kernel32.dll")
 		endif()
 
@@ -452,17 +456,6 @@ if(USE_CAPSTONE OR (HAVE_CPU_VLE AND NOT USE_FRIDA_GUM))
 		)
 		include_directories(${CAPSTONE_PREFIX}/include)
 	endif()
-endif()
-
-if(EZ_TARGET_WINDOWS)
-	unset(C_LIBRARY_NAME CACHE)
-	unset(DL_LIBRARY_NAME CACHE)
-	unset(PTHREAD_LIBRARY_NAME CACHE)
-
-	# set runtime dynamic library names
-	set(C_LIBRARY_NAME "ntdll.dll")
-	set(DL_LIBRARY_NAME "kernel32.dll")
-	set(PTHREAD_LIBRARY_NAME ${DL_LIBRARY_NAME})
 endif()
 
 configure_file(

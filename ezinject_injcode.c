@@ -159,6 +159,10 @@ INLINE uint64_t str64(uint64_t x){
 struct injcode_ctx {
 	struct injcode_bearing *br;
 
+#ifdef EZ_TARGET_WINDOWS
+	HANDLE output_handle;
+#endif
+
 	struct dl_api libdl;
 	struct thread_api libthread;
 	struct injcode_plapi plapi;
@@ -258,9 +262,9 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	char *stbl_argv = BR_STRTBL(br) + br->argv_offset;
 	STRTBL_FETCH(stbl_argv, ctx->userlib_name);
 
+	//asm volatile(JMP_INSN " .");
 	br->userlib = inj_dlopen(ctx, ctx->userlib_name, RTLD_NOW);
-
-	//inj_dbgptr(br, br->userlib);
+	PCALL(ctx, inj_dbgptr, br->userlib);
 	if(br->userlib == NULL){
 		return -1;
 	}
@@ -301,13 +305,31 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	intptr_t result = 0;
 
+#if 0
+#ifdef EZ_TARGET_WINDOWS
+	{
+		/**
+		 * "CONOUT$" in LE without constant string literal
+		 * (Windows only works on LE CPUs anyways)
+		 **/
+		uint32_t conout[2];
+		conout[0] = 0x4F4E4F43; //ONOC
+		conout[1] = 0x00245455; //.$TU
+
+		//ctx->br->AllocConsole();
+		ctx->output_handle = ctx->br->CreateFileA(
+			(char *)&conout[0],
+			GENERIC_WRITE, FILE_SHARE_WRITE, NULL,
+			OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL
+		);
+	}
+#endif
+#endif
+
 	// entry
 	PCALL(ctx, inj_dchar, 'e');
-
 	STRTBL_FETCH(ctx->stbl, ctx->libdl_name);
 	STRTBL_FETCH(ctx->stbl, ctx->libpthread_name);
-
-
 
 	if(inj_libdl_init(ctx) != 0){
 		PCALL(ctx, inj_dchar, '!');

@@ -70,9 +70,11 @@ struct ezinj_ctx {
 	int syscall_mode;
 	pid_t target;
 #ifdef EZ_TARGET_WINDOWS
+	int wait_call_seq;
 	DEBUG_EVENT ev;
 	HANDLE hProc;
 	HANDLE hThread;
+	DWORD target_tid;
 #endif
 #ifdef EZ_TARGET_DARWIN
 	task_t task;
@@ -107,9 +109,9 @@ struct ezinj_ctx {
 #endif
 #ifdef EZ_TARGET_WINDOWS
 	ez_addr alloc_console;
-	ez_addr nt_get_peb;
+	ez_addr create_file;
+	ez_addr write_file;
 	ez_addr nt_query_proc;
-	ez_addr nt_write_file;
 	ez_addr nt_register_dll_noti;
 	ez_addr nt_unregister_dll_noti;
 #endif

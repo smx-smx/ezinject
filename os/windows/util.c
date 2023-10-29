@@ -13,6 +13,7 @@
 #include <windows.h>
 #include <psapi.h>
 #include <shlwapi.h>
+#include <TlHelp32.h>
 
 #include "ezinject_common.h"
 #include "log.h"
@@ -67,7 +68,7 @@ char *strcasestr(const char *s, const char *find) {
 void *get_base(pid_t pid, char *substr, char **ignores) {
 	UNUSED(ignores);
 
-	HANDLE hProcess;
+	HANDLE hProcess = INVALID_HANDLE_VALUE;
 
 	hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
                             PROCESS_VM_READ,
@@ -78,46 +79,49 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	}
 
 	void *base = NULL;
+	HANDLE hSnap = INVALID_HANDLE_VALUE;
+	TCHAR *imageFileName = NULL;
 	do {
-		HMODULE *modules = NULL;
-		TCHAR imageFileName[MAX_PATH];
-		DWORD pathSize = _countof(imageFileName);
-		if(!QueryFullProcessImageNameA(hProcess, 0, imageFileName, &pathSize)){
-			DBG("QueryFullProcessImageNameA failed");
+		hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
+		if(hSnap == INVALID_HANDLE_VALUE){
+			PERROR("CreateToolhelp32Snapshot failed");
 			break;
 		}
 
-		DBG("imageFileName: %s", imageFileName);
+		MODULEENTRY32 mod32 = {
+			.dwSize = sizeof(MODULEENTRY32)
+		};
 
-		DWORD numModules = 0;
-		{
-			DWORD bytesNeeded = 0;
-			EnumProcessModules(hProcess, NULL, 0, &bytesNeeded);
-
-			modules = calloc(1, bytesNeeded);
-			EnumProcessModules(hProcess, modules, bytesNeeded, &bytesNeeded);
-
-			numModules = bytesNeeded / sizeof(HMODULE);
+		if(!Module32First(hSnap, &mod32)){
+			PERROR("Module32First");
+			break;
 		}
 
-		for(DWORD i=0; i<numModules; i++){
-			TCHAR modName[MAX_PATH];
-			if(!GetModuleFileNameEx(hProcess, modules[i], modName, _countof(modName))){
-				continue;
-			}
+		imageFileName = mod32.szExePath;
+		DBG("imageFileName: %s", imageFileName);
 
-			DBG("%p -> %s", modules[i], modName);
+		do {
+			TCHAR *modName = mod32.szModule;
+			uintptr_t modBase = (uintptr_t)mod32.modBaseAddr;
+			DBG("%p -> %s", (void *)modBase, modName);
 
 			if(
 				(substr == NULL && !_stricmp(imageFileName, modName)) ||
 				(substr != NULL && strcasestr(modName, substr) != NULL)
 			){
-				base = (void *)modules[i];
+				base = (void *)modBase;
 				break;
 			}
-		}
-		free(modules);
+
+		} while(Module32Next(hSnap, &mod32));
+
 	} while(0);
+	if(imageFileName != NULL){
+		free(imageFileName);
+	}
+	if(hSnap != INVALID_HANDLE_VALUE){
+		CloseHandle(hSnap);
+	}
 	CloseHandle(hProcess);
 
 	return base;

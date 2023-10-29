@@ -11,9 +11,6 @@
 
 LOG_SETUP(V_DBG);
 
-#define USE_LH
-
-
 typedef int(*testFunc_t)(int arg1, int arg2);
 
 static testFunc_t pfnOrigTestFunc = NULL;
