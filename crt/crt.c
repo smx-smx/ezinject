@@ -64,14 +64,7 @@
 #include "crt.h"
 
 extern int crt_userinit(struct injcode_bearing *br);
-
 WINAPI void* crt_user_entry(void *arg);
-
-#ifdef EZ_TARGET_WINDOWS
-#define DLLEXPORT __declspec(dllexport)
-#else
-#define DLLEXPORT
-#endif
 
 #ifdef EZ_TARGET_WINDOWS
 static void _init_stdout(){
@@ -92,14 +85,6 @@ static void _init_stdout(){
 
 	SetStdHandle(STD_OUTPUT_HANDLE, hConOut);
 	SetStdHandle(STD_ERROR_HANDLE, hConOut);
-
-	puts("HI");
-	puts("HI");
-	puts("HI");
-	puts("HI");
-	puts("HI");
-	puts("HI");
-	puts("HI");
 }
 #endif
 

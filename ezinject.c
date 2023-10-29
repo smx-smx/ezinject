@@ -255,8 +255,10 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 
 	int wait = 0;
 	do {
+		#ifdef EZ_TARGET_WINDOWS
 		// hack
 		ctx->r_ezstate_addr = RCALL_FIELD_ADDR(&call->rcall, ezstate);
+		#endif
 
 		intptr_t status = remote_wait(ctx, 0);
 		if(status < 0){
