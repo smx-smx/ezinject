@@ -42,6 +42,11 @@
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
+#ifdef EZ_TARGET_WINDOWS
+#include "os/windows/util.h"
+#endif
+
+
 LOG_SETUP(V_INFO);
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
@@ -392,6 +397,14 @@ struct ezinj_str ezstr_new(char *str){
 static int libc_init_default(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
 
+#ifdef EZ_TARGET_WINDOWS
+	HMODULE ntdll = GetModuleHandle("ntdll.dll");
+	#define GETSYM(l, x) x = (void *)GetProcAddress(l, #x)
+	GETSYM(ntdll, RtlQueryProcessDebugInformation);
+	GETSYM(ntdll, RtlCreateQueryDebugBuffer);
+	GETSYM(ntdll, RtlDestroyQueryDebugBuffer);
+#endif
+
 	INFO("Looking up " C_LIBRARY_NAME);
 	ez_addr libc = {
 		.local  = (uintptr_t) get_base(getpid(), LIBC_SEARCH, ignores),
@@ -617,9 +630,11 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	DBGPTR(br->libc_##name); \
 } while(0)
 
+#ifdef EZ_TARGET_POSIX
 	USE_LIBC_SYM(dlopen);
-
 	USE_LIBC_SYM(syscall);
+#endif
+
 #undef USE_LIBC_SYM
 
 	br->argc = argc;
@@ -922,6 +937,12 @@ int main(int argc, char *argv[]){
 
 	const char *argPid = argv[optind++];
 	ctx.target = strtoul(argPid, NULL, 10);
+
+	if(libc_init(&ctx) != 0){
+		return 1;
+	}
+	ctx.r_xpage_base = (uintptr_t)get_base(ctx.target, NULL, NULL);
+
 	INFO("Attaching to %u", ctx.target);
 
 	if(remote_attach(&ctx) < 0){
@@ -938,10 +959,6 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 #endif
-
-	if(libc_init(&ctx) != 0){
-		return 1;
-	}
 
 	err = ezinject_main(&ctx, argc - optind, &argv[optind]);
 	/**

@@ -11,6 +11,10 @@
 #include "ezinject.h"
 
 
+//#define EZ_TARGET_WIN9X
+//#define EZ_TARGET_WINNT
+
+#ifdef EZ_TARGET_WINNT
 static EZAPI _grant_debug_privileges(){
 	HANDLE token = NULL;
 	if(!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &token)){
@@ -45,6 +49,7 @@ static EZAPI _grant_debug_privileges(){
 	}
 	return rc;
 }
+#endif
 
 EZAPI remote_attach(struct ezinj_ctx *ctx){
 	Initialization();
@@ -83,6 +88,7 @@ EZAPI remote_suspend(struct ezinj_ctx *ctx){
 		PERROR("SuspendThread");
 		return -1;
 	}
+
 	return 0;
 }
 
@@ -139,6 +145,43 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 
 #define USE_EXTERNAL_DEBUGGER
 
+#if 0
+static EZAPI _get_first_thread(struct ezinj_ctx *ctx, DWORD *pTid){
+	HANDLE hThreadSnap = INVALID_HANDLE_VALUE;
+
+	THREADENTRY32 te32;
+	te32.dwSize = sizeof(THREADENTRY32);
+
+	hThreadSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, ctx->target);
+	if(hThreadSnap == INVALID_HANDLE_VALUE){
+		PERROR("CreateToolhelp32Snapshot failed");
+		return -1;
+	}
+
+	DWORD tid = 0;
+	do {
+		if(!Thread32First(hThreadSnap, &te32)){
+			PERROR("Thread32First");
+			break;
+		}
+
+		do {
+			if(te32.th32OwnerProcessID != ctx->target){
+				continue;
+			}
+			tid = te32.th32ThreadID;
+			break;
+		} while(Thread32Next(hThreadSnap, &te32));
+		rc = 0;
+	} while(0);
+
+	CloseHandle(hThreadSnap);
+	*pTid = lastTid;
+
+	if(tid == 0) return -1;
+	return 0;
+}
+
 static EZAPI _get_user_tid(struct ezinj_ctx *ctx, DWORD entryTid, DWORD *pTid){
 	HANDLE hThreadSnap = INVALID_HANDLE_VALUE;
 
@@ -176,6 +219,7 @@ static EZAPI _get_user_tid(struct ezinj_ctx *ctx, DWORD entryTid, DWORD *pTid){
 	*pTid = lastTid;
 	return rc;
 }
+#endif
 
 EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 	UNUSED(expected_signal);

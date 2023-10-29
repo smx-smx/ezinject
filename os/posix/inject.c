@@ -127,7 +127,8 @@ uintptr_t _remote_sc_addr(struct ezinj_ctx *ctx, uintptr_t addr){
 uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 	uintptr_t sc_base = 0;
 	if((flags & SC_ALLOC_ELFHDR) == SC_ALLOC_ELFHDR){
-		sc_base = (uintptr_t)get_base(ctx->target, NULL, NULL);
+		//sc_base = (uintptr_t)get_base(ctx->target, NULL, NULL);
+		sc_base = ctx->r_xpage_base;
 	} else if((flags & SC_ALLOC_MMAP) == SC_ALLOC_MMAP){
 #if defined(EZ_TARGET_POSIX)
 		sc_base = CHECK(RSCALL6(ctx, __NR_mmap2,
