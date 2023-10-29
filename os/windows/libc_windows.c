@@ -70,9 +70,7 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ctx->suspend_thread = suspend_thread;
 	ctx->get_current_thread = get_current_thread;
 
-	ez_addr create_file = sym_addr(h_kernel32, "CreateFileA", kernel32);
 	ez_addr write_file = sym_addr(h_kernel32, "WriteFile", kernel32);
-	ctx->create_file = create_file;
 	ctx->write_file = write_file;
 
 	DBGADDR(virtual_alloc);
@@ -82,32 +80,22 @@ int resolve_libc_symbols(struct ezinj_ctx *ctx){
 	if(h_ntdll != NULL){
 		ez_addr libc_dlopen = sym_addr(h_ntdll, "LdrLoadDll", ctx->libc);
 
-		ez_addr nt_query_proc = sym_addr(h_ntdll, "NtQueryInformationProcess", ctx->libc);
 		ez_addr nt_register_dll_noti = sym_addr(h_ntdll, "LdrRegisterDllNotification", ctx->libc);
 		ez_addr nt_unregister_dll_noti = sym_addr(h_ntdll, "LdrUnregisterDllNotification", ctx->libc);
 
-
 		DBGADDR(libc_dlopen);
-		DBGADDR(nt_query_proc);
 		DBGADDR(nt_register_dll_noti);
 		DBGADDR(nt_unregister_dll_noti);
 
-
-
-		ctx->nt_query_proc = nt_query_proc;
 		ctx->libc_dlopen = libc_dlopen;
 		ctx->nt_register_dll_noti = nt_register_dll_noti;
 		ctx->nt_unregister_dll_noti = nt_unregister_dll_noti;
 	}
 
-	ez_addr alloc_console = sym_addr(h_kernel32, "AllocConsole", kernel32);
-	ctx->alloc_console = alloc_console;
-
 	ez_addr load_library = sym_addr(h_kernel32, "LoadLibraryA", kernel32);
 	ez_addr free_library = sym_addr(h_kernel32, "FreeLibrary", kernel32);
 	ez_addr get_procaddr = sym_addr(h_kernel32, "GetProcAddress", kernel32);
 
-	DBGADDR(alloc_console);
 	DBGADDR(load_library);
 	DBGADDR(free_library);
 	DBGADDR(get_procaddr);

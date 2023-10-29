@@ -373,10 +373,6 @@ extern intptr_t SCAPI injected_open(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_read(volatile struct injcode_call *sc);
 #endif
 
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
-extern void inj_stop();
-#endif
-
 #ifdef EZ_TARGET_WINDOWS
 intptr_t SCAPI injected_virtual_alloc(volatile struct injcode_call *sc);
 intptr_t SCAPI injected_virtual_free(volatile struct injcode_call *sc);

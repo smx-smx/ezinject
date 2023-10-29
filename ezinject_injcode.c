@@ -317,28 +317,6 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	}
 
 	intptr_t result = 0;
-
-#if 0
-#ifdef EZ_TARGET_WINDOWS
-	{
-		/**
-		 * "CONOUT$" in LE without constant string literal
-		 * (Windows only works on LE CPUs anyways)
-		 **/
-		uint32_t conout[2];
-		conout[0] = 0x4F4E4F43; //ONOC
-		conout[1] = 0x00245455; //.$TU
-
-		//ctx->br->AllocConsole();
-		ctx->output_handle = ctx->br->CreateFileA(
-			(char *)&conout[0],
-			GENERIC_WRITE, FILE_SHARE_WRITE, NULL,
-			OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL
-		);
-	}
-#endif
-#endif
-
 	// entry
 	PCALL(ctx, inj_dchar, 'e');
 	STRTBL_FETCH(ctx->stbl, ctx->libdl_name);
