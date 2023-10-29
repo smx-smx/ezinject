@@ -267,6 +267,7 @@ struct injcode_bearing
 	struct injcode_user user;
 	int num_strings;
 	off_t argv_offset;
+	int thread_exit_code;
 #ifdef EZ_TARGET_LINUX
 	off_t pl_filename_offset;
 #endif
