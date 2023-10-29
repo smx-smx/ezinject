@@ -458,6 +458,17 @@ if(USE_CAPSTONE OR (HAVE_CPU_VLE AND NOT USE_FRIDA_GUM))
 	endif()
 endif()
 
+if(EZ_TARGET_WINDOWS)
+	unset(C_LIBRARY_NAME CACHE)
+	unset(DL_LIBRARY_NAME CACHE)
+	unset(PTHREAD_LIBRARY_NAME CACHE)
+
+	# set runtime dynamic library names
+	set(C_LIBRARY_NAME "ntdll.dll")
+	set(DL_LIBRARY_NAME "kernel32.dll")
+	set(PTHREAD_LIBRARY_NAME ${DL_LIBRARY_NAME})
+endif()
+
 configure_file(
 	config.h.in
 	${CMAKE_BINARY_DIR}/config.h
