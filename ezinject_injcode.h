@@ -135,6 +135,8 @@ struct injcode_plapi {
 	intptr_t (*inj_fetchsym)(struct injcode_ctx *ctx, void *handle, void **sym);
 };
 
+#define EZST1 0x455A5331 // signaled
+
 /**
  *
  * this structure is pushed on the stack
@@ -165,6 +167,8 @@ struct injcode_call {
 	DWORD WINAPI (*SuspendThread)(HANDLE hThread);
 	HANDLE WINAPI (*GetCurrentThread)(VOID);
 #endif
+
+	uintptr_t ezstate;
 
 	/** PLAPI **/
 	struct injcode_plapi plapi;
@@ -370,7 +374,7 @@ extern intptr_t SCAPI injected_read(volatile struct injcode_call *sc);
 #endif
 
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
-extern void sc_wrapper_end();
+extern void inj_stop();
 #endif
 
 #ifdef EZ_TARGET_WINDOWS

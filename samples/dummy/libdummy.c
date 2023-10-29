@@ -114,12 +114,11 @@ int lib_main(int argc, char *argv[]){
 	#endif
 
 
-/*
 	lputs("Hello World from main");
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
-**/
+
 	#ifdef USE_LH
 	installHooks();
 	#endif
