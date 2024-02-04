@@ -36,7 +36,7 @@ as well as wildly different (both POSIX and non-POSIX OSes) such as
 - run Python scripts ([pyloader](https://github.com/smx-smx/ezinject/tree/master/samples/pyloader))
 - run PHP scripts ([php](https://github.com/smx-smx/ezinject/tree/master/samples/php))
 - run .NET programs ([mono](https://github.com/smx-smx/ezinject/tree/master/samples/mono), [dotnetcore](https://github.com/smx-smx/ezinject/tree/master/samples/dotnetcore), [EzDotNet](https://github.com/smx-smx/EzDotnet))
-- turn the remote process into an RPC ([ezinject-webapi](https://github.com/smx-smx/))
+- turn the remote process into an RPC ([ezinject-webapi](https://github.com/smx-smx/ezinject-webapi))
 
 and so on...
 
