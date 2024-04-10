@@ -255,7 +255,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	// in that case, it will return the *current* SIGRTMIN, which is not what we want
 	#undef SIGRTMIN
 	#define SIGRTMIN 32
-		#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
+		#define IS_IGNORED_SIG(x) ((x) == SIGCHLD || (x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
 
 		wait = 0;
 
