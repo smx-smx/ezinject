@@ -6,6 +6,7 @@
  *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
+#include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -76,7 +77,12 @@ int main(int argc, char *argv[])
 		*(filename++) = 0;
 		char *funcname = cmd;
 
-		char *funcadr = (char *)elfparse_getfuncaddr(hndl, funcname);
+		char *funcadr;
+		if(strlen(funcname) > 2 && funcname[0] == '0' && tolower(funcname[1]) == 'x'){
+			funcadr = (char *)(uintptr_t)strtoull(funcname, NULL, 16);
+		} else {
+			funcadr = (char *)elfparse_getfuncaddr(hndl, funcname);
+		}
 		if(!funcadr)
 		{
 			WARN("Function %s not found!", funcname);
