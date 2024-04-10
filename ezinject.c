@@ -498,13 +498,19 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	size_t dyn_ptr_size = argc * sizeof(char *);
 	size_t dyn_str_size = 0;
 
-	struct ezinj_str args[32];
+	int argsLim = 128;
+	struct ezinj_str *args = calloc(argsLim, sizeof(struct ezinj_str));
 
 	int num_strings = 0;
 	int argi = 0;
 	off_t argv_offset = 0;
 
 #define PUSH_STRING(str) do { \
+	if(argi >= argsLim) { \
+		args = realloc(args, sizeof(struct ezinj_str) * (argi + 128)); \
+		if(args == NULL) return NULL; \
+		argsLim += 128; \
+	} \
 	args[argi] = ezstr_new(str); \
 	dyn_str_size += args[argi].len + sizeof(unsigned int); \
 	argi++; \
@@ -581,6 +587,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	memset(br, 0x00, sizeof(*br));
 
 	if(!br){
+		free(args);
 		PERROR("malloc");
 		return NULL;
 	}
@@ -641,6 +648,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 	// copy code
 	memcpy(ctx->pl.code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
+	free(args);
 	return br;
 }
 
