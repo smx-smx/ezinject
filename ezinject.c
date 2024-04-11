@@ -51,14 +51,6 @@ static ez_region region_pl_code = {
 	.end = (void *)&__stop_payload
 };
 
-static void *code_data(void *code){
-#if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
-	return (void *)(UPTR(code) & ~1);
-#else
-	return code;
-#endif
-}
-
 #ifdef HAVE_SC
 uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 #endif
@@ -150,7 +142,7 @@ intptr_t setregs_syscall(
 		}
 	} else {
 		// call the user supplied target through the wrapper
-		rcall->wrapper.target = ctx->branch_target.remote;
+		rcall->wrapper.target = (void *)ctx->branch_target.remote;
 	}
 	#else
 	// call the user supplied target through the trampoline
@@ -363,7 +355,7 @@ struct ezinj_str ezstr_new(char *str){
 		 * don't like doing unaligned accesses
 		 * and will corrupt memory
 		 */
-		.len = WORDALIGN(STRSZ(str)),
+		.len = (size_t)WORDALIGN(STRSZ(str)),
 		.str = str
 	};
 	return bstr;
@@ -667,7 +659,7 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 		mapping_size = ALIGN(mapping_size, sysInfo.dwPageSize);
 	}
 	#else
-	mapping_size = PAGEALIGN(mapping_size);
+	mapping_size = (size_t)PAGEALIGN(mapping_size);
 	#endif
 
 	DBG("br_size=%zu", br_size);

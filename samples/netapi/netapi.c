@@ -30,6 +30,7 @@
 #include "ezinject_common.h"
 #include "ezinject_util.h"
 #include "ezinject_injcode.h"
+#include "ezinject_compat.h"
 
 #undef MAX
 #undef MIN
@@ -95,7 +96,7 @@ static void _build_pkt(struct ez_pkt *pkt, uint8_t *data, unsigned length){
 intptr_t safe_send(int fd, void *buf, size_t length, int flags){
 	uint8_t *pb = (uint8_t *)buf;
 
-	ssize_t acc = 0;
+	size_t acc = 0;
 	while(acc < length){
 		ssize_t sent = send(fd, &pb[acc], length - acc, 0);
 		if(sent < 0){
@@ -110,7 +111,7 @@ intptr_t safe_send(int fd, void *buf, size_t length, int flags){
 intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
 	uint8_t *pb = (uint8_t *)buf;
 
-	ssize_t acc = 0;
+	size_t acc = 0;
 	while(acc < length){
 		ssize_t received = recv(fd, &pb[acc], length - acc, 0);
 		if(received < 0){
@@ -129,7 +130,7 @@ intptr_t send_data(int fd, uint8_t *data, unsigned size){
 
 	uint8_t *pb = (uint8_t *)&pkt;
 #ifdef WEBAPI_DEBUG
-	for(int i=0; i<sizeof(pkt); i++){
+	for(unsigned i=0; i<sizeof(pkt); i++){
 		printf("%02hhx ", pb[i]);
 	}
 	puts("");
@@ -142,12 +143,12 @@ intptr_t send_data(int fd, uint8_t *data, unsigned size){
 }
 
 intptr_t send_str(int fd, char *str){
-	return send_data(fd, str, strlen(str));
+	return send_data(fd, (uint8_t *)str, strlen(str));
 }
 
 intptr_t send_ptrval(int fd, void *ptr){
-	uintptr_t val = (uintptr_t)ptr;
-	return send_data(fd, htonl(val), sizeof(val));
+	uintptr_t val = htonll((uintptr_t)ptr);
+	return send_data(fd, (uint8_t *)&val, sizeof(val));
 }
 
 intptr_t send_datahdr(int fd, unsigned size){
@@ -203,14 +204,14 @@ int handle_client(int client){
 		unsigned int length = 0;
 		SAFE_RECV(client, &length, sizeof(length), 0);
 		length = ntohl(length);
-		int malloc_sz = WORDALIGN(MAX(length, 64));
+		size_t malloc_sz = (size_t)WORDALIGN(MAX(length, 64));
 		DBG("incoming msg, length: %u", length);
 		uint8_t *mem = calloc(malloc_sz, 1);
 		uint8_t *data = mem;
 		SAFE_RECV(client, data, length, 0);
 
 		// prefer ptr-sized op, or all future accesses will be unaligned
-		unsigned op = (unsigned)read_ptr(&data);
+		uintptr_t op = (uintptr_t)read_ptr(&data);
 		switch(op){
 			case OP_INFO:{
 				DBG("OP_INFO");
@@ -247,8 +248,9 @@ int handle_client(int client){
 			case OP_DLSYM:{
 				DBG("OP_DLSYM");
 				void *handle = read_ptr(&data);
-				DBG("dlsym(%p, %s)", handle, data);
-				void *sym = LIB_GETSYM(handle, data);
+				char *sym_name = (char *)data;
+				DBG("dlsym(%p, %s)", handle, sym_name);
+				void *sym = LIB_GETSYM(handle, sym_name);
 				if(send_ptrval(client, sym) != 0){
 					ERR("send_ptrval failed");
 					serve = 0;
@@ -268,8 +270,8 @@ int handle_client(int client){
 			case OP_PEEK:{
 				DBG("OP_PEEK");
 				uint8_t *start_addr = read_ptr(&data);
-				unsigned int length = (unsigned int)read_ptr(&data);
-				DBG("length: %u", length);
+				size_t length = (size_t)read_ptr(&data);
+				DBG("length: %zu", length);
 
 				int blocksize = 4096;
 				int nblocks = length / blocksize;
@@ -307,8 +309,8 @@ int handle_client(int client){
 			case OP_POKE:{
 				DBG("OP_POKE");
 				uint8_t *start_addr = read_ptr(&data);
-				unsigned int length = (unsigned int)read_ptr(&data);
-				DBG("size: %u", length);
+				size_t length = (size_t)read_ptr(&data);
+				DBG("size: %zu", length);
 
 				int blocksize = 4096;
 				int nblocks = length / blocksize;
@@ -334,13 +336,13 @@ int handle_client(int client){
 			case OP_CALL:{
 				DBG("OP_CALL");
 				uint8_t call_type = *(data++);
-				int nargs = (int)read_ptr(&data);
+				size_t nargs = (size_t)read_ptr(&data);
 				void *addr = read_ptr(&data);
 
 				if(nargs > 14) break;
 
 				void *a[15] = {NULL};
-				for(int i=0; i<nargs; i++){
+				for(size_t i=0; i<nargs; i++){
 					a[i] = read_ptr(&data);
 					DBGPTR(a[i]);
 				}
@@ -382,8 +384,8 @@ int handle_client(int client){
 }
 
 void *start_server(void *arg){
-	unsigned short port = (unsigned short)arg;
-	int rc = 0;
+	unsigned short port = (unsigned short)(uintptr_t)arg;
+	uintptr_t rc = 0;
 	do {
 		int sock = socket(AF_INET, SOCK_STREAM, 0);
 		if(sock < 0){
@@ -421,7 +423,7 @@ void *start_server(void *arg){
 			if(client < 0){
 				perror("accept");
 			}
-			int result = handle_client(client);
+			/*int result =*/ handle_client(client);
 		}
 	} while(0);
 
@@ -444,9 +446,9 @@ int lib_main(int argc, char *argv[]){
 		return 1;
 	}
 
-	int port = strtoul(argv[1], NULL, 10);
+	uintptr_t port = strtoul(argv[1], NULL, 10);
 	pthread_t tid;
-	pthread_create(&tid, NULL, start_server, port);
+	pthread_create(&tid, NULL, start_server, (void *)port);
 	pthread_detach(tid);
 	return 0;
 }

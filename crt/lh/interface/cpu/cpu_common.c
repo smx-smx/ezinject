@@ -98,8 +98,6 @@ int inj_getinsn_count(void *buf, size_t sz, unsigned int *validbytes){
 #endif
 
 int inj_getbackup_size(void *codePtr, unsigned int payloadSz){
-	unsigned i = 0;
-	int opSz;
 #ifdef USE_CAPSTONE
 	unsigned int totalBytes = 0;
 	int total_insn = inj_getinsn_count(codePtr, payloadSz, &totalBytes);
@@ -113,6 +111,8 @@ int inj_getbackup_size(void *codePtr, unsigned int payloadSz){
 	DBG("Instruction Count: %d (size: %u)", total_insn, totalBytes);
 	return totalBytes;
 #else
+	unsigned i = 0;
+	int opSz;
 	if((opSz = inj_opcode_bytes()) > 0){ //fixed opcode size
 		while(i < payloadSz)
 			i += opSz;
