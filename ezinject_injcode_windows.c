@@ -58,7 +58,7 @@ INLINE intptr_t inj_thread_wait(
 
 INLINE void *_inj_get_kernel32(struct injcode_bearing *br){
 	// kernel32.dll
-	char *libdl_name = STR_DATA(BR_STRTBL(br));
+	char *libdl_name = BR_STRTBL(br)[EZSTR_API_LIBDL].str;
 
 	// kernel32.dll length in utf16
 	const int NAME_LENGTH = 24;
@@ -89,11 +89,11 @@ INLINE void *_inj_get_kernel32(struct injcode_bearing *br){
 INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 	//asm volatile(JMP_INSN " .");
 	intptr_t result = 0;
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.CreateEventA);
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.CreateThread);
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.CloseHandle);
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.WaitForSingleObject);
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.GetExitCodeThread);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_CREATE_EVENT, ctx->h_libthread, (void **)&ctx->libthread.CreateEventA);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_CREATE_THREAD, ctx->h_libthread, (void **)&ctx->libthread.CreateThread);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_CLOSE_HANDLE, ctx->h_libthread, (void **)&ctx->libthread.CloseHandle);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_WAIT_FOR_SINGLE_OBJECT, ctx->h_libthread, (void **)&ctx->libthread.WaitForSingleObject);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_GET_EXIT_CODE_THREAD, ctx->h_libthread, (void **)&ctx->libthread.GetExitCodeThread);
 	if(result != 0) return -1;
 	return 0;
 }

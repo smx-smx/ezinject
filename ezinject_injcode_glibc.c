@@ -14,7 +14,7 @@
 INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
-	char *libdl_name = STR_DATA(BR_STRTBL(br));
+	char *libdl_name = BR_STRTBL(br)[EZSTR_API_LIBDL].str;
 
 #if defined(HAVE_LIBC_DLOPEN_MODE)
 	struct link_map *libdl = (struct link_map *) br->libc_dlopen(libdl_name, RTLD_NOW | __RTLD_DLOPEN);

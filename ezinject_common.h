@@ -18,6 +18,8 @@
 #undef ALIGN
 #endif
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 #define ALIGN(x, y) VPTR((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y))
 #define WORDALIGN(x) ALIGN(x, sizeof(void *))
 #define PAGEALIGN(x)  ALIGN(x, getpagesize())
@@ -29,16 +31,40 @@
 
 #define STRSZ(x) (strlen(x) + 1)
 
-#define BR_STRTBL(br) ((char *)br + sizeof(*br) + (sizeof(char *) * br->argc))
-#define STR_ENTSIZE(entry) *(unsigned int *)(entry)
-#define STR_NEXT(entry) (entry) + STR_ENTSIZE(entry)
-#define STR_DATA(entry) ((char *)(entry)) + sizeof(unsigned int)
+enum ezinj_str_id {
+#ifdef EZ_TARGET_LINUX
+	// payload filename.
+	// *MUST* always be the first entry
+	EZSTR_PL_FILENAME = 0,
+#endif
+	EZSTR_API_LIBDL,
+	EZSTR_API_LIBPTHREAD,
+#if defined(EZ_TARGET_POSIX)
+	EZSTR_API_DLERROR,
+	EZSTR_API_PTHREAD_MUTEX_INIT,
+	EZSTR_API_PTHREAD_MUTEX_LOCK,
+	EZSTR_API_PTHREAD_MUTEX_UNLOCK,
+	EZSTR_API_COND_INIT,
+	EZSTR_API_COND_WAIT,
+#elif defined(EZ_TARGET_WINDOWS)
+	EZSTR_API_CREATE_EVENT,
+	EZSTR_API_CREATE_THREAD,
+	EZSTR_API_CLOSE_HANDLE,
+	EZSTR_API_WAIT_FOR_SINGLE_OBJECT,
+	EZSTR_API_GET_EXIT_CODE_THREAD,
+#endif
+	EZSTR_API_CRT_INIT,
+	EZSTR_ARGV0,
+	EZSTR_MAX_DEFAULT
+};
 
-#define STRTBL_SKIP(stbl) stbl = STR_NEXT(stbl)
+struct ezinj_str {
+	unsigned int id;
+	char *str;
+};
 
-#define STRTBL_FETCH(stbl, out) do { \
-	out = STR_DATA(stbl); \
-	STRTBL_SKIP(stbl); \
-} while(0)
+#define BR_STRTBL(br) ((struct ezinj_str *)((char *)br + sizeof(*br) + (sizeof(char *) * br->argc)))
+#define STR_DATA(entry) ((entry)->str)
+
 
 #endif

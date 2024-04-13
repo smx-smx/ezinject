@@ -83,7 +83,7 @@ INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 		return -1;
 	}
 
-	return PCALL(ctx, inj_fetchsym, ctx->h_libdl, (void **)&ctx->libdl.dlerror);
+	return PCALL(ctx, inj_fetchsym, EZSTR_API_DLERROR, ctx->h_libdl, (void **)&ctx->libdl.dlerror);
 }
 
 INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
@@ -92,11 +92,11 @@ INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 	if(_inj_init_libdl(ctx) != 0){
 		return -1;
 	}
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_init);
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_lock);
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_unlock);
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_init);
-	result += PCALL(ctx, inj_fetchsym, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_wait);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_PTHREAD_MUTEX_INIT, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_init);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_PTHREAD_MUTEX_LOCK, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_lock);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_PTHREAD_MUTEX_UNLOCK, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_unlock);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_COND_INIT, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_init);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_COND_WAIT, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_wait);
 	if(result != 0){
 		return -1;
 	}
