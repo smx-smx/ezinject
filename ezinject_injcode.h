@@ -43,7 +43,7 @@
 #define PLAPI SECTION("payload")
 #define SCAPI SECTION("syscall")
 
-#define SIZEOF_BR(br) (sizeof(br) + (br).dyn_size)
+#define SIZEOF_BR(br) (sizeof(br) + (br).dyn_total_size)
 
 // temporary stack size
 #define PL_STACK_SIZE 1024 * 1024 * 2
@@ -132,7 +132,7 @@ struct injcode_plapi {
 	void (*inj_puts)(struct injcode_ctx *ctx, char *str);
 	void (*inj_dchar)(struct injcode_ctx *ctx, char ch);
 	void (*inj_dbgptr)(struct injcode_ctx *ctx, void *ptr);
-	intptr_t (*inj_fetchsym)(struct injcode_ctx *ctx, void *handle, void **sym);
+	intptr_t (*inj_fetchsym)(struct injcode_ctx *ctx, enum ezinj_str_id str_id, void *handle, void **sym);
 };
 
 #define EZST1 0x455A5331 // signaled
@@ -292,14 +292,13 @@ struct injcode_bearing
 	pthread_cond_t cond;
 	uint8_t loaded_signal;
 	struct injcode_user user;
-	int num_strings;
-	off_t argv_offset;
+	unsigned num_strings;
 	int thread_exit_code;
 #ifdef EZ_TARGET_LINUX
 	off_t pl_filename_offset;
 #endif
+	size_t dyn_total_size;
 	int argc;
-	int dyn_size;
 	char *argv[];
 };
 
@@ -391,7 +390,7 @@ extern void *inj_memset(struct injcode_ctx *ctx, void *s, int c, size_t n);
 extern void inj_puts(struct injcode_ctx *ctx, char *str);
 extern void inj_dchar(struct injcode_ctx *ctx, char ch);
 extern void inj_dbgptr(struct injcode_ctx *ctx, void *ptr);
-extern intptr_t inj_fetchsym(struct injcode_ctx *ctx, void *handle, void **sym);
+extern intptr_t inj_fetchsym(struct injcode_ctx *ctx, enum ezinj_str_id str_id, void *handle, void **sym);
 
 extern uint8_t __start_payload SECTION_START("payload");
 extern uint8_t __stop_payload SECTION_END("payload");

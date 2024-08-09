@@ -363,17 +363,18 @@ intptr_t remote_call(
 	return remote_call_common(ctx, &call);
 }
 
-struct ezinj_str ezstr_new(char *str){
+struct ezinj_str ezstr_new(enum ezinj_str_id id, char *str, size_t *pSize){
 	struct ezinj_str bstr = {
-		/**
-		 * align the size of the string entry
-		 * since some architectures (e.g. ARMv4)
-		 * don't like doing unaligned accesses
-		 * and will corrupt memory
-		 */
-		.len = (size_t)WORDALIGN(STRSZ(str)),
+		.id = (enum ezinj_str_id)id,
 		.str = str
 	};
+	/**
+	 * align the size of the string entry
+	 * since some architectures (e.g. ARMv4)
+	 * don't like doing unaligned accesses
+	 * and will corrupt memory
+	 */
+	*pSize = (size_t)WORDALIGN(STRSZ(str));
 	return bstr;
 }
 
@@ -527,74 +528,65 @@ int libc_init(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-/**
- * Marshals the string @str into @strData, advancing the data pointer as needed
- *
- * @param[in]  str
- * 	structure describing the string to copy
- * @param[out] strData
- * 	pointer (pass by reference) to a block of memory where the string will be copied
- * 	the pointer will be incremented by the number of bytes copied
- **/
-void strPush(char **strData, struct ezinj_str str){
-	// write the number of bytes we need to skip to get to the next string
-	unsigned int entry_sz = sizeof(unsigned int) + str.len;
-	memcpy(*strData, &entry_sz, sizeof(unsigned int));
+int push_string(
+	enum ezinj_str_id str_id,
+	struct ezinj_str **pArgs,
+	unsigned *num_strings, unsigned *capacity,
+	size_t *dyn_str_size,
+	char *str
+){
+	if(!str){ return -1; }
 
-	*strData += sizeof(unsigned int);
-
-	// write the string itself
-	unsigned int str_len = STRSZ(str.str);
-	memcpy(*strData, str.str, str_len);
-
-	*strData += str.len;
+	unsigned index = MAX(str_id, *num_strings);
+	if(index >= *capacity){
+		// insert index + 128 new items
+		*capacity = index + 128;
+		*pArgs = realloc(*pArgs, sizeof(struct ezinj_str) * *capacity);
+		if(*pArgs == NULL){
+			PERROR("realloc");
+			return -1;
+		}
+	}
+	size_t str_size = 0;
+	(*pArgs)[str_id] = ezstr_new(str_id, str, &str_size);
+	*dyn_str_size += str_size;
+	return 0;
 }
-
 
 struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *argv[]){
 	size_t dyn_ptr_size = argc * sizeof(char *);
 	size_t dyn_str_size = 0;
 
-	int argsLim = 128;
+	unsigned argsLim = 128;
 	struct ezinj_str *args = calloc(argsLim, sizeof(struct ezinj_str));
+	if(!args){
+		PERROR("calloc");
+		return NULL;
+	}
 
-	int num_strings = 0;
-	int argi = 0;
-	off_t argv_offset = 0;
+	unsigned num_strings = EZSTR_MAX_DEFAULT;
 
-#define PUSH_STRING(str) do { \
-	if(argi >= argsLim) { \
-		args = realloc(args, sizeof(struct ezinj_str) * (argi + 128)); \
-		if(args == NULL) return NULL; \
-		argsLim += 128; \
+#define PUSH_STRING(id, str) do { \
+	if(push_string(id, &args, &num_strings, &argsLim, &dyn_str_size, str) < 0) { \
+		return NULL; \
 	} \
-	args[argi] = ezstr_new(str); \
-	dyn_str_size += args[argi].len + sizeof(unsigned int); \
-	argi++; \
-	num_strings++; \
 } while(0)
 
-	// libdl.so name (without path)
-	PUSH_STRING(DL_LIBRARY_NAME);
-	// libpthread.so name (without path)
-	PUSH_STRING(PTHREAD_LIBRARY_NAME);
+#ifdef EZ_TARGET_LINUX
+	off_t pl_filename_offset = dyn_str_size;
+	/**
+	 * construct tempory payload filename
+	 * yes, we use tempnam as we don't know
+	 * the system temporary directory
+	 **/
+	char *pl_filename = tempnam(NULL, "ezpl");
+	if(pl_filename == NULL){
+		PERROR("tmpnam");
+		return NULL;
+	}
 
-#if defined(EZ_TARGET_POSIX)
-	PUSH_STRING("dlerror");
-	PUSH_STRING("pthread_mutex_init");
-	PUSH_STRING("pthread_mutex_lock");
-	PUSH_STRING("pthread_mutex_unlock");
-	PUSH_STRING("pthread_cond_init");
-	PUSH_STRING("pthread_cond_wait");
-#elif defined(EZ_TARGET_WINDOWS)
-	PUSH_STRING("CreateEventA");
-	PUSH_STRING("CreateThread");
-	PUSH_STRING("CloseHandle");
-	PUSH_STRING("WaitForSingleObject");
-	PUSH_STRING("GetExitCodeThread");
+	PUSH_STRING(EZSTR_PL_FILENAME, pl_filename);
 #endif
-
-	PUSH_STRING("crt_init");
 
 	// library to load
 	char libName[PATH_MAX];
@@ -610,33 +602,42 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	}
 #endif
 
-	argv_offset = dyn_str_size;
-	PUSH_STRING(libName);
+	// libdl.so name (without path)
+	PUSH_STRING(EZSTR_API_LIBDL, DL_LIBRARY_NAME);
+	// libpthread.so name (without path)
+	PUSH_STRING(EZSTR_API_LIBPTHREAD, PTHREAD_LIBRARY_NAME);
+
+#if defined(EZ_TARGET_POSIX)
+	PUSH_STRING(EZSTR_API_DLERROR, "dlerror");
+	PUSH_STRING(EZSTR_API_PTHREAD_MUTEX_INIT, "pthread_mutex_init");
+	PUSH_STRING(EZSTR_API_PTHREAD_MUTEX_LOCK, "pthread_mutex_lock");
+	PUSH_STRING(EZSTR_API_PTHREAD_MUTEX_UNLOCK, "pthread_mutex_unlock");
+	PUSH_STRING(EZSTR_API_COND_INIT, "pthread_cond_init");
+	PUSH_STRING(EZSTR_API_COND_WAIT, "pthread_cond_wait");
+#elif defined(EZ_TARGET_WINDOWS)
+	PUSH_STRING(EZSTR_API_CREATE_EVENT, "CreateEventA");
+	PUSH_STRING(EZSTR_API_CREATE_THREAD, "CreateThread");
+	PUSH_STRING(EZSTR_API_CLOSE_HANDLE, "CloseHandle");
+	PUSH_STRING(EZSTR_API_WAIT_FOR_SINGLE_OBJECT, "WaitForSingleObject");
+	PUSH_STRING(EZSTR_API_GET_EXIT_CODE_THREAD, "GetExitCodeThread");
+#endif
+
+	PUSH_STRING(EZSTR_API_CRT_INIT, "crt_init");
+
+	// argv0
+	PUSH_STRING(EZSTR_ARGV0, libName);
 
 	// user arguments
 	for(int i=1; i < argc; i++){
-		PUSH_STRING(argv[i]);
+		PUSH_STRING(EZSTR_ARGV0+i, argv[i]);
+		++num_strings;
 	}
 
-#ifdef EZ_TARGET_LINUX
-	off_t pl_filename_offset = dyn_str_size;
-	/**
-	 * construct tempory payload filename
-	 * yes, we use tempnam as we don't know
-	 * the system temporary directory
-	 **/
-	char *pl_filename = tempnam(NULL, "ezpl");
-	if(pl_filename == NULL){
-		PERROR("tmpnam");
-		return NULL;
-	}
-
-	PUSH_STRING(pl_filename);
-#endif
 
 #undef PUSH_STRING
 
-	size_t dyn_total_size = dyn_ptr_size + dyn_str_size;
+	size_t dyn_entries_size = num_strings * sizeof(struct ezinj_str);
+	size_t dyn_total_size = dyn_ptr_size + dyn_entries_size + dyn_str_size;
 	size_t mapping_size = create_layout(ctx, dyn_total_size, &ctx->pl);
 
 	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
@@ -685,16 +686,30 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #undef USE_LIBC_SYM
 
 	br->argc = argc;
-	br->dyn_size = dyn_total_size;
+	br->dyn_total_size = dyn_total_size;
 	br->num_strings = num_strings;
-	br->argv_offset = argv_offset;
 #ifdef EZ_TARGET_LINUX
 	br->pl_filename_offset = pl_filename_offset;
 #endif
 
-	char *stringData = (char *)br + sizeof(*br) + dyn_ptr_size;
-	for(int i=0; i<num_strings; i++){
-		strPush(&stringData, args[i]);
+	char *stringEntries = (char *)br + sizeof(*br) + dyn_ptr_size;
+	char *stringData = stringEntries + dyn_entries_size;
+	
+	struct ezinj_str *pEntries = (struct ezinj_str *)stringEntries;
+	size_t strtbl_off = 0;
+	for(unsigned i=0; i<num_strings; i++){
+		pEntries->id = args[i].id;
+		// store the current string offset. it will rebased by injcode
+		pEntries->str = (char *)strtbl_off;
+		++pEntries;
+
+		if(!args[i].str){
+			continue;
+		}
+		size_t str_sz = STRSZ(args[i].str);
+		memcpy(stringData, args[i].str, str_sz);
+		stringData += str_sz;
+		strtbl_off += str_sz;
 	}
 
 #ifdef EZ_TARGET_LINUX
@@ -799,7 +814,7 @@ int ezinject_main(
 
 	signal(SIGINT, sigint_handler);
 
-	// allocate bearing on shared memory
+	// prepare bearing
 	struct injcode_bearing *br = prepare_bearing(ctx, argc, argv);
 	if(br == NULL){
 		return -1;

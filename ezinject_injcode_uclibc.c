@@ -46,7 +46,7 @@ INLINE unsigned _get_global_scope_offset(struct injcode_ctx *ctx){
 INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
-    char *libdl_name = STR_DATA(BR_STRTBL(br));
+    char *libdl_name = BR_STRTBL(br)[EZSTR_API_LIBDL].str;
 
 	struct elf_resolve_hdr *tpnt;
 

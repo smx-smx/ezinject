@@ -130,11 +130,6 @@ struct ezinj_ctx {
 	struct ezinj_ctx_plapi plapi;
 };
 
-struct ezinj_str {
-	unsigned int len;
-	char *str;
-};
-
 #define CALL_HAS_ARG(call, i) ((call).argmask & (1 << i))
 #define CALL_GET_ARG(call, i) (CALL_HAS_ARG(call, i) ? (call).argv[i] : 0)
 // nr, a0, a1, a2, a3, a4, a5, a6

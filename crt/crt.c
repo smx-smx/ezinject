@@ -127,11 +127,9 @@ WINAPI void *crt_user_entry(void *arg) {
 	// prepare argv
 	char **dynPtr = &br->argv[0];
 
-	char *stbl = BR_STRTBL(br) + br->argv_offset;
-	for(int i=0; i<br->argc; i++){
-		char *arg = NULL;
-		STRTBL_FETCH(stbl, arg);
-		*(dynPtr++) = arg;
+	struct ezinj_str *stbl = &BR_STRTBL(br)[EZSTR_ARGV0];
+	for(int i=0; i<br->argc; i++, stbl++){
+		*(dynPtr++) = stbl->str;
 	}
 
 #ifdef DEBUG

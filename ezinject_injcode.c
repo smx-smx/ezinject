@@ -177,7 +177,7 @@ struct injcode_ctx {
 	struct dl_api libdl;
 	struct thread_api libthread;
 	struct injcode_plapi plapi;
-	char *stbl;
+	struct ezinj_str *stbl;
 
 	char *libdl_name;
 	char *libpthread_name;
@@ -199,11 +199,10 @@ struct injcode_ctx {
 
 intptr_t PLAPI inj_fetchsym(
 	struct injcode_ctx *ctx,
+	enum ezinj_str_id str_id,
 	void *handle, void **sym
 ){
-	char *sym_name;
-	// advances stbl in ctx
-	STRTBL_FETCH(ctx->stbl, sym_name);
+	char *sym_name = ctx->stbl[str_id].str;
 #ifdef DEBUG
 	PCALL(ctx, inj_puts, sym_name);
 #endif
@@ -266,17 +265,12 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
 	int (*crt_init)(struct injcode_bearing *br);
-	char *sym_crt_init = NULL;
-	STRTBL_FETCH(ctx->stbl, sym_crt_init);
+	char *sym_crt_init = BR_STRTBL(br)[EZSTR_API_CRT_INIT].str;
 
 	// fetch argv[0], the library absolute path
-	char *stbl_argv = BR_STRTBL(br) + br->argv_offset;
-	STRTBL_FETCH(stbl_argv, ctx->userlib_name);
-
-	//asm volatile(JMP_INSN " .");
-	PCALL(ctx, inj_puts, ctx->userlib_name);
-
+	ctx->userlib_name = BR_STRTBL(br)[EZSTR_ARGV0].str;
 	br->userlib = inj_dlopen(ctx, ctx->userlib_name, RTLD_NOW);
+
 	PCALL(ctx, inj_dbgptr, br->userlib);
 	if(br->userlib == NULL){
 		return -1;
@@ -316,11 +310,18 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		return 0;
 	}
 
+	/** convert string offsets to pointers */
+	char *str_base = (char *)PTRADD(ctx->stbl, sizeof(struct ezinj_str) * br->num_strings);
+	for(unsigned i=0; i<br->num_strings; i++){
+		ctx->stbl[i].str = (char *)PTRADD(ctx->stbl[i].str, str_base);
+	}
+
 	intptr_t result = 0;
 	// entry
 	PCALL(ctx, inj_dchar, 'e');
-	STRTBL_FETCH(ctx->stbl, ctx->libdl_name);
-	STRTBL_FETCH(ctx->stbl, ctx->libpthread_name);
+
+	ctx->libdl_name = BR_STRTBL(br)[EZSTR_API_LIBDL].str;
+	ctx->libpthread_name = BR_STRTBL(br)[EZSTR_API_LIBPTHREAD].str;
 
 	if(inj_libdl_init(ctx) != 0){
 		PCALL(ctx, inj_dchar, '!');

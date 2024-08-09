@@ -34,13 +34,8 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 static EZAPI _export_pl(struct ezinj_ctx *ctx){
 	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
 
-	if(br->pl_filename_offset == 0){
-		ERR("pl_filename_offset is not set!");
-		return -1;
-	}
-
-	char *stbl = BR_STRTBL(br) + br->pl_filename_offset;
-	char *pl_filename = STR_DATA(stbl);
+	// first string after the entries
+	char *pl_filename = (char *)&BR_STRTBL(br)[br->num_strings];
 
 	INFO("exporting payload to %s", pl_filename);
 
@@ -74,22 +69,19 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 	 * [entry size][pl filename (NULL terminated)]
 	 **/
 
-	char *stbl_entry = BR_STRTBL(br) + br->pl_filename_offset;
+	struct ezinj_str *stbl = BR_STRTBL(br);
+	char *pl_filename = (char *)PTRADD(stbl, sizeof(struct ezinj_str) * br->num_strings);
+	uintptr_t r_pl_filename = PL_REMOTE(ctx, pl_filename);
+
 	// remote_write always writes in word units
-	uintptr_t stbl_entry_size = (uintptr_t)WORDALIGN(STR_ENTSIZE(stbl_entry));
-	uintptr_t r_stbl_entry = PL_REMOTE(ctx, stbl_entry);
+	size_t str_sz = (size_t)WORDALIGN(STRSZ(pl_filename));
 
 	/** write the payload filename string table entry */
-	size_t written = remote_write(ctx, r_stbl_entry, stbl_entry, stbl_entry_size);
-	if(written != stbl_entry_size){
-		ERR("remote_write: failed to write pl_filename (%zu != %zu)", written, stbl_entry_size);
+	size_t written = remote_write(ctx, r_pl_filename, pl_filename, str_sz);
+	if(written != str_sz){
+		ERR("remote_write: failed to write pl_filename (%zu != %zu)", written, str_sz);
 		return -1;
 	}
-
-	char *pl_filename = STR_DATA(stbl_entry);
-
-	// address of the stbl data entry we just wrote
-	uintptr_t r_pl_filename = PL_REMOTE(ctx, pl_filename);
 
 	intptr_t rc = -1;
 	do {
