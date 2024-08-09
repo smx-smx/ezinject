@@ -19,13 +19,19 @@
 #include "log.h"
 #include "util.h"
 
-NTSTATUS NTAPI (*RtlQueryProcessDebugInformation)(
+/** WinNT API */
+NTSTATUS NTAPI (*pfnRtlQueryProcessDebugInformation)(
 	HANDLE UniqueProcessId,
 	ULONG Flags,
 	PRTL_DEBUG_INFORMATION Buffer
-);
-PRTL_DEBUG_INFORMATION NTAPI (*RtlCreateQueryDebugBuffer)(ULONG Size, BOOLEAN EventPair);
-NTSTATUS NTAPI (*RtlDestroyQueryDebugBuffer)(PRTL_DEBUG_INFORMATION Buffer);
+) = NULL;
+PRTL_DEBUG_INFORMATION NTAPI (*pfnRtlCreateQueryDebugBuffer)(ULONG Size, BOOLEAN EventPair) = NULL;
+NTSTATUS NTAPI (*pfnRtlDestroyQueryDebugBuffer)(PRTL_DEBUG_INFORMATION Buffer) = NULL;
+
+/** Win32 API */
+HANDLE WINAPI (*pfnCreateToolhelp32Snapshot)(DWORD dwFlags,DWORD th32ProcessID) = NULL;
+BOOL WINAPI (*pfnModule32First)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
+BOOL WINAPI (*pfnModule32Next)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
 
 BOOL win32_errstr(DWORD dwErrorCode, LPTSTR pBuffer, DWORD cchBufferLength){
 	if(cchBufferLength == 0){
@@ -119,13 +125,13 @@ static void *get_base_winnt(pid_t pid, char *substr, char **ignores) {
 
 	void *base = NULL;
 	do {
-		PRTL_DEBUG_INFORMATION debugBuffer = RtlCreateQueryDebugBuffer(0, FALSE);
+		PRTL_DEBUG_INFORMATION debugBuffer = pfnRtlCreateQueryDebugBuffer(0, FALSE);
 		if(!debugBuffer){
 			PERROR("RtlCreateQueryDebugBuffer");
 			break;
 		}
 
-		RtlQueryProcessDebugInformation((HANDLE)pid, RTL_DEBUG_QUERY_MODULES, debugBuffer);
+		pfnRtlQueryProcessDebugInformation((HANDLE)pid, RTL_DEBUG_QUERY_MODULES, debugBuffer);
 
 		DBG("number of modules: %u", debugBuffer->Modules->NumberOfModules);
 		for(unsigned i=0; i<debugBuffer->Modules->NumberOfModules; i++){
@@ -156,7 +162,7 @@ static void *get_base_winnt(pid_t pid, char *substr, char **ignores) {
 			}
 		}
 
-		RtlDestroyQueryDebugBuffer(debugBuffer);
+		pfnRtlDestroyQueryDebugBuffer(debugBuffer);
 	} while(0);
 	CloseHandle(hProcess);
 
@@ -176,27 +182,6 @@ static void *get_base_toolhelp(pid_t pid, char *substr, char **ignores){
 		return NULL;
 	}
 	BOOL isWINNT = osvi.dwPlatformId == VER_PLATFORM_WIN32_NT;
-
-
-	HANDLE WINAPI (*pfnCreateToolhelp32Snapshot)(DWORD dwFlags,DWORD th32ProcessID) = NULL;
-	BOOL WINAPI (*pfnModule32First)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
-	BOOL WINAPI (*pfnModule32Next)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
-
-	HMODULE hKernel32 = GetModuleHandle("kernel32.dll");
-	if(!hKernel32){
-		PERROR("GetModuleHandle");
-		return NULL;
-	}
-
-	pfnCreateToolhelp32Snapshot = (typeof(pfnCreateToolhelp32Snapshot)) GetProcAddress(hKernel32, "CreateToolhelp32Snapshot");
-	pfnModule32First = (typeof(pfnModule32First)) GetProcAddress(hKernel32, "Module32First");
-	pfnModule32Next = (typeof(pfnModule32Next)) GetProcAddress(hKernel32, "Module32Next");
-
-	if(!pfnCreateToolhelp32Snapshot || !pfnModule32First || !pfnModule32Next){
-		ERR("Failed to resolve ToolHelp APIs");
-		return NULL;
-	}
-
 
 	hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
                             PROCESS_VM_READ,

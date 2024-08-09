@@ -391,6 +391,42 @@ struct ezinj_str ezstr_new(char *str){
 #define LIBC_SEARCH C_LIBRARY_NAME
 #endif
 
+#ifdef EZ_TARGET_WINDOWS
+static EZAPI _win32_init_process_apis(OSVERSIONINFO *osvi){
+	/** init APIs for get_base */
+	if(osvi->dwPlatformId == VER_PLATFORM_WIN32_NT){
+		HMODULE ntdll = GetModuleHandle("ntdll.dll");
+		pfnRtlQueryProcessDebugInformation = LIB_GETSYM(ntdll, "RtlQueryProcessDebugInformation");
+		pfnRtlCreateQueryDebugBuffer = LIB_GETSYM(ntdll, "RtlCreateQueryDebugBuffer");
+		pfnRtlDestroyQueryDebugBuffer = LIB_GETSYM(ntdll, "RtlDestroyQueryDebugBuffer");
+		DBGPTR(pfnRtlQueryProcessDebugInformation);
+		DBGPTR(pfnRtlCreateQueryDebugBuffer);
+		DBGPTR(pfnRtlDestroyQueryDebugBuffer);
+		if(!pfnRtlQueryProcessDebugInformation || !pfnRtlCreateQueryDebugBuffer || !pfnRtlDestroyQueryDebugBuffer){
+			ERR("Failed to resolve Windows NT APIs");
+			return -1;
+		}
+	} else {
+		HMODULE hKernel32 = GetModuleHandle("kernel32.dll");
+		if(!hKernel32){
+			PERROR("GetModuleHandle");
+			return -1;
+		}
+		pfnCreateToolhelp32Snapshot = LIB_GETSYM(hKernel32, "CreateToolhelp32Snapshot");
+		pfnModule32First = LIB_GETSYM(hKernel32, "Module32First");
+		pfnModule32Next = LIB_GETSYM(hKernel32, "Module32Next");
+		DBGPTR(pfnCreateToolhelp32Snapshot);
+		DBGPTR(pfnModule32First);
+		DBGPTR(pfnModule32Next);
+		if(!pfnCreateToolhelp32Snapshot || !pfnModule32First || !pfnModule32Next){
+			ERR("Failed to resolve ToolHelp APIs");
+			return -1;
+		}
+	}
+	return 0;
+}
+#endif
+
 /**
  * @brief default implementation of libc lookup
  *
@@ -407,8 +443,12 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		PERROR("GetVersionEx");
 		return 1;
 	}
+	if(_win32_init_process_apis(&osvi) < 0){
+		ERR("_win32_init_process_apis() failed");
+		return 1;
+	}
 	if(osvi.dwPlatformId != VER_PLATFORM_WIN32_NT){
-		// win32, do nothing
+		// win32, stop here
 		return 0;
 	}
 #endif
@@ -420,16 +460,6 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		ERR("dlopen("C_LIBRARY_NAME") failed: %s", LIB_ERROR());
 		return 1;
 	}
-
-	#ifdef EZ_TARGET_WINDOWS
-	/** init APIs for get_base */
-	RtlQueryProcessDebugInformation = LIB_GETSYM(h_libc, "RtlQueryProcessDebugInformation");
-	RtlCreateQueryDebugBuffer = LIB_GETSYM(h_libc, "RtlCreateQueryDebugBuffer");
-	RtlDestroyQueryDebugBuffer = LIB_GETSYM(h_libc, "RtlDestroyQueryDebugBuffer");
-	DBGPTR(RtlQueryProcessDebugInformation);
-	DBGPTR(RtlCreateQueryDebugBuffer);
-	DBGPTR(RtlDestroyQueryDebugBuffer);
-	#endif
 
 	ez_addr libc = {
 		.local  = (uintptr_t) get_base(getpid(), LIBC_SEARCH, ignores),

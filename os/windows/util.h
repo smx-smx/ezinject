@@ -10,6 +10,7 @@
 #define __WINDOWS_UTIL_H
 
 #include <windows.h>
+#include <tlhelp32.h>
 BOOL win32_errstr(DWORD dwErrorCode, LPTSTR pBuffer, DWORD cchBufferLength);
 
 //
@@ -39,7 +40,7 @@ typedef struct _RTL_PROCESS_MODULE_INFORMATION
     USHORT InitOrderIndex;
     USHORT LoadCount;
     USHORT OffsetToFileName;
-    UCHAR FullPathName[256];
+    CHAR FullPathName[256];
 } RTL_PROCESS_MODULE_INFORMATION, *PRTL_PROCESS_MODULE_INFORMATION;
 
 typedef struct _RTL_PROCESS_MODULES
@@ -89,12 +90,16 @@ typedef struct _RTL_DEBUG_INFORMATION
 	PVOID Reserved[4];
 } RTL_DEBUG_INFORMATION, *PRTL_DEBUG_INFORMATION;
 
-extern NTSTATUS NTAPI (*RtlQueryProcessDebugInformation)(
+extern NTSTATUS NTAPI (*pfnRtlQueryProcessDebugInformation)(
 	HANDLE UniqueProcessId,
 	ULONG Flags,
 	PRTL_DEBUG_INFORMATION Buffer
 );
-extern PRTL_DEBUG_INFORMATION NTAPI (*RtlCreateQueryDebugBuffer)(ULONG Size, BOOLEAN EventPair);
-extern NTSTATUS NTAPI (*RtlDestroyQueryDebugBuffer)(PRTL_DEBUG_INFORMATION Buffer);
+extern PRTL_DEBUG_INFORMATION NTAPI (*pfnRtlCreateQueryDebugBuffer)(ULONG Size, BOOLEAN EventPair);
+extern NTSTATUS NTAPI (*pfnRtlDestroyQueryDebugBuffer)(PRTL_DEBUG_INFORMATION Buffer);
+
+extern HANDLE WINAPI (*pfnCreateToolhelp32Snapshot)(DWORD dwFlags,DWORD th32ProcessID);
+extern BOOL WINAPI (*pfnModule32First)(HANDLE hSnapshot, LPMODULEENTRY32 lpme);
+extern BOOL WINAPI (*pfnModule32Next)(HANDLE hSnapshot, LPMODULEENTRY32 lpme);
 
 #endif
