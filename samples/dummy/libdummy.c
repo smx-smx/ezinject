@@ -48,7 +48,6 @@ void installHooks(){
 		return;
 	}
 
-	void *codeMem = NULL;
 	int error = 1;
 
 	do {

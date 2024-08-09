@@ -120,7 +120,7 @@ int lib_main(int argc, char *argv[]){
 	lprintf("Script: %s\n", pythonScript);
 	lprintf("Script dir: %s, filename: %s\n", scriptDir, scriptName);
 	// prepend script directory
-	strncat(gEnvPythonPath, scriptDir, sizeof(gEnvPythonPath));
+	strncat(gEnvPythonPath, scriptDir, sizeof(gEnvPythonPath)-1);
 	{
 		char *end = strchr(gEnvPythonPath, '\0');
 		#ifdef EZ_TARGET_WINDOWS
@@ -130,7 +130,7 @@ int lib_main(int argc, char *argv[]){
 		#endif
 		*end = '\0';
 	}
-	strncat(gEnvPythonPath, pythonPath, sizeof(gEnvPythonPath));
+	strncat(gEnvPythonPath, pythonPath, sizeof(gEnvPythonPath)-1);
 
 	putenv(gEnvPythonPath);
 	putenv(gEnvPythonIoEncoding);

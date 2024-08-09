@@ -56,14 +56,6 @@ static ez_region region_pl_code = {
 	.end = (void *)&__stop_payload
 };
 
-static void *code_data(void *code){
-#if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
-	return (void *)(UPTR(code) & ~1);
-#else
-	return code;
-#endif
-}
-
 #ifdef HAVE_SC
 uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 #endif
@@ -271,7 +263,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	// in that case, it will return the *current* SIGRTMIN, which is not what we want
 	#undef SIGRTMIN
 	#define SIGRTMIN 32
-		#define IS_IGNORED_SIG(x) ((x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
+		#define IS_IGNORED_SIG(x) ((x) == SIGCHLD || (x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
 
 		wait = 0;
 
@@ -379,7 +371,7 @@ struct ezinj_str ezstr_new(char *str){
 		 * don't like doing unaligned accesses
 		 * and will corrupt memory
 		 */
-		.len = (unsigned int)(uintptr_t)WORDALIGN(STRSZ(str)),
+		.len = (size_t)WORDALIGN(STRSZ(str)),
 		.str = str
 	};
 	return bstr;
@@ -563,13 +555,19 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	size_t dyn_ptr_size = argc * sizeof(char *);
 	size_t dyn_str_size = 0;
 
-	struct ezinj_str args[32];
+	int argsLim = 128;
+	struct ezinj_str *args = calloc(argsLim, sizeof(struct ezinj_str));
 
 	int num_strings = 0;
 	int argi = 0;
 	off_t argv_offset = 0;
 
 #define PUSH_STRING(str) do { \
+	if(argi >= argsLim) { \
+		args = realloc(args, sizeof(struct ezinj_str) * (argi + 128)); \
+		if(args == NULL) return NULL; \
+		argsLim += 128; \
+	} \
 	args[argi] = ezstr_new(str); \
 	dyn_str_size += args[argi].len + sizeof(unsigned int); \
 	argi++; \
@@ -645,6 +643,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	memset(br, 0x00, sizeof(*br));
 
 	if(!br){
+		free(args);
 		PERROR("malloc");
 		return NULL;
 	}
@@ -704,6 +703,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 	// copy code
 	memcpy(ctx->pl.code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
+	free(args);
 	return br;
 }
 
@@ -722,7 +722,7 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 		mapping_size = (size_t)ALIGN(mapping_size, sysInfo.dwPageSize);
 	}
 	#else
-	mapping_size = PAGEALIGN(mapping_size);
+	mapping_size = (size_t)PAGEALIGN(mapping_size);
 	#endif
 
 	DBG("br_size=%zu", br_size);
