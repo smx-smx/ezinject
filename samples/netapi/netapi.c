@@ -94,11 +94,12 @@ static void _build_pkt(struct ez_pkt *pkt, uint8_t *data, unsigned length){
 }
 
 intptr_t safe_send(int fd, void *buf, size_t length, int flags){
+	UNUSED(flags);
 	uint8_t *pb = (uint8_t *)buf;
 
 	size_t acc = 0;
 	while(acc < length){
-		ssize_t sent = send(fd, &pb[acc], length - acc, 0);
+		ssize_t sent = send(fd, (void *)(&pb[acc]), length - acc, 0);
 		if(sent < 0){
 			PERROR("send");
 			return -1;
@@ -109,11 +110,12 @@ intptr_t safe_send(int fd, void *buf, size_t length, int flags){
 }
 
 intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
+	UNUSED(flags);
 	uint8_t *pb = (uint8_t *)buf;
 
 	size_t acc = 0;
 	while(acc < length){
-		ssize_t received = recv(fd, &pb[acc], length - acc, 0);
+		ssize_t received = recv(fd, (void *)(&pb[acc]), length - acc, 0);
 		if(received < 0){
 			PERROR("recv");
 			return -1;
@@ -123,20 +125,20 @@ intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
 	return (intptr_t)acc;
 }
 
-intptr_t send_data(int fd, uint8_t *data, unsigned size){
+intptr_t send_data(int fd, void *data, unsigned size){
 	struct ez_pkt pkt;
 	memset(&pkt, 0x00, sizeof(pkt));
 	_build_pkt(&pkt, data, size);
 
 	uint8_t *pb = (uint8_t *)&pkt;
 #ifdef WEBAPI_DEBUG
-	for(unsigned i=0; i<sizeof(pkt); i++){
+	for(size_t i=0; i<sizeof(pkt); i++){
 		printf("%02hhx ", pb[i]);
 	}
 	puts("");
 #endif
 
-	if(send(fd, &pkt, sizeof(pkt), 0) != sizeof(pkt)){
+	if(send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
 		return -1;
 	}
 	return 0;
@@ -157,7 +159,7 @@ intptr_t send_datahdr(int fd, unsigned size){
 
 	_build_pkt(&pkt, NULL, 0);
 	pkt.body_length = ntohl(size);
-	if(send(fd, &pkt, sizeof(pkt), 0) != sizeof(pkt)){
+	if(send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
 		return -1;
 	}
 	return 0;
@@ -385,7 +387,7 @@ int handle_client(int client){
 
 void *start_server(void *arg){
 	unsigned short port = (unsigned short)(uintptr_t)arg;
-	uintptr_t rc = 0;
+	int rc = 0;
 	do {
 		int sock = socket(AF_INET, SOCK_STREAM, 0);
 		if(sock < 0){
@@ -400,7 +402,7 @@ void *start_server(void *arg){
 			.sin_port = htons(port)
 		};
 		int enable = 1;
-		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0){
+		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *)&enable, sizeof(int)) < 0){
     		perror("setsockopt(SO_REUSEADDR)");
 		}
 		if(bind(sock, (struct sockaddr *)&sa, sizeof(sa)) < 0){

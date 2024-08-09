@@ -9,9 +9,25 @@
 
 #define PL_RETURN(sc, x) do { \
 	((sc)->result = (x)); \
-	asm volatile("int $3\n"); \
 	return 0; \
 } while(0)
+
+intptr_t SCAPI injected_virtual_alloc(volatile struct injcode_call *sc){
+	return (intptr_t)sc->VirtualAlloc(
+		(LPVOID)sc->argv[1],
+		(SIZE_T)sc->argv[2],
+		(DWORD)sc->argv[3],
+		(DWORD)sc->argv[4]
+	);
+}
+
+intptr_t SCAPI injected_virtual_free(volatile struct injcode_call *sc){
+	return (intptr_t)sc->VirtualFree(
+		(LPVOID)sc->argv[1],
+		(SIZE_T)sc->argv[2],
+		(DWORD)sc->argv[3]
+	);
+}
 
 INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
 	UNUSED(ctx);
@@ -50,7 +66,7 @@ INLINE intptr_t inj_thread_wait(
 		result = api->GetExitCodeThread(br->hThread, &exitStatus);
 	} while(result != FALSE && exitStatus == STILL_ACTIVE);
 
-	PCALL(ctx, inj_dbgptr, exitStatus);
+	PCALL(ctx, inj_dbgptr, VPTR(exitStatus));
 
 	*pExitStatus = exitStatus;
 	return 0;
@@ -99,11 +115,17 @@ INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 }
 
 INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
-	return _inj_get_kernel32(ctx->br);
+	return (void *)ctx->br->kernel32_base;
+	//return _inj_get_kernel32(ctx->br);
 }
 
 INLINE intptr_t inj_remove_chrome_sandbox(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
+
+	if(br->LdrRegisterDllNotification == NULL
+	|| br->LdrUnregisterDllNotification == NULL){
+		return 0;
+	}
 
 	PVOID cookie = NULL;
 	// register a dummy invalid CB to get the list tail

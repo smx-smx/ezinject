@@ -7,23 +7,22 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 #include "ezinject.h"
+#include "win32_syscalls.h"
 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
-	return (uintptr_t)VirtualAllocEx(
-		ctx->hProc, NULL,
-		mapping_size,
-		MEM_COMMIT | MEM_RESERVE,
-		PAGE_EXECUTE_READWRITE
-	);
+	return (uintptr_t)CHECK(RSCALL4(ctx, __NR_mmap,
+		NULL, // lpAddress
+		mapping_size, // dwSize
+		MEM_COMMIT | MEM_RESERVE, // flAllocationType
+		PAGE_EXECUTE_READWRITE // flProtect
+	));
 }
 
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
-	UNUSED(ctx);
-	UNUSED(remote_shmaddr);
-	return 0;
+	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
+	return (uintptr_t)CHECK(RSCALL3(ctx, __NR_munmap,
+		remote_shmaddr, // lpAddress
+		br->mapping_size, // dwSize
+		MEM_RELEASE // dwFreeType
+	));
 }
-
-EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *sc_base){ return 0; }
-EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base){ return 0; }
-EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){ return 0; }
-EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base){ return 0; }

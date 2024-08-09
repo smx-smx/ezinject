@@ -42,6 +42,11 @@
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
+#ifdef EZ_TARGET_WINDOWS
+#include "os/windows/util.h"
+#endif
+
+
 LOG_SETUP(V_INFO);
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
@@ -103,6 +108,12 @@ intptr_t setregs_syscall(
 	rcall->libc_open = (void *)ctx->libc_open.remote;
 	rcall->libc_read = (void *)ctx->libc_read.remote;
 #endif
+#ifdef EZ_TARGET_WINDOWS
+	rcall->VirtualAlloc = (void *)ctx->virtual_alloc.remote;
+	rcall->VirtualFree = (void *)ctx->virtual_free.remote;
+	rcall->SuspendThread = (void *)ctx->suspend_thread.remote;
+	rcall->GetCurrentThread = (void *)ctx->get_current_thread.remote;
+#endif
 
 #define PLAPI_USE(fn) rcall->plapi.fn = (void *)ctx->plapi.fn;
 	PLAPI_USE(inj_memset);
@@ -142,7 +153,7 @@ intptr_t setregs_syscall(
 		}
 	} else {
 		// call the user supplied target through the wrapper
-		rcall->wrapper.target = (void *)ctx->branch_target.remote;
+		rcall->wrapper.target = (intptr_t (*)(volatile struct injcode_call *))ctx->branch_target.remote;
 	}
 	#else
 	// call the user supplied target through the trampoline
@@ -236,6 +247,11 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 
 	int wait = 0;
 	do {
+		#ifdef EZ_TARGET_WINDOWS
+		// hack
+		ctx->r_ezstate_addr = RCALL_FIELD_ADDR(&call->rcall, ezstate);
+		#endif
+
 		intptr_t status = remote_wait(ctx, 0);
 		if(status < 0){
 			ERR("remote_wait failed");
@@ -367,6 +383,42 @@ struct ezinj_str ezstr_new(char *str){
 #define LIBC_SEARCH C_LIBRARY_NAME
 #endif
 
+#ifdef EZ_TARGET_WINDOWS
+static EZAPI _win32_init_process_apis(OSVERSIONINFO *osvi){
+	/** init APIs for get_base */
+	if(osvi->dwPlatformId == VER_PLATFORM_WIN32_NT){
+		HMODULE ntdll = GetModuleHandle("ntdll.dll");
+		pfnRtlQueryProcessDebugInformation = LIB_GETSYM(ntdll, "RtlQueryProcessDebugInformation");
+		pfnRtlCreateQueryDebugBuffer = LIB_GETSYM(ntdll, "RtlCreateQueryDebugBuffer");
+		pfnRtlDestroyQueryDebugBuffer = LIB_GETSYM(ntdll, "RtlDestroyQueryDebugBuffer");
+		DBGPTR(pfnRtlQueryProcessDebugInformation);
+		DBGPTR(pfnRtlCreateQueryDebugBuffer);
+		DBGPTR(pfnRtlDestroyQueryDebugBuffer);
+		if(!pfnRtlQueryProcessDebugInformation || !pfnRtlCreateQueryDebugBuffer || !pfnRtlDestroyQueryDebugBuffer){
+			ERR("Failed to resolve Windows NT APIs");
+			return -1;
+		}
+	} else {
+		HMODULE hKernel32 = GetModuleHandle("kernel32.dll");
+		if(!hKernel32){
+			PERROR("GetModuleHandle");
+			return -1;
+		}
+		pfnCreateToolhelp32Snapshot = LIB_GETSYM(hKernel32, "CreateToolhelp32Snapshot");
+		pfnModule32First = LIB_GETSYM(hKernel32, "Module32First");
+		pfnModule32Next = LIB_GETSYM(hKernel32, "Module32Next");
+		DBGPTR(pfnCreateToolhelp32Snapshot);
+		DBGPTR(pfnModule32First);
+		DBGPTR(pfnModule32Next);
+		if(!pfnCreateToolhelp32Snapshot || !pfnModule32First || !pfnModule32Next){
+			ERR("Failed to resolve ToolHelp APIs");
+			return -1;
+		}
+	}
+	return 0;
+}
+#endif
+
 /**
  * @brief default implementation of libc lookup
  *
@@ -375,7 +427,32 @@ struct ezinj_str ezstr_new(char *str){
 static int libc_init_default(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
 
+#ifdef EZ_TARGET_WINDOWS
+	OSVERSIONINFO osvi = {
+		.dwOSVersionInfoSize = sizeof(osvi)
+	};
+	if(!GetVersionEx(&osvi)) {
+		PERROR("GetVersionEx");
+		return 1;
+	}
+	if(_win32_init_process_apis(&osvi) < 0){
+		ERR("_win32_init_process_apis() failed");
+		return 1;
+	}
+	if(osvi.dwPlatformId != VER_PLATFORM_WIN32_NT){
+		// win32, stop here
+		return 0;
+	}
+#endif
+
 	INFO("Looking up " C_LIBRARY_NAME);
+
+	void *h_libc = LIB_OPEN(C_LIBRARY_NAME);
+	if(!h_libc){
+		ERR("dlopen("C_LIBRARY_NAME") failed: %s", LIB_ERROR());
+		return 1;
+	}
+
 	ez_addr libc = {
 		.local  = (uintptr_t) get_base(getpid(), LIBC_SEARCH, ignores),
 		.remote = (uintptr_t) get_base(ctx->target, LIBC_SEARCH, ignores)
@@ -389,12 +466,6 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		return 1;
 	}
 	ctx->libc = libc;
-
-	void *h_libc = LIB_OPEN(C_LIBRARY_NAME);
-	if(!h_libc){
-		ERR("dlopen("C_LIBRARY_NAME") failed: %s", LIB_ERROR());
-		return 1;
-	}
 
 	{
 		void *h_libdl = LIB_OPEN(DL_LIBRARY_NAME);
@@ -416,22 +487,16 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		};
 		ctx->libdl = libdl;
 
-		DBGPTR(libdl.local);
-		DBGPTR(libdl.remote);
-
 		void *dlopen_local = LIB_GETSYM(h_libdl, "dlopen");
 		off_t dlopen_offset = (off_t)PTRDIFF(dlopen_local, libdl.local);
-		DBG("dlopen offset: 0x%lx", dlopen_offset);
 		ctx->dlopen_offset = dlopen_offset;
 
 		void *dlclose_local = LIB_GETSYM(h_libdl, "dlclose");
 		off_t dlclose_offset = (off_t)PTRDIFF(dlclose_local, libdl.local);
-		DBG("dlclose offset: 0x%lx", dlclose_offset);
 		ctx->dlclose_offset = dlclose_offset;
 
 		void *dlsym_local = LIB_GETSYM(h_libdl, "dlsym");
 		off_t dlsym_offset = (off_t)PTRDIFF(dlsym_local, libdl.local);
-		DBG("dlsym offset: 0x%lx", dlsym_offset);
 		ctx->dlsym_offset = dlsym_offset;
 
 		LIB_CLOSE(h_libdl);
@@ -541,7 +606,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	}
 #elif defined(EZ_TARGET_WINDOWS)
 	{
-		int size = GetFullPathNameA(argv[0], 0, NULL, NULL);
 		GetFullPathNameA(argv[0], sizeof(libName), libName, NULL);
 	}
 #endif
@@ -598,13 +662,10 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 #ifdef EZ_TARGET_WINDOWS
-	br->RtlGetCurrentPeb = (void *)ctx->nt_get_peb.remote;
-	br->NtQueryInformationProcess = (void *)ctx->nt_query_proc.remote;
-	br->NtWriteFile = (void *)ctx->nt_write_file.remote;
+	br->WriteFile = (void *)ctx->write_file.remote;
 	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
 	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
-	br->ntdll_base = (void *)ctx->libc.remote;
-	br->AllocConsole = (void *)ctx->alloc_console.remote;
+	br->kernel32_base = ctx->libdl.remote;
 #endif
 
 	br->dlopen_offset = ctx->dlopen_offset;
@@ -616,9 +677,11 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	DBGPTR(br->libc_##name); \
 } while(0)
 
+#ifdef EZ_TARGET_POSIX
 	USE_LIBC_SYM(dlopen);
-
 	USE_LIBC_SYM(syscall);
+#endif
+
 #undef USE_LIBC_SYM
 
 	br->argc = argc;
@@ -656,7 +719,7 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 	{
 		SYSTEM_INFO sysInfo;
 		GetSystemInfo(&sysInfo);
-		mapping_size = ALIGN(mapping_size, sysInfo.dwPageSize);
+		mapping_size = (size_t)ALIGN(mapping_size, sysInfo.dwPageSize);
 	}
 	#else
 	mapping_size = (size_t)PAGEALIGN(mapping_size);
@@ -922,6 +985,12 @@ int main(int argc, char *argv[]){
 
 	const char *argPid = argv[optind++];
 	ctx.target = strtoul(argPid, NULL, 10);
+
+	if(libc_init(&ctx) != 0){
+		return 1;
+	}
+	ctx.r_xpage_base = (uintptr_t)get_base(ctx.target, NULL, NULL);
+
 	INFO("Attaching to %u", ctx.target);
 
 	if(remote_attach(&ctx) < 0){
@@ -932,14 +1001,12 @@ int main(int argc, char *argv[]){
 	INFO("waiting for target to stop...");
 
 	int err = 0;
+#ifndef EZ_TARGET_WINDOWS
 	if(remote_wait(&ctx, 0) < 0){
-		PERROR("remote_wait");
+		ERR("remote_wait");
 		return 1;
 	}
-
-	if(libc_init(&ctx) != 0){
-		return 1;
-	}
+#endif
 
 	err = ezinject_main(&ctx, argc - optind, &argv[optind]);
 	/**

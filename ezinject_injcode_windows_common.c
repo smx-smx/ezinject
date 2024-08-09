@@ -14,23 +14,17 @@ void PLAPI inj_puts(struct injcode_ctx *ctx, char *str){
 		return;
 	}
 
-	PPEB peb = br->RtlGetCurrentPeb();
-	PINT_RTL_USER_PROCESS_PARAMETERS params = (PINT_RTL_USER_PROCESS_PARAMETERS)peb->ProcessParameters;
+	HANDLE h = (HANDLE)STD_OUTPUT_HANDLE;
 
-	HANDLE h = params->StandardOutput;
-	if(h == INVALID_HANDLE_VALUE){
-		return;
-	}
+	DWORD nWritten = 0;
 
 	int l = 0;
 	char *p = str;
 	while(*(p++)) ++l;
-
-	IO_STATUS_BLOCK stb;
-	br->NtWriteFile(h, NULL, NULL, NULL, &stb, str, l, 0, NULL);
+	br->WriteFile(h, str, l, &nWritten, NULL);
 
 	char nl[2];
 	nl[0] = '\r'; nl[1] = '\n';
-	br->NtWriteFile(h, NULL, NULL, NULL, &stb, nl, sizeof(nl), 0, NULL);
+	br->WriteFile(h, nl, sizeof(nl), &nWritten, NULL);
 #endif
 }

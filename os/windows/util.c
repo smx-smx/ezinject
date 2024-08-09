@@ -13,9 +13,25 @@
 #include <windows.h>
 #include <psapi.h>
 #include <shlwapi.h>
+#include <TlHelp32.h>
 
 #include "ezinject_common.h"
 #include "log.h"
+#include "util.h"
+
+/** WinNT API */
+NTSTATUS NTAPI (*pfnRtlQueryProcessDebugInformation)(
+	HANDLE UniqueProcessId,
+	ULONG Flags,
+	PRTL_DEBUG_INFORMATION Buffer
+) = NULL;
+PRTL_DEBUG_INFORMATION NTAPI (*pfnRtlCreateQueryDebugBuffer)(ULONG Size, BOOLEAN EventPair) = NULL;
+NTSTATUS NTAPI (*pfnRtlDestroyQueryDebugBuffer)(PRTL_DEBUG_INFORMATION Buffer) = NULL;
+
+/** Win32 API */
+HANDLE WINAPI (*pfnCreateToolhelp32Snapshot)(DWORD dwFlags,DWORD th32ProcessID) = NULL;
+BOOL WINAPI (*pfnModule32First)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
+BOOL WINAPI (*pfnModule32Next)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
 
 BOOL win32_errstr(DWORD dwErrorCode, LPTSTR pBuffer, DWORD cchBufferLength){
 	if(cchBufferLength == 0){
@@ -64,10 +80,108 @@ char *strcasestr(const char *s, const char *find) {
 	return ((char *)s);
 }
 
-void *get_base(pid_t pid, char *substr, char **ignores) {
+static uintptr_t _search_executable_region(HANDLE hProcess, LPVOID baseAddr){
+	MEMORY_BASIC_INFORMATION mbi;
+	SYSTEM_INFO si;
+	GetSystemInfo(&si);
+
+	BOOL found = FALSE;
+	LPVOID lpMem = baseAddr;
+	do {
+		if(VirtualQueryEx(hProcess, lpMem, &mbi, sizeof(mbi)) == 0){
+			PERROR("VirtualQueryEx");
+			break;
+		}
+		DBGPTR(lpMem);
+		DBG("mem protection: %u", mbi.Protect);
+
+		if(mbi.Type != MEM_IMAGE) goto next;
+		if((mbi.Protect & PAGE_NOACCESS)) goto next;
+		if((mbi.Protect & PAGE_GUARD)) goto next;
+		if((mbi.Protect & PAGE_EXECUTE_READ) || (mbi.Protect & PAGE_EXECUTE_READWRITE)){
+			found = TRUE;
+			break;
+		}
+
+		next:
+		lpMem = VPTR(UPTR(lpMem) + mbi.RegionSize);
+	} while(lpMem < si.lpMaximumApplicationAddress);
+
+	return (found) ? UPTR(lpMem) : 0;
+}
+
+static void *get_base_winnt(pid_t pid, char *substr, char **ignores) {
+	HANDLE hProcess = INVALID_HANDLE_VALUE;
+
+
+	DBG("pid: %u, substr: %s", pid, substr);
+	hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
+                            PROCESS_VM_READ,
+                            FALSE, pid );
+	if (NULL == hProcess){
+		PERROR("OpenProcess");
+		return NULL;
+	}
+
+	void *base = NULL;
+	do {
+		PRTL_DEBUG_INFORMATION debugBuffer = pfnRtlCreateQueryDebugBuffer(0, FALSE);
+		if(!debugBuffer){
+			PERROR("RtlCreateQueryDebugBuffer");
+			break;
+		}
+
+		pfnRtlQueryProcessDebugInformation((HANDLE)pid, RTL_DEBUG_QUERY_MODULES, debugBuffer);
+
+		DBG("number of modules: %u", debugBuffer->Modules->NumberOfModules);
+		for(unsigned i=0; i<debugBuffer->Modules->NumberOfModules; i++){
+			PRTL_PROCESS_MODULE_INFORMATION mod = &debugBuffer->Modules->Modules[i];
+			char *imageFileName = mod->FullPathName;
+			DBG("imageFileName: %s", imageFileName);
+			{
+				char *backslash = strrchr(imageFileName, '\\');
+				if(backslash != NULL){
+					imageFileName = backslash + 1;
+				}
+			}
+			DBG("imageBaseName: %s", imageFileName);
+
+			char *lastdot = strrchr(imageFileName, '.');
+			if(lastdot == NULL) continue;
+
+			for(char *t = lastdot; *t != '\0'; t++){
+				*t = tolower(*t);
+			}
+
+			if(substr == NULL){
+				if(!strcmp(lastdot, ".exe")){
+					base = (LPVOID)_search_executable_region(hProcess, (LPVOID)mod->ImageBase);
+				}
+			} else if(strcasestr(imageFileName, substr) != NULL){
+				base = (LPVOID)mod->ImageBase;
+			}
+		}
+
+		pfnRtlDestroyQueryDebugBuffer(debugBuffer);
+	} while(0);
+	CloseHandle(hProcess);
+
+	return base;
+}
+
+static void *get_base_toolhelp(pid_t pid, char *substr, char **ignores){
 	UNUSED(ignores);
 
-	HANDLE hProcess;
+	HANDLE hProcess = INVALID_HANDLE_VALUE;
+
+	OSVERSIONINFO osvi = {
+		.dwOSVersionInfoSize = sizeof(OSVERSIONINFO)
+	};
+	if (!GetVersionEx(&osvi)){
+		PERROR("GetVersionEx");
+		return NULL;
+	}
+	BOOL isWINNT = osvi.dwPlatformId == VER_PLATFORM_WIN32_NT;
 
 	hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
                             PROCESS_VM_READ,
@@ -78,47 +192,77 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	}
 
 	void *base = NULL;
+	HANDLE hSnap = INVALID_HANDLE_VALUE;
+	TCHAR *imageFileName = NULL;
 	do {
-		HMODULE *modules = NULL;
-		TCHAR imageFileName[MAX_PATH];
-		DWORD pathSize = _countof(imageFileName);
-		if(!QueryFullProcessImageNameA(hProcess, 0, imageFileName, &pathSize)){
-			DBG("QueryFullProcessImageNameA failed");
+		hSnap = pfnCreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
+		if(hSnap == INVALID_HANDLE_VALUE){
+			PERROR("CreateToolhelp32Snapshot failed");
 			break;
 		}
 
-		DBG("imageFileName: %s", imageFileName);
+		MODULEENTRY32 mod32 = {
+			.dwSize = sizeof(MODULEENTRY32)
+		};
 
-		DWORD numModules = 0;
-		{
-			DWORD bytesNeeded = 0;
-			EnumProcessModules(hProcess, NULL, 0, &bytesNeeded);
-
-			modules = calloc(1, bytesNeeded);
-			EnumProcessModules(hProcess, modules, bytesNeeded, &bytesNeeded);
-
-			numModules = bytesNeeded / sizeof(HMODULE);
+		if(!pfnModule32First(hSnap, &mod32)){
+			PERROR("Module32First");
+			break;
 		}
 
-		for(DWORD i=0; i<numModules; i++){
-			TCHAR modName[MAX_PATH];
-			if(!GetModuleFileNameEx(hProcess, modules[i], modName, _countof(modName))){
-				continue;
+		imageFileName = mod32.szExePath;
+		DBG("imageFileName: %s", imageFileName);
+		{
+			char *backslash = strrchr(imageFileName, '\\');
+			if(backslash != NULL){
+				imageFileName = backslash + 1;
 			}
+		}
+		DBG("imageFileName: %s", imageFileName);
+		do {
+			TCHAR *modName = mod32.szModule;
+			uintptr_t modBase = (uintptr_t)mod32.modBaseAddr;
+			DBG("%p -> %s", (void *)modBase, modName);
 
-			DBG("%p -> %s", modules[i], modName);
-
-			if(
-				(substr == NULL && !_stricmp(imageFileName, modName)) ||
-				(substr != NULL && strcasestr(modName, substr) != NULL)
-			){
-				base = (void *)modules[i];
+			if(substr == NULL){
+				if(!_stricmp(imageFileName, modName)){
+					if(isWINNT){
+						base = (LPVOID)_search_executable_region(hProcess, (LPVOID)modBase);
+					} else {
+						base = (LPVOID)modBase;
+					}
+					break;
+				}
+			} else if(strcasestr(modName, substr) != NULL){
+				base = (void *)modBase;
 				break;
 			}
-		}
-		free(modules);
+		} while(pfnModule32Next(hSnap, &mod32));
+
 	} while(0);
+	if(imageFileName != NULL){
+		free(imageFileName);
+	}
+	if(hSnap != INVALID_HANDLE_VALUE){
+		CloseHandle(hSnap);
+	}
 	CloseHandle(hProcess);
 
+	DBG("base for %s -> %p", substr, base);
 	return base;
+}
+
+void *get_base(pid_t pid, char *substr, char **ignores) {
+	OSVERSIONINFO osvi = {
+		.dwOSVersionInfoSize = sizeof(osvi)
+	};
+	if(!GetVersionEx(&osvi)) {
+		PERROR("GetVersionEx");
+		return NULL;
+	}
+	if(osvi.dwPlatformId == VER_PLATFORM_WIN32_NT){
+		return get_base_winnt(pid, substr, ignores);
+	} else {
+		return get_base_toolhelp(pid, substr, ignores);
+	}
 }

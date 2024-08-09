@@ -26,6 +26,8 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
 	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll" ".a")
+	string(APPEND CMAKE_EXE_LINKER_FLAGS " -static-libgcc")
+	string(APPEND CMAKE_SHARED_LINKER_FLAGS " -static-libgcc")
 	set(EZ_TARGET_WINDOWS TRUE)
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
@@ -184,7 +186,7 @@ elseif(EZ_TARGET_DARWIN)
 	list(APPEND EXTRA_SEARCH_PATHS "/usr/lib/system")
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND C_LIBRARY_NAMES
-		ntdll
+		kernel32
 	)
 	if(NOT CMAKE_CROSSCOMPILING)
 		list(APPEND EXTRA_SEARCH_PATHS "$ENV{SystemRoot}\\System32")
@@ -293,10 +295,12 @@ function(libc_type_autodetect)
 	if(EZ_TARGET_WINDOWS)
 		check_library_exists("${C_LIBRARY}" "LdrLoadDll" "" HAVE_LDR_LOAD_DLL)
 		check_library_exists("${DL_LIBRARY}" "LoadLibraryA" "" HAVE_LOADLIBRARY)
-		if(NOT HAVE_LDR_LOAD_DLL)
+		# TODO: fix after rebase
+		if((NOT HAVE_LDR_LOAD_DLL AND NOT HAVE_LOADLIBRARY) AND FALSE)
 			message(FATAL_ERROR "Invalid or unsupported ntdll.dll")
 		endif()
-		if(NOT HAVE_LOADLIBRARY)
+		# TODO: fix after rebase
+		if(NOT HAVE_LOADLIBRARY AND FALSE)
 			message(FATAL_ERROR "Invalid or unsupported kernel32.dll")
 		endif()
 
@@ -604,11 +608,18 @@ if(EZ_TARGET_POSIX)
 	endif()
 elseif(EZ_TARGET_WINDOWS)
 	list(APPEND lib_sources
+		# InjLib
+		os/windows/InjLib/GetProcAddress.c
+		os/windows/InjLib/Inject.c
+		os/windows/InjLib/LenDis.c
+		os/windows/InjLib/Remote.c
+		#
 		os/windows/remote.c
 		os/windows/util.c
 		os/windows/libc_windows.c
 	)
 	list(APPEND target_sources
+		os/posix/inject.c
 		os/windows/inject.c
 	)
 endif()

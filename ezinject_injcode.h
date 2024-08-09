@@ -17,9 +17,12 @@
 #include "config.h"
 
 #ifdef EZ_TARGET_WINDOWS
+#include "os/windows/InjLib/Struct.h"
+/*
 #include <windows.h>
 #include <ntdef.h>
 #include <winternl.h>
+*/
 #endif
 
 #define SC_MAX_ARGS 8
@@ -132,6 +135,8 @@ struct injcode_plapi {
 	intptr_t (*inj_fetchsym)(struct injcode_ctx *ctx, void *handle, void **sym);
 };
 
+#define EZST1 0x455A5331 // signaled
+
 /**
  *
  * this structure is pushed on the stack
@@ -147,6 +152,23 @@ struct injcode_call {
 	int (*libc_open)(const char *pathname, int flags, ...);
 	ssize_t (*libc_read)(int fd, void *buf, size_t count);
 #endif
+#ifdef EZ_TARGET_WINDOWS
+	LPVOID WINAPI (*VirtualAlloc)(
+    	LPVOID lpAddress,
+        SIZE_T dwSize,
+        DWORD flAllocationType,
+        DWORD flProtect
+    );
+	BOOL WINAPI (*VirtualFree)(
+		LPVOID lpAddress,
+		SIZE_T dwSize,
+		DWORD dwFreeType
+	);
+	DWORD WINAPI (*SuspendThread)(HANDLE hThread);
+	HANDLE WINAPI (*GetCurrentThread)(VOID);
+#endif
+
+	uintptr_t ezstate;
 
 	/** PLAPI **/
 	struct injcode_plapi plapi;
@@ -156,7 +178,7 @@ struct injcode_call {
 	intptr_t result2;
 	uintptr_t argv[SC_MAX_ARGS];
 
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
 	/**
 	 * syscall wrapper parameters
 	 **/
@@ -231,17 +253,21 @@ struct injcode_bearing
 		ULONG            ProcessInformationLength,
 		PULONG           ReturnLength
 	);
-	PPEB NTAPI (*RtlGetCurrentPeb)();
-	NTSTATUS NTAPI (*NtWriteFile)(
-		HANDLE           FileHandle,
-		HANDLE           Event,
-		PIO_APC_ROUTINE  ApcRoutine,
-		PVOID            ApcContext,
-		PIO_STATUS_BLOCK IoStatusBlock,
-		PVOID            Buffer,
-		ULONG            Length,
-		PLARGE_INTEGER   ByteOffset,
-		PULONG           Key
+	HANDLE WINAPI (*CreateFileA)(
+		LPCSTR                lpFileName,
+		DWORD                 dwDesiredAccess,
+		DWORD                 dwShareMode,
+		LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+		DWORD                 dwCreationDisposition,
+		DWORD                 dwFlagsAndAttributes,
+		HANDLE                hTemplateFile
+	);
+	BOOL WINAPI (*WriteFile)(
+		HANDLE       hFile,
+		LPCVOID      lpBuffer,
+		DWORD        nNumberOfBytesToWrite,
+		LPDWORD      lpNumberOfBytesWritten,
+		LPOVERLAPPED lpOverlapped
 	);
 	NTSTATUS NTAPI (*LdrRegisterDllNotification)(
   		ULONG   Flags,
@@ -254,6 +280,7 @@ struct injcode_bearing
 	);
 	BOOL WINAPI (*AllocConsole)(void);
 	uintptr_t ntdll_base;
+	uintptr_t kernel32_base;
 #endif
 	off_t dlopen_offset;
 	off_t dlclose_offset;
@@ -283,6 +310,7 @@ enum userlib_return_action {
 
 
 #ifdef EZ_TARGET_WINDOWS
+/*
 typedef struct _CURDIR {
      UNICODE_STRING DosPath;
      PVOID Handle;
@@ -326,6 +354,7 @@ typedef struct {
      RTL_DRIVE_LETTER_CURDIR CurrentDirectores[32];
      ULONG EnvironmentSize;
 } INT_RTL_USER_PROCESS_PARAMETERS, *PINT_RTL_USER_PROCESS_PARAMETERS;
+*/
 #endif
 
 #ifdef EZ_TARGET_POSIX
@@ -342,6 +371,11 @@ extern intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_open(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_read(volatile struct injcode_call *sc);
+#endif
+
+#ifdef EZ_TARGET_WINDOWS
+intptr_t SCAPI injected_virtual_alloc(volatile struct injcode_call *sc);
+intptr_t SCAPI injected_virtual_free(volatile struct injcode_call *sc);
 #endif
 
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args);

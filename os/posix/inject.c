@@ -7,10 +7,17 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 #include <stdlib.h>
+#include "config.h"
+
+#ifdef EZ_TARGET_POSIX
 #include <sys/syscall.h>
 #include <sys/mman.h>
+#endif
 
-#include "config.h"
+#ifdef EZ_TARGET_WINDOWS
+#include "win32_syscalls.h"
+#endif
+
 #include "ezinject.h"
 #include "log.h"
 
@@ -36,6 +43,11 @@ static off_t sc_wrapper_offset;
 static off_t sc_mmap_offset;
 static off_t sc_open_offset;
 static off_t sc_read_offset;
+#endif
+
+#ifdef EZ_TARGET_WINDOWS
+static off_t sc_virtualalloc_offset;
+static off_t sc_virtualfree_offset;
 #endif
 
 /**
@@ -75,13 +87,21 @@ static void *code_data(void *code){
  * setup static shellcode invariants (offsets)
  **/
 static void _remote_sc_setup_offsets(){
+#ifdef EZ_TARGET_POSIX
 	sc_fn_offset = PTRDIFF(&injected_sc6, region_sc_code.start);
+#endif
+
 	sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
 
 #ifdef EZ_TARGET_LINUX
 	sc_mmap_offset = PTRDIFF(&injected_mmap, region_sc_code.start);
 	sc_open_offset = PTRDIFF(&injected_open, region_sc_code.start);
 	sc_read_offset = PTRDIFF(&injected_read, region_sc_code.start);
+#endif
+
+#ifdef EZ_TARGET_WINDOWS
+	sc_virtualalloc_offset = PTRDIFF(&injected_virtual_alloc, region_sc_code.start);
+	sc_virtualfree_offset = PTRDIFF(&injected_virtual_free, region_sc_code.start);
 #endif
 
 	// always at the beginning of the shellcode
@@ -99,11 +119,18 @@ static void _remote_sc_setup_offsets(){
 	);
 }
 
+uintptr_t _remote_sc_addr(struct ezinj_ctx *ctx, uintptr_t addr){
+	off_t rela_offset = PTRDIFF(addr, region_sc_code.start);
+	return r_current_sc_base + rela_offset;
+}
+
 uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 	uintptr_t sc_base = 0;
 	if((flags & SC_ALLOC_ELFHDR) == SC_ALLOC_ELFHDR){
-		sc_base = (uintptr_t)get_base(ctx->target, NULL, NULL);
+		//sc_base = (uintptr_t)get_base(ctx->target, NULL, NULL);
+		sc_base = ctx->r_xpage_base;
 	} else if((flags & SC_ALLOC_MMAP) == SC_ALLOC_MMAP){
+#if defined(EZ_TARGET_POSIX)
 		sc_base = CHECK(RSCALL6(ctx, __NR_mmap2,
 			0, size, PROT_READ | PROT_WRITE | PROT_EXEC,
 			MAP_SHARED | MAP_ANONYMOUS,
@@ -111,7 +138,18 @@ uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 		if(sc_base == (uintptr_t)MAP_FAILED){
 			sc_base = 0;
 		}
-	} else {
+#elif defined(EZ_TARGET_WINDOWS)
+		sc_base = RSCALL4(ctx, __NR_mmap,
+			NULL,
+			size,
+			MEM_COMMIT | MEM_RESERVE,
+			PAGE_EXECUTE_READWRITE
+		);
+#else
+#error "Unsupported platform"
+#endif
+	}
+	else {
 		ERR("invalid flags");
 		return -1;
 	}
@@ -143,7 +181,7 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *out_sc_base){
 		ctx->saved_sc_size = dataLength;
 
 		if(remote_read(ctx, ctx->saved_sc_data, sc_base, dataLength) != dataLength){
-			ERR("failed to backup data");
+			PERROR("failed to backup data");
 			return -1;
 		}
 	}
@@ -225,7 +263,7 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base){
 	return 0;
 }
 
-#ifdef EZ_TARGET_LINUX
+#if defined(EZ_TARGET_LINUX)
 static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 	/**
 	 * glibc 2.x on ARM OABI exposes a syscall(2) that only accepts 3 arguments:
@@ -266,6 +304,44 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 	}
 
 	return r_current_sc_base + sc_fn_offset;
+}
+#elif defined(EZ_TARGET_WINDOWS)
+static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
+	if(call->argc > 0){
+		switch(call->argv[0]){
+			case __NR_mmap:
+				return r_current_sc_base + sc_virtualalloc_offset;
+			case __NR_munmap:
+				return r_current_sc_base + sc_virtualfree_offset;
+			default:
+				ERR("Unknown win32 syscall %u", call->argv[0]);
+				break;
+		}
+	} else {
+		ERR("unsupported call");
+		return -1;
+	}
+
+	return 0;
+}
+#elif defined(EZ_TARGET_WINDOWS)
+static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
+	if(call->argc > 0){
+		switch(call->argv[0]){
+			case __NR_mmap:
+				return r_current_sc_base + sc_virtualalloc_offset;
+			case __NR_munmap:
+				return r_current_sc_base + sc_virtualfree_offset;
+			default:
+				ERR("Unknown win32 syscall %u", call->argv[0]);
+				break;
+		}
+	} else {
+		ERR("unsupported call");
+		return -1;
+	}
+
+	return 0;
 }
 #else
 static inline uintptr_t _get_wrapper_target(struct injcode_call *call){

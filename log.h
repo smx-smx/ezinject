@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <inttypes.h>
 #include "config.h"
 
 extern enum verbosity_level
@@ -65,7 +66,6 @@ extern FILE *LOG_RESERVED_HANDLE;
     FILE *LOG_RESERVED_HANDLE; \
     __LOG_DECLARE_VERBOSITY(verb)
 
-
 #define LOG_INIT(filePath) do { \
     LOG_RESERVED_HANDLE = fopen(filePath, "w+"); \
     if(LOG_RESERVED_HANDLE == NULL){ \
@@ -105,8 +105,8 @@ extern FILE *LOG_RESERVED_HANDLE;
 } while(0);
 #endif
 #define CHECK(x) ({\
-long _tmp = (x);\
-DBG("%s = %lu", #x, _tmp);\
+uintptr_t _tmp = (x);\
+DBG("%s = %"PRIxPTR, #x, (uintptr_t)(_tmp));\
 _tmp;})
 
 #endif

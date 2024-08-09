@@ -73,6 +73,20 @@ intptr_t SCAPI injected_read(volatile struct injcode_call *sc){
 #endif
 
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
+INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
+	sc->libc_syscall(__NR_kill,
+		sc->libc_syscall(__NR_getpid),
+		SIGTRAP
+	);
+}
+#elif defined(EZ_TARGET_WINDOWS)
+INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
+	sc->ezstate = EZST1;
+	asm volatile(JMP_INSN " .");
+}
+#endif
+
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
 /**
  * On ARM/Linux + glibc, making system calls and writing their results in the same function
  * seems to cause a very subtle stack corruption bug that ultimately causes dlopen/dlsym to segfault
@@ -81,11 +95,8 @@ intptr_t SCAPI injected_read(volatile struct injcode_call *sc){
  **/
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
 	args->result = args->wrapper.target(args);
-	args->libc_syscall(__NR_kill,
-		args->libc_syscall(__NR_getpid),
-		SIGTRAP
-	);
-	while(1);
+	injected_sc_stop(args);
+	asm volatile(JMP_INSN " .");
 }
 #endif
 
@@ -158,6 +169,10 @@ INLINE uint64_t str64(uint64_t x){
 
 struct injcode_ctx {
 	struct injcode_bearing *br;
+
+#ifdef EZ_TARGET_WINDOWS
+	HANDLE output_handle;
+#endif
 
 	struct dl_api libdl;
 	struct thread_api libthread;
@@ -258,9 +273,11 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	char *stbl_argv = BR_STRTBL(br) + br->argv_offset;
 	STRTBL_FETCH(stbl_argv, ctx->userlib_name);
 
-	br->userlib = inj_dlopen(ctx, ctx->userlib_name, RTLD_NOW);
+	//asm volatile(JMP_INSN " .");
+	PCALL(ctx, inj_puts, ctx->userlib_name);
 
-	//inj_dbgptr(br, br->userlib);
+	br->userlib = inj_dlopen(ctx, ctx->userlib_name, RTLD_NOW);
+	PCALL(ctx, inj_dbgptr, br->userlib);
 	if(br->userlib == NULL){
 		return -1;
 	}
@@ -300,14 +317,10 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	}
 
 	intptr_t result = 0;
-
 	// entry
 	PCALL(ctx, inj_dchar, 'e');
-
 	STRTBL_FETCH(ctx->stbl, ctx->libdl_name);
 	STRTBL_FETCH(ctx->stbl, ctx->libpthread_name);
-
-
 
 	if(inj_libdl_init(ctx) != 0){
 		PCALL(ctx, inj_dchar, '!');
