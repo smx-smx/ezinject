@@ -161,7 +161,7 @@ intptr_t setregs_syscall(
 		}
 	} else {
 		// call the user supplied target through the wrapper
-		rcall->wrapper.target = ctx->branch_target.remote;
+		rcall->wrapper.target = (intptr_t (*)(volatile struct injcode_call *))ctx->branch_target.remote;
 	}
 	#else
 	// call the user supplied target through the trampoline
@@ -379,7 +379,7 @@ struct ezinj_str ezstr_new(char *str){
 		 * don't like doing unaligned accesses
 		 * and will corrupt memory
 		 */
-		.len = WORDALIGN(STRSZ(str)),
+		.len = (unsigned int)(uintptr_t)WORDALIGN(STRSZ(str)),
 		.str = str
 	};
 	return bstr;
@@ -561,7 +561,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	}
 #elif defined(EZ_TARGET_WINDOWS)
 	{
-		int size = GetFullPathNameA(argv[0], 0, NULL, NULL);
 		GetFullPathNameA(argv[0], sizeof(libName), libName, NULL);
 	}
 #endif
@@ -620,7 +619,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->WriteFile = (void *)ctx->write_file.remote;
 	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
 	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
-	br->kernel32_base = (void *)ctx->libdl.remote;
+	br->kernel32_base = ctx->libdl.remote;
 #endif
 
 	br->dlopen_offset = ctx->dlopen_offset;
@@ -673,7 +672,7 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 	{
 		SYSTEM_INFO sysInfo;
 		GetSystemInfo(&sysInfo);
-		mapping_size = ALIGN(mapping_size, sysInfo.dwPageSize);
+		mapping_size = (size_t)ALIGN(mapping_size, sysInfo.dwPageSize);
 	}
 	#else
 	mapping_size = PAGEALIGN(mapping_size);

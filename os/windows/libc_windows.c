@@ -31,11 +31,11 @@ static int chrome_remove_sandbox(struct ezinj_ctx *ctx){
 	int written = 0;
 #define VALID_ADDR(x) (x.local != 0 && x.remote != 0)
 	if(VALID_ADDR(nt_map_viewsection)){
-		written = remote_write(ctx, nt_map_viewsection.remote, nt_map_viewsection.local, 64);
+		written = remote_write(ctx, nt_map_viewsection.remote, VPTR(nt_map_viewsection.local), 64);
 		DBG("written: %d", written);
 	}
 	if(VALID_ADDR(ldr_load_dll)){
-		written = remote_write(ctx, ldr_load_dll.remote, ldr_load_dll.local, 64);
+		written = remote_write(ctx, ldr_load_dll.remote, VPTR(ldr_load_dll.local), 64);
 		DBG("written: %d", written);
 	}
 #undef VALID_ADDR

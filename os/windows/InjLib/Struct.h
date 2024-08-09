@@ -10,7 +10,6 @@
 /////////////////////// Windows NT /////////////////////////
 
 typedef PVOID *PPVOID;
-typedef unsigned long ULONG_PTR, *PULONG_PTR;
 typedef LONG NTSTATUS, *PNTSTATUS;
 typedef LONG KPRIORITY;
 
@@ -62,7 +61,7 @@ typedef const OBJECT_ATTRIBUTES *PCOBJECT_ATTRIBUTES;
     (p)->SecurityQualityOfService = NULL; \
     }
 
-typedef struct RTL_DRIVE_LETTER_CURDIR {    
+typedef struct RTL_DRIVE_LETTER_CURDIR {
     USHORT          Flags;
     USHORT          Length;
     ULONG           TimeStamp;

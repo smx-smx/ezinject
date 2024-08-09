@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <inttypes.h>
 #include "config.h"
 
 extern enum verbosity_level
@@ -104,8 +105,8 @@ extern FILE *LOG_RESERVED_HANDLE;
 } while(0);
 #endif
 #define CHECK(x) ({\
-long _tmp = (x);\
-DBG("%s = %lu", #x, _tmp);\
+uintptr_t _tmp = (x);\
+DBG("%s = %"PRIxPTR, #x, (uintptr_t)(_tmp));\
 _tmp;})
 
 #endif

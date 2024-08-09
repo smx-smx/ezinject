@@ -80,7 +80,7 @@ INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
 	);
 }
 #elif defined(EZ_TARGET_WINDOWS)
-INLINE void SCAPI injected_sc_stop(struct injcode_call *sc){
+INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
 	sc->ezstate = EZST1;
 	asm volatile(JMP_INSN " .");
 }

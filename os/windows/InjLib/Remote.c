@@ -26,6 +26,7 @@
 #include  "LenDis.h"
 
 #include "log.h"
+#include "ezinject_arch.h"
 
 int     OSMajorVersion, OSMinorVersion, OSBuildVersion;
 BOOL    OSWin9x, OSWin95, OSWin98, OSWinMe;
@@ -329,6 +330,9 @@ HANDLE OpenThread9x(DWORD dwDesiredAccess,
                     BOOL  bInheritHandle,
                     DWORD dwThreadId)
 {
+#ifdef _WIN64
+    return NULL;
+#else
     HANDLE  hThread;
     PTDB    pTDB;
 
@@ -358,6 +362,7 @@ HANDLE OpenThread9x(DWORD dwDesiredAccess,
       [openThread] "r"(InternalOpenThread)
     );
     return hThread;
+#endif
 }
 
 
@@ -925,7 +930,7 @@ DWORD GetProcessThread9x(DWORD PID)
         }
 
         // Threads below this address make the system crash (?!?)
-        if (c.Eip > 0x400000)
+        if (REG(c, REG_PC) > 0x400000)
         {
             CloseHandle(hThread);
             return TID;
@@ -979,7 +984,7 @@ DWORD GetProcessThreadToolhelp(DWORD dwPID)
               }
 
               // Threads below this address make the system crash (?!?)
-             if (c.Eip > 0x400000)
+             if (REG(c, REG_PC) > 0x400000)
              {
                  CloseHandle(hThread);
                  CloseHandle(hSnapshot);
@@ -1111,7 +1116,7 @@ BOOL Initialization()
 
     HINSTANCE               pBase;
     PIMAGE_DOS_HEADER       pDOSHeader;
-    PIMAGE_NT_HEADERS32     pNTHeader;
+    PIMAGE_NT_HEADERS       pNTHeader;
     PIMAGE_SECTION_HEADER   pImageSectionArray;
     int                     nNumberOfSections;
     DWORD                   SectionStart;

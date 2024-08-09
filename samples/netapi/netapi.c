@@ -93,11 +93,12 @@ static void _build_pkt(struct ez_pkt *pkt, uint8_t *data, unsigned length){
 }
 
 intptr_t safe_send(int fd, void *buf, size_t length, int flags){
+	UNUSED(flags);
 	uint8_t *pb = (uint8_t *)buf;
 
-	ssize_t acc = 0;
+	size_t acc = 0;
 	while(acc < length){
-		ssize_t sent = send(fd, &pb[acc], length - acc, 0);
+		ssize_t sent = send(fd, (void *)(&pb[acc]), length - acc, 0);
 		if(sent < 0){
 			PERROR("send");
 			return -1;
@@ -108,11 +109,12 @@ intptr_t safe_send(int fd, void *buf, size_t length, int flags){
 }
 
 intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
+	UNUSED(flags);
 	uint8_t *pb = (uint8_t *)buf;
 
-	ssize_t acc = 0;
+	size_t acc = 0;
 	while(acc < length){
-		ssize_t received = recv(fd, &pb[acc], length - acc, 0);
+		ssize_t received = recv(fd, (void *)(&pb[acc]), length - acc, 0);
 		if(received < 0){
 			PERROR("recv");
 			return -1;
@@ -122,20 +124,20 @@ intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
 	return (intptr_t)acc;
 }
 
-intptr_t send_data(int fd, uint8_t *data, unsigned size){
+intptr_t send_data(int fd, void *data, unsigned size){
 	struct ez_pkt pkt;
 	memset(&pkt, 0x00, sizeof(pkt));
 	_build_pkt(&pkt, data, size);
 
 	uint8_t *pb = (uint8_t *)&pkt;
 #ifdef WEBAPI_DEBUG
-	for(int i=0; i<sizeof(pkt); i++){
+	for(size_t i=0; i<sizeof(pkt); i++){
 		printf("%02hhx ", pb[i]);
 	}
 	puts("");
 #endif
 
-	if(send(fd, &pkt, sizeof(pkt), 0) != sizeof(pkt)){
+	if(send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
 		return -1;
 	}
 	return 0;
@@ -146,8 +148,8 @@ intptr_t send_str(int fd, char *str){
 }
 
 intptr_t send_ptrval(int fd, void *ptr){
-	uintptr_t val = (uintptr_t)ptr;
-	return send_data(fd, htonl(val), sizeof(val));
+	uintptr_t val = htonl((uintptr_t)ptr);
+	return send_data(fd, &val, sizeof(val));
 }
 
 intptr_t send_datahdr(int fd, unsigned size){
@@ -156,7 +158,7 @@ intptr_t send_datahdr(int fd, unsigned size){
 
 	_build_pkt(&pkt, NULL, 0);
 	pkt.body_length = ntohl(size);
-	if(send(fd, &pkt, sizeof(pkt), 0) != sizeof(pkt)){
+	if(send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
 		return -1;
 	}
 	return 0;
@@ -203,7 +205,7 @@ int handle_client(int client){
 		unsigned int length = 0;
 		SAFE_RECV(client, &length, sizeof(length), 0);
 		length = ntohl(length);
-		int malloc_sz = WORDALIGN(MAX(length, 64));
+		int malloc_sz = (int)(uintptr_t)WORDALIGN(MAX(length, 64));
 		DBG("incoming msg, length: %u", length);
 		uint8_t *mem = calloc(malloc_sz, 1);
 		uint8_t *data = mem;
@@ -248,7 +250,7 @@ int handle_client(int client){
 				DBG("OP_DLSYM");
 				void *handle = read_ptr(&data);
 				DBG("dlsym(%p, %s)", handle, data);
-				void *sym = LIB_GETSYM(handle, data);
+				void *sym = LIB_GETSYM(handle, (const char *)data);
 				if(send_ptrval(client, sym) != 0){
 					ERR("send_ptrval failed");
 					serve = 0;
@@ -382,7 +384,7 @@ int handle_client(int client){
 }
 
 void *start_server(void *arg){
-	unsigned short port = (unsigned short)arg;
+	unsigned short port = (unsigned short)(uintptr_t)arg;
 	int rc = 0;
 	do {
 		int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -398,7 +400,7 @@ void *start_server(void *arg){
 			.sin_port = htons(port)
 		};
 		int enable = 1;
-		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0){
+		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *)&enable, sizeof(int)) < 0){
     		perror("setsockopt(SO_REUSEADDR)");
 		}
 		if(bind(sock, (struct sockaddr *)&sa, sizeof(sa)) < 0){
@@ -421,7 +423,7 @@ void *start_server(void *arg){
 			if(client < 0){
 				perror("accept");
 			}
-			int result = handle_client(client);
+			/*int result =*/ handle_client(client);
 		}
 	} while(0);
 
@@ -446,7 +448,7 @@ int lib_main(int argc, char *argv[]){
 
 	int port = strtoul(argv[1], NULL, 10);
 	pthread_t tid;
-	pthread_create(&tid, NULL, start_server, port);
+	pthread_create(&tid, NULL, start_server, (void *)port);
 	pthread_detach(tid);
 	return 0;
 }

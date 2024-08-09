@@ -66,7 +66,7 @@ DWORD GetProcessInfo(DWORD dwPID)
     WORD                ProcessFlags = 0;	// Initialize to zero
     HANDLE              hProcess;
     DWORD               dwTID;
-    PIMAGE_NT_HEADERS32 pNTHeader;
+    PIMAGE_NT_HEADERS   pNTHeader;
 
     PPDB        pPDB;
     PTDB        pTDB;
@@ -283,7 +283,7 @@ DWORD GetProcessInfo(DWORD dwPID)
  ****************************************/
 int InitializeAndPatchStub(HANDLE hProcess, PBYTE pCode, OFFSETS offs, DWORD UserFunc, DWORD Native)
 {
-    DWORD   nBytesWritten = 0;
+    SIZE_T   nBytesWritten = 0;
     BOOL    fFinished = FALSE;
 
     if (OSWin9x)
@@ -343,7 +343,7 @@ int RemoteExecute(HANDLE hProcess,                      // Remote process handle
     PBYTE       pRemoteData = NULL;
     PVOID       pParams = NULL;
     DWORD       FunctionSize;
-    DWORD       nBytesWritten = 0, nBytesRead = 0;
+    SIZE_T      nBytesWritten = 0, nBytesRead = 0;
     HANDLE      hThread = NULL;
     DWORD       dwThreadId;
     DWORD       dwExitCode = -1;
@@ -670,7 +670,7 @@ int InjectDllA(HANDLE    hProcess,       // Remote process handle
             // Execute RemoteInjectDll() in remote process
             rc = RemoteExecute(hProcess,
                                ProcessFlags,
-                               RemoteInjectDll,
+                               (LPTHREAD_START_ROUTINE)RemoteInjectDll,
                                &rdDll,
                                sizeof(rdDll),
                                dwTimeout,
@@ -792,7 +792,7 @@ int EjectDllA(HANDLE     hProcess,       // Remote process handle
             // Execute RemoteEjectDll() in remote process
             rc = RemoteExecute(hProcess,
                                ProcessFlags,
-                               RemoteEjectDll,
+                               (LPTHREAD_START_ROUTINE)RemoteEjectDll,
                                &rdDll,
                                sizeof(rdDll),
                                dwTimeout,
@@ -840,7 +840,7 @@ int EjectDllW(HANDLE     hProcess,       // Remote process handle
  *************************************************/
 int InitializeAndPatchStubWndProc(HANDLE hProcess, PBYTE pCode, OFFSETS offs, DWORD pRDATA)
 {
-    DWORD   nBytesWritten = 0;
+    SIZE_T   nBytesWritten = 0;
 
     if (OSWin9x)
     {

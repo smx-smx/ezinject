@@ -111,13 +111,13 @@ EZAPI remote_detach(struct ezinj_ctx *ctx){
 }
 
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
-	size_t read = 0;
-	ReadProcessMemory(ctx->hProc, (LPVOID)source, dest, size, &read);
+	SIZE_T read = 0;
+	ReadProcessMemory(ctx->hProc, (LPCVOID)source, dest, size, &read);
 	return read;
 }
 
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
-	size_t written = 0;
+	SIZE_T written = 0;
 	DWORD oldProtect = 0;
 	VirtualProtectEx(ctx->hProc, (LPVOID)dest, size, PAGE_EXECUTE_READWRITE, &oldProtect);
 	WriteProcessMemory(ctx->hProc, (LPVOID)dest, source, size, &written);

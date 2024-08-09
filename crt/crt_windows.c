@@ -16,7 +16,7 @@ EZAPI crt_thread_create(struct injcode_bearing *br, crt_thread_func_t pfnThreadE
 	HANDLE hThread = CreateThread(
 		NULL,
 		0,
-		pfnThreadEntry,
+		(LPTHREAD_START_ROUTINE)pfnThreadEntry,
 		br,
 		0,
 		&dwThreadId

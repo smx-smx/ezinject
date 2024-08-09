@@ -14,7 +14,7 @@ void PLAPI inj_puts(struct injcode_ctx *ctx, char *str){
 		return;
 	}
 
-	HANDLE h = STD_OUTPUT_HANDLE;
+	HANDLE h = (HANDLE)STD_OUTPUT_HANDLE;
 
 	DWORD nWritten = 0;
 

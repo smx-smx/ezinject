@@ -22,6 +22,7 @@
 #include <windows.h>
 #include <limits.h>
 #include "GetProcAddress.h"
+#include "ezinject_common.h"
 
 /*****************************************************************************
  * Returns the corresponding ordinal number for the specified function name. *
@@ -30,7 +31,7 @@ DWORD NameToOrdinal(HMODULE hModule, LPCSTR lpProcName)
 {
     HINSTANCE               pBase;
     PIMAGE_DOS_HEADER       pDOSHeader;
-    PIMAGE_NT_HEADERS32     pNTHeader;
+    PIMAGE_NT_HEADERS       pNTHeader;
     PIMAGE_EXPORT_DIRECTORY pExportDir;
     DWORD                   lExportOffset, lExportSize;
     PDWORD                  pNamesArray;
@@ -49,7 +50,7 @@ DWORD NameToOrdinal(HMODULE hModule, LPCSTR lpProcName)
         return -1;
 
     // NT Header
-    pNTHeader = (PIMAGE_NT_HEADERS)((LONG)pDOSHeader + pDOSHeader->e_lfanew);
+    pNTHeader = (PIMAGE_NT_HEADERS)PTRADD(pDOSHeader, pDOSHeader->e_lfanew);
     if (pNTHeader->Signature != LOWORD(IMAGE_NT_SIGNATURE)) // "PE"
         return -1;
 
@@ -58,10 +59,10 @@ DWORD NameToOrdinal(HMODULE hModule, LPCSTR lpProcName)
     lExportSize = pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
 
     // Pointer to export table
-    pExportDir = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pBase + lExportOffset);
+    pExportDir = (PIMAGE_EXPORT_DIRECTORY)PTRADD(pBase, lExportOffset);
 
     // Pointer and length of AddressOfNames array
-    pNamesArray = (PDWORD)((DWORD)pBase + pExportDir->AddressOfNames);
+    pNamesArray = (PDWORD)PTRADD(pBase, pExportDir->AddressOfNames);
     lNumberOfNames = (int)pExportDir->NumberOfNames;
 
     // Empty names array
@@ -69,7 +70,7 @@ DWORD NameToOrdinal(HMODULE hModule, LPCSTR lpProcName)
         return -1;
 
     // Pointer to AddressOfNameOrdinals array
-    pNameOrdinalsArray = (PWORD)((DWORD)pBase + pExportDir->AddressOfNameOrdinals);
+    pNameOrdinalsArray = (PWORD)PTRADD(pBase, pExportDir->AddressOfNameOrdinals);
 
     // Search for name of function in the NamesArray
     nNameIndex = -1;
@@ -100,7 +101,7 @@ FARPROC _GetProcAddress(HMODULE hModule, DWORD Ordinal)
 {
     HINSTANCE               pBase;
     PIMAGE_DOS_HEADER       pDOSHeader;
-    PIMAGE_NT_HEADERS32     pNTHeader;
+    PIMAGE_NT_HEADERS       pNTHeader;
     PIMAGE_EXPORT_DIRECTORY pExportDir;
     DWORD                   lExportOffset, lExportSize;
     PDWORD                  pFunctionArray;
@@ -172,7 +173,7 @@ int GetProcLength(HMODULE hModule, DWORD Ordinal)
 {
     HINSTANCE               pBase;
     PIMAGE_DOS_HEADER       pDOSHeader;
-    PIMAGE_NT_HEADERS32     pNTHeader;
+    PIMAGE_NT_HEADERS       pNTHeader;
     PIMAGE_EXPORT_DIRECTORY pExportDir;
     PIMAGE_SECTION_HEADER   pImageSectionArray;
     DWORD                   lExportOffset, lExportSize;
