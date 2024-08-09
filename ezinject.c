@@ -400,14 +400,37 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
 
 #ifdef EZ_TARGET_WINDOWS
-	HMODULE ntdll = GetModuleHandle("ntdll.dll");
-	#define GETSYM(l, x) x = (void *)GetProcAddress(l, #x)
-	GETSYM(ntdll, RtlQueryProcessDebugInformation);
-	GETSYM(ntdll, RtlCreateQueryDebugBuffer);
-	GETSYM(ntdll, RtlDestroyQueryDebugBuffer);
+	OSVERSIONINFO osvi = {
+		.dwOSVersionInfoSize = sizeof(osvi)
+	};
+	if(!GetVersionEx(&osvi)) {
+		PERROR("GetVersionEx");
+		return 1;
+	}
+	if(osvi.dwPlatformId != VER_PLATFORM_WIN32_NT){
+		// win32, do nothing
+		return 0;
+	}
 #endif
 
 	INFO("Looking up " C_LIBRARY_NAME);
+
+	void *h_libc = LIB_OPEN(C_LIBRARY_NAME);
+	if(!h_libc){
+		ERR("dlopen("C_LIBRARY_NAME") failed: %s", LIB_ERROR());
+		return 1;
+	}
+
+	#ifdef EZ_TARGET_WINDOWS
+	/** init APIs for get_base */
+	RtlQueryProcessDebugInformation = LIB_GETSYM(h_libc, "RtlQueryProcessDebugInformation");
+	RtlCreateQueryDebugBuffer = LIB_GETSYM(h_libc, "RtlCreateQueryDebugBuffer");
+	RtlDestroyQueryDebugBuffer = LIB_GETSYM(h_libc, "RtlDestroyQueryDebugBuffer");
+	DBGPTR(RtlQueryProcessDebugInformation);
+	DBGPTR(RtlCreateQueryDebugBuffer);
+	DBGPTR(RtlDestroyQueryDebugBuffer);
+	#endif
+
 	ez_addr libc = {
 		.local  = (uintptr_t) get_base(getpid(), LIBC_SEARCH, ignores),
 		.remote = (uintptr_t) get_base(ctx->target, LIBC_SEARCH, ignores)
@@ -421,12 +444,6 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		return 1;
 	}
 	ctx->libc = libc;
-
-	void *h_libc = LIB_OPEN(C_LIBRARY_NAME);
-	if(!h_libc){
-		ERR("dlopen("C_LIBRARY_NAME") failed: %s", LIB_ERROR());
-		return 1;
-	}
 
 	{
 		void *h_libdl = LIB_OPEN(DL_LIBRARY_NAME);

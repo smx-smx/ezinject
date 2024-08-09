@@ -19,9 +19,6 @@
 #include "log.h"
 #include "util.h"
 
-// $TODO: runtime
-#define EZ_TARGET_WINNT
-
 NTSTATUS NTAPI (*RtlQueryProcessDebugInformation)(
 	HANDLE UniqueProcessId,
 	ULONG Flags,
@@ -107,8 +104,7 @@ static uintptr_t _search_executable_region(HANDLE hProcess, LPVOID baseAddr){
 	return (found) ? UPTR(lpMem) : 0;
 }
 
-#ifdef EZ_TARGET_WINNT
-void *get_base(pid_t pid, char *substr, char **ignores) {
+static void *get_base_winnt(pid_t pid, char *substr, char **ignores) {
 	HANDLE hProcess = INVALID_HANDLE_VALUE;
 
 
@@ -119,7 +115,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	if (NULL == hProcess){
 		PERROR("OpenProcess");
 		return NULL;
-	}	
+	}
 
 	void *base = NULL;
 	do {
@@ -167,9 +163,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	return base;
 }
 
-
-#else
-void *get_base(pid_t pid, char *substr, char **ignores) {
+static void *get_base_toolhelp(pid_t pid, char *substr, char **ignores){
 	UNUSED(ignores);
 
 	HANDLE hProcess = INVALID_HANDLE_VALUE;
@@ -184,6 +178,26 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	BOOL isWINNT = osvi.dwPlatformId == VER_PLATFORM_WIN32_NT;
 
 
+	HANDLE WINAPI (*pfnCreateToolhelp32Snapshot)(DWORD dwFlags,DWORD th32ProcessID) = NULL;
+	BOOL WINAPI (*pfnModule32First)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
+	BOOL WINAPI (*pfnModule32Next)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
+
+	HMODULE hKernel32 = GetModuleHandle("kernel32.dll");
+	if(!hKernel32){
+		PERROR("GetModuleHandle");
+		return NULL;
+	}
+
+	pfnCreateToolhelp32Snapshot = (typeof(pfnCreateToolhelp32Snapshot)) GetProcAddress(hKernel32, "CreateToolhelp32Snapshot");
+	pfnModule32First = (typeof(pfnModule32First)) GetProcAddress(hKernel32, "Module32First");
+	pfnModule32Next = (typeof(pfnModule32Next)) GetProcAddress(hKernel32, "Module32Next");
+
+	if(!pfnCreateToolhelp32Snapshot || !pfnModule32First || !pfnModule32Next){
+		ERR("Failed to resolve ToolHelp APIs");
+		return NULL;
+	}
+
+
 	hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
                             PROCESS_VM_READ,
                             FALSE, pid );
@@ -196,8 +210,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	HANDLE hSnap = INVALID_HANDLE_VALUE;
 	TCHAR *imageFileName = NULL;
 	do {
-	repeat:
-		hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
+		hSnap = pfnCreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pid);
 		if(hSnap == INVALID_HANDLE_VALUE){
 			PERROR("CreateToolhelp32Snapshot failed");
 			break;
@@ -207,7 +220,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 			.dwSize = sizeof(MODULEENTRY32)
 		};
 
-		if(!Module32First(hSnap, &mod32)){
+		if(!pfnModule32First(hSnap, &mod32)){
 			PERROR("Module32First");
 			break;
 		}
@@ -220,7 +233,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 				imageFileName = backslash + 1;
 			}
 		}
-		DBG("imageFileName: %s", imageFileName);		
+		DBG("imageFileName: %s", imageFileName);
 		do {
 			TCHAR *modName = mod32.szModule;
 			uintptr_t modBase = (uintptr_t)mod32.modBaseAddr;
@@ -239,7 +252,7 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 				base = (void *)modBase;
 				break;
 			}
-		} while(Module32Next(hSnap, &mod32));
+		} while(pfnModule32Next(hSnap, &mod32));
 
 	} while(0);
 	if(imageFileName != NULL){
@@ -253,4 +266,18 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 	DBG("base for %s -> %p", substr, base);
 	return base;
 }
-#endif
+
+void *get_base(pid_t pid, char *substr, char **ignores) {
+	OSVERSIONINFO osvi = {
+		.dwOSVersionInfoSize = sizeof(osvi)
+	};
+	if(!GetVersionEx(&osvi)) {
+		PERROR("GetVersionEx");
+		return NULL;
+	}
+	if(osvi.dwPlatformId == VER_PLATFORM_WIN32_NT){
+		return get_base_winnt(pid, substr, ignores);
+	} else {
+		return get_base_toolhelp(pid, substr, ignores);
+	}
+}
