@@ -10,6 +10,8 @@
 #define __EZINJECT_COMMON_H
 
 #include <unistd.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #define UNUSED(x) (void)(x)
 #define ALIGNMSK(y) ((y)-1)
@@ -17,6 +19,9 @@
 #ifdef ALIGN
 #undef ALIGN
 #endif
+
+typedef intptr_t nint;
+typedef uintptr_t nuint;
 
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 

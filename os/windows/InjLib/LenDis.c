@@ -1117,9 +1117,8 @@ Compare:
     {
         bModRm = *pCode;
 
-        if (bModRm & 0x18) ;			// CALL
-        else if (bModRm & 0x28)	;		// JMP
-
+        if (bModRm & 0x18){}			// CALL
+        else if (bModRm & 0x28){}		// JMP
         f = MODRM;
 
         goto Compare;

@@ -94,7 +94,7 @@ int run_on_pid(void *state, void *arg){
 	char *line = (char *)arg;
 
 	pid_t pid = 0;
-	if(sscanf(line, "pid=%u", &pid) != 1){
+	if(sscanf(line, "pid=%" PRIdMAX, &pid) != 1){
 		return -1;
 	}
 	ctx->pid = pid;
@@ -136,7 +136,7 @@ int run(struct test_state *ctx){
 		if(expect(hTarget, "pid=", -1, &on_pid) != 0){
 			break;
 		}
-		printf("[+] pid: %u""\n", ctx->pid);
+		printf("[+] pid: %" PRIdMAX "\n", ctx->pid);
 		if(expect(hTarget, "return1() = 1", 8, &on_return1) != 0){
 			break;
 		}

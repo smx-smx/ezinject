@@ -37,7 +37,7 @@ inline int inj_absjmp_opcode_bytes() {
 /** $TODO: untested **/
 int inj_build_rel_jump(uint8_t *buffer, void *jump_destination, void *jump_opcode_address) {
 	uintptr_t operand = PTRDIFF(jump_destination, jump_opcode_address) - 5;
-	LOG(4, "REL JUMP (X64) TO %p FROM %p IS: " LX, jump_destination, jump_opcode_address, operand);
+	LOG(4, "REL JUMP (X64) TO %p FROM %p IS: %"PRIuMAX, jump_destination, jump_opcode_address, operand);
 
 	uint32_t lo = operand & 0xFFFFFFFF;
 	uint32_t hi = ((operand >> 32) & 0xFFFFFFFF);

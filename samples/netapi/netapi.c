@@ -429,7 +429,7 @@ void *start_server(void *arg){
 		}
 	} while(0);
 
-	return (void *)rc;
+	return (void *)(uintptr_t)rc;
 }
 
 int lib_preinit(struct injcode_user *user){

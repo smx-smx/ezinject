@@ -66,7 +66,7 @@ INLINE intptr_t inj_thread_wait(
 		result = api->GetExitCodeThread(br->hThread, &exitStatus);
 	} while(result != FALSE && exitStatus == STILL_ACTIVE);
 
-	PCALL(ctx, inj_dbgptr, VPTR(exitStatus));
+	PCALL(ctx, inj_dbgptr, VPTR(UPTR(exitStatus)));
 
 	*pExitStatus = exitStatus;
 	return 0;

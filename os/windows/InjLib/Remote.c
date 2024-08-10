@@ -19,6 +19,7 @@
  * (c) A. Miguel Feijao, 22/4/2005                           *
  *************************************************************/
 
+#include <vadefs.h>
 #define REMOTE_DEFINE_GLOBALS
 #include  "Remote.h"
 #include  "Struct.h"
@@ -27,6 +28,7 @@
 
 #include "log.h"
 #include "ezinject_arch.h"
+#include "ezinject_common.h"
 
 int     OSMajorVersion, OSMinorVersion, OSBuildVersion;
 BOOL    OSWin9x, OSWin95, OSWin98, OSWinMe;
@@ -39,9 +41,9 @@ DWORD   Krn32Mutex;                 // Krn32Mutex
 /**********************
  * Find s2 within s1. *
  **********************/
-char *MemSearch(char *s1, size_t len1, char *s2, size_t len2)
+uint8_t *MemSearch(uint8_t *s1, size_t len1, char *s2, size_t len2)
 {
-    char *pLastCmp, *p;
+    uint8_t *pLastCmp, *p;
 
     if (len1 == 0 || len2 == 0 || len1 < len2)
         return NULL;
@@ -51,10 +53,11 @@ char *MemSearch(char *s1, size_t len1, char *s2, size_t len2)
 
     while (p <= pLastCmp)
     {
-        if (memcmp(p, s2, len2) == 0)
+        if (memcmp(p, s2, len2) == 0){
             return p;
-         else
+        } else {
             p++;
+        }
      }
      return NULL;
 }
@@ -92,7 +95,7 @@ PTDB GetTDB(DWORD TID)
         return NULL;
 
     // Pointer to TDB (Thread Database)
-    pTDB = (PTDB)(TID ^ dwObsfucator);
+    pTDB = (PTDB)(uintptr_t)(TID ^ dwObsfucator);
 
     // Check TDB address
     if (IsBadReadPtr(pTDB, sizeof(DWORD)))
@@ -123,7 +126,7 @@ PPDB GetPDB(DWORD PID)
         return NULL;
 
     // Pointer to PDB (Process Database)
-    if (PID == -1) // Local process
+    if (PID == (DWORD)-1) // Local process
     {
         __asm__ (
             "mov %%fs:0x30, %0\n\t"
@@ -131,7 +134,7 @@ PPDB GetPDB(DWORD PID)
         );
     }
     else
-        pPDB = (PPDB)(PID ^ dwObsfucator);
+        pPDB = (PPDB)(uintptr_t)(PID ^ dwObsfucator);
 
     // Check PDB address
     if (IsBadReadPtr(pPDB, sizeof(DWORD)))
@@ -384,7 +387,7 @@ HANDLE OpenThreadNT(DWORD dwDesiredAccess,
         ObjectAttributes.Attributes = OBJ_INHERIT;
 
     ClientId.UniqueProcess = NULL;
-    ClientId.UniqueThread = (HANDLE)dwThreadId;
+    ClientId.UniqueThread = (HANDLE)(uintptr_t)dwThreadId;
 
     Status = NtOpenThread(&hThread,             // Thread handle
                           dwDesiredAccess,      // Access to thread object
@@ -457,12 +460,12 @@ DWORD GetProcessId9x(HANDLE hProcess)
     // Get handle table pointer and index
     if (OSWin95)
     {
-        index = (DWORD)hProcess;
+        index = (uintptr_t)hProcess;
         pHandleTable = ((PPDB95)pPDB)->pHandleTable;
     }
     else
     {
-        index = (DWORD)hProcess / 4;
+        index = (uintptr_t)hProcess / 4;
         pHandleTable = ((PPDB98)pPDB)->pHandleTable;
     }
     NumberOfHandleTableEntries = pHandleTable->cEntries;
@@ -489,7 +492,7 @@ DWORD GetProcessId9x(HANDLE hProcess)
         return 0;
 
     // Return PID
-    return (DWORD)pObject ^ dwObsfucator;
+    return (DWORD)(uintptr_t)pObject ^ dwObsfucator;
 }
 
 
@@ -533,7 +536,7 @@ DWORD WINAPI GetProcessIdNT(HANDLE hProcess)
     }
 
     // Return PID
-    return (DWORD)pbi.UniqueProcessId;
+    return (DWORD)(uintptr_t)pbi.UniqueProcessId;
 }
 
 
@@ -546,7 +549,7 @@ DWORD WINAPI GetProcessIdNT(HANDLE hProcess)
  * Emulated   : Win9x, WinNT                                  *
  *                                                            *
  **************************************************************/
-DWORD _GetProcessId(HANDLE hProcess)    // Handle to Process
+ULONG _GetProcessId(HANDLE hProcess)    // Handle to Process
 {
     // Win 9x, Me
     if (OSWin9x)
@@ -590,12 +593,12 @@ DWORD GetThreadId9x(HANDLE hThread)
     // Get handle table pointer and index
     if (OSWin95)
     {
-        index = (DWORD)hThread;
+        index = (uintptr_t)hThread;
         pHandleTable = ((PPDB95)pPDB)->pHandleTable;
     }
     else
     {
-        index = (DWORD)hThread / 4;
+        index = (uintptr_t)hThread / 4;
         pHandleTable = ((PPDB98)pPDB)->pHandleTable;
     }
     NumberOfHandleTableEntries = pHandleTable->cEntries;
@@ -622,7 +625,7 @@ DWORD GetThreadId9x(HANDLE hThread)
         return 0;
 
     // Return TID
-    return (DWORD)pObject ^ dwObsfucator;
+    return (DWORD)((uintptr_t)pObject ^ dwObsfucator);
 }
 
 
@@ -666,7 +669,7 @@ DWORD WINAPI GetThreadIdNT(HANDLE hThread)
     }
 
     // Return TID
-    return (DWORD)tbi.ClientId.UniqueThread;
+    return (DWORD)(uintptr_t)tbi.ClientId.UniqueThread;
 }
 
 
@@ -792,7 +795,7 @@ HANDLE CreateRemoteThread9x(HANDLE hProcess,
         LeaveSysLevel(Krn32Mutex);
     LeaveSysLevel(Win16Mutex);
 
-    dwThreadId = (DWORD)pTDB ^ dwObsfucator;
+    dwThreadId = (DWORD)(uintptr_t)pTDB ^ dwObsfucator;
 
     if (lpThreadId != NULL)
         *lpThreadId = dwThreadId;
@@ -902,16 +905,18 @@ HANDLE _CreateRemoteThread(HANDLE hProcess,                             // Handl
 DWORD GetProcessThread9x(DWORD PID)
 {
     PPDB        pPDB;
-    DWORD       *pThreadHead;
+    uintptr_t   *pThreadHead;
     PTHREADLIST pThreadNode;
     DWORD       TID = 0;
     HANDLE      hThread;
-    CONTEXT     c = {CONTEXT_CONTROL | CONTEXT_INTEGER};
+    CONTEXT     c = {
+        .ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER
+    };
 
     // Get thread list (from PDB)
     if (!(pPDB = GetPDB(PID)))
         return 0;
-    if (!(pThreadHead = (DWORD *)((PPDB98)pPDB)->ThreadList))
+    if (!(pThreadHead = (uintptr_t *)((PPDB98)pPDB)->ThreadList))
         return 0;
     if (!(pThreadNode = (THREADLIST *)*pThreadHead))
         return 0;
@@ -937,7 +942,7 @@ DWORD GetProcessThread9x(DWORD PID)
         }
 
         CloseHandle(hThread);
-    } while (pThreadNode = (THREADLIST *)pThreadNode->pNext);
+    } while ((pThreadNode = (THREADLIST *)pThreadNode->pNext));
 
     return 0;
 }
@@ -952,7 +957,9 @@ DWORD GetProcessThreadToolhelp(DWORD dwPID)
   THREADENTRY32 te;
   HANDLE        hThread;
   DWORD         TID = 0;
-  CONTEXT       c = {CONTEXT_CONTROL | CONTEXT_INTEGER};
+  CONTEXT       c = {
+    .ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER
+  };
 
   hSnapshot = K32_CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, dwPID);
   if (hSnapshot == INVALID_HANDLE_VALUE)
@@ -1021,7 +1028,10 @@ DWORD GetProcessThreadNtQuerySystemInformation(DWORD dwPID)
     ULONG   ThreadCount;
     ULONG   i;
     HANDLE  hThread;
-    CONTEXT c = {CONTEXT_CONTROL | CONTEXT_INTEGER};
+    CONTEXT c = {
+        .ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER
+    };
+    UNUSED(c);
 
     // Find needed buffer length
     do
@@ -1048,7 +1058,7 @@ DWORD GetProcessThreadNtQuerySystemInformation(DWORD dwPID)
     pInfo = (PSYSTEM_PROCESS_INFORMATION)pBuffer;
     for (;;)
     {
-        if ((DWORD)pInfo->UniqueProcessId == dwPID)
+        if ((uintptr_t)pInfo->UniqueProcessId == dwPID)
         {
             ThreadCount = pInfo->NumberOfThreads;
 
@@ -1059,7 +1069,7 @@ DWORD GetProcessThreadNtQuerySystemInformation(DWORD dwPID)
 
             for (i = 0; i < ThreadCount; i++)
             {
-                dwThreadId = (DWORD)pThreads[i].ClientId.UniqueThread;
+                dwThreadId = (DWORD)(uintptr_t)pThreads[i].ClientId.UniqueThread;
 
                 if (!(hThread = _OpenThread(THREAD_ALL_ACCESS, FALSE, dwThreadId)))
                     continue;
@@ -1119,13 +1129,13 @@ BOOL Initialization()
     PIMAGE_NT_HEADERS       pNTHeader;
     PIMAGE_SECTION_HEADER   pImageSectionArray;
     int                     nNumberOfSections;
-    DWORD                   SectionStart;
-    DWORD                   K32Table;
+    uintptr_t               SectionStart;
+    uintptr_t               K32Table;
     int                     nLocks;
     DWORD                   *pMutex;
     int                     len, Res, Displacement;
     int                     i, SearchLen;
-    DWORD                   Addr;
+    uintptr_t               Addr;
 
     // Not reentrant
     if (bInitializing)
@@ -1193,7 +1203,7 @@ BOOL Initialization()
                 if (pDOSHeader->e_magic == IMAGE_DOS_SIGNATURE) // "MZ"
                 {
                     // NT Header
-                    pNTHeader = (PIMAGE_NT_HEADERS)((LONG)pDOSHeader + pDOSHeader->e_lfanew);
+                    pNTHeader = (PIMAGE_NT_HEADERS)PTRADD(pDOSHeader, pDOSHeader->e_lfanew);
                     if (pNTHeader->Signature == LOWORD(IMAGE_NT_SIGNATURE)) // "PE"
                     {
                         pImageSectionArray = IMAGE_FIRST_SECTION(pNTHeader);
@@ -1202,11 +1212,11 @@ BOOL Initialization()
                         // Search all image sections
                         for (i=0; i < nNumberOfSections; i++)
                         {
-                            SectionStart = (DWORD)pBase + pImageSectionArray[i].VirtualAddress;
+                            SectionStart = PTRADD(pBase, pImageSectionArray[i].VirtualAddress);
 
                             if (!IsBadReadPtr((void *)SectionStart, 4) && _strnicmp((char *)SectionStart, "KEXP", 4) == 0)
                             {
-                                K32Table = *(DWORD *)(SectionStart + 8);
+                                K32Table = *(uintptr_t *)(SectionStart + 8);
                                 if (OSWin95)
                                     Krn32Mutex = *(DWORD *)(K32Table + 0x28); // Win95 OSR 2.0 -
                                 else
@@ -1225,7 +1235,7 @@ BOOL Initialization()
                 // If running under a debugger get the real address
                 if (*(PBYTE)pOpenProcess == 0x68)
 				{
-                    pOpenProcess = (PVOID)*(DWORD *)((PBYTE)pOpenProcess + 1);
+                    pOpenProcess = (PVOID)*(uintptr_t *)((PBYTE)pOpenProcess + 1);
 					OpenProcessLength = 0x1000;
 				}
 
@@ -1245,7 +1255,7 @@ BOOL Initialization()
                 // If running under a debugger get the real address
                 if (*(PBYTE)pDebugActiveProcess == 0x68)
 				{
-                    pDebugActiveProcess = (PVOID)*(DWORD *)((PBYTE)pDebugActiveProcess + 1);
+                    pDebugActiveProcess = (PVOID)*(uintptr_t *)((PBYTE)pDebugActiveProcess + 1);
 					DebugActiveProcessLength = 0x1000;
 				}
 
@@ -1267,7 +1277,7 @@ BOOL Initialization()
                     // Alternative method to find Krn32Mutex
                     if (*p == 0xA1)     // MOV EAX, [xxxxxxxx]
                     {
-                        pMutex = (DWORD *)*(DWORD *)(p + 1);
+                        pMutex = (DWORD *)*(uintptr_t *)(p + 1);
                         if (*pMutex != Win16Mutex && Krn32Mutex == 0)
                             Krn32Mutex = *pMutex;
                     }
@@ -1275,8 +1285,8 @@ BOOL Initialization()
                     // Check how many times EnterSysLevel() is called
                     if (*p == 0xE8)     // CALL xxxxxxxx
                     {
-                        Addr = (DWORD)p + (DWORD)*(DWORD *)(p + 1) + 5;
-                        if (Addr == (DWORD)EnterSysLevel)
+                        Addr = PTRADD(p, *(uintptr_t *)(p + 1)) + 5;
+                        if (Addr == (uintptr_t)EnterSysLevel)
                             nLocks++;
                     }
 
@@ -1300,7 +1310,7 @@ BOOL Initialization()
                 // If running under a debugger get the real address
                 if (*(PBYTE)pGDIReallyCares == 0x68)
 				{
-                    pGDIReallyCares = (PVOID)*(DWORD *)((PBYTE)pGDIReallyCares + 1);
+                    pGDIReallyCares = (PVOID)*(uintptr_t *)((PBYTE)pGDIReallyCares + 1);
 					GDIReallyCaresLength = 0x1000;
 				}
 
@@ -1310,7 +1320,7 @@ BOOL Initialization()
                     break;
                 p += 2;
                 // Address of pMTEModTable
-                pMTEModTable = (IMTE **)*(DWORD *)*(DWORD *)p;
+                pMTEModTable = (IMTE **)**(uintptr_t **)p;
 
                 // Win Me
                 if (OSWinMe)

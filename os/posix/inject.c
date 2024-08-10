@@ -73,7 +73,9 @@ static off_t trampoline_entry_label;
 static off_t sc_offset;
 static size_t sc_size;
 
+#ifdef EZ_TARGET_POSIX
 static off_t sc_fn_offset;
+#endif
 
 static void *code_data(void *code){
 #if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
@@ -314,7 +316,7 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 			case __NR_munmap:
 				return r_current_sc_base + sc_virtualfree_offset;
 			default:
-				ERR("Unknown win32 syscall %u", call->argv[0]);
+				ERR("Unknown win32 syscall %"PRIuMAX, call->argv[0]);
 				break;
 		}
 	} else {

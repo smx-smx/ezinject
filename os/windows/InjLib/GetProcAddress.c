@@ -57,6 +57,7 @@ DWORD NameToOrdinal(HMODULE hModule, LPCSTR lpProcName)
     // RVA of export table
     lExportOffset = pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
     lExportSize = pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+    UNUSED(lExportSize);
 
     // Pointer to export table
     pExportDir = (PIMAGE_EXPORT_DIRECTORY)PTRADD(pBase, lExportOffset);
@@ -76,7 +77,7 @@ DWORD NameToOrdinal(HMODULE hModule, LPCSTR lpProcName)
     nNameIndex = -1;
     for (i=0; i < lNumberOfNames; i++)
     {
-        szName = (char *)((DWORD)pBase + pNamesArray[i]);
+        szName = (char *)PTRADD(pBase, pNamesArray[i]);
 
         if (!strcmp(szName, lpProcName))
         {
@@ -120,7 +121,7 @@ FARPROC _GetProcAddress(HMODULE hModule, DWORD Ordinal)
         return NULL;
 
     // NT Header
-    pNTHeader = (PIMAGE_NT_HEADERS)((LONG)pDOSHeader + pDOSHeader->e_lfanew);
+    pNTHeader = (PIMAGE_NT_HEADERS)PTRADD(pDOSHeader, pDOSHeader->e_lfanew);
     if (pNTHeader->Signature != LOWORD(IMAGE_NT_SIGNATURE)) // "PE"
         return NULL;
 
@@ -129,8 +130,8 @@ FARPROC _GetProcAddress(HMODULE hModule, DWORD Ordinal)
     lExportSize = pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
 
     // Pointer to export table and export functions array
-    pExportDir = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pBase + lExportOffset);
-    pFunctionArray = (PDWORD)((DWORD)pBase + pExportDir->AddressOfFunctions);
+    pExportDir = (PIMAGE_EXPORT_DIRECTORY)PTRADD(pBase, lExportOffset);
+    pFunctionArray = (PDWORD)PTRADD(pBase, pExportDir->AddressOfFunctions);
 
     // Check if requested ordinal # is valid
     if ((Ordinal < pExportDir->Base) ||
@@ -139,10 +140,10 @@ FARPROC _GetProcAddress(HMODULE hModule, DWORD Ordinal)
 
     // This works because the export table cannot have gaps
     // (if the ordinal is a gap then the corresponding export table entry contains zero)
-    pFunctionAddr = (FARPROC)((DWORD)pBase + pFunctionArray[Ordinal - pExportDir->Base]);
+    pFunctionAddr = (FARPROC)PTRADD(pBase, pFunctionArray[Ordinal - pExportDir->Base]);
 
     // Export forward ?
-    if (((DWORD)pFunctionAddr >= (DWORD)pExportDir) && ((DWORD)pFunctionAddr < ((DWORD)pExportDir + lExportSize)))
+    if (((uintptr_t)pFunctionAddr >= (uintptr_t)pExportDir) && ((uintptr_t)pFunctionAddr < PTRADD(pExportDir, lExportSize)))
     {
         szForwardedFunctionName = strchr((char *)pFunctionAddr, '.');
         if (!szForwardedFunctionName)
@@ -177,7 +178,7 @@ int GetProcLength(HMODULE hModule, DWORD Ordinal)
     PIMAGE_EXPORT_DIRECTORY pExportDir;
     PIMAGE_SECTION_HEADER   pImageSectionArray;
     DWORD                   lExportOffset, lExportSize;
-    DWORD                   SectionStart, SectionEnd;
+    uintptr_t               SectionStart, SectionEnd;
     PDWORD                  pFunctionArray;
     FARPROC                 pFunctionAddr, pCurrentFunctionAddr;
     int                     nNumberOfSections;
@@ -195,17 +196,18 @@ int GetProcLength(HMODULE hModule, DWORD Ordinal)
         return 0;
 
     // NT Header
-    pNTHeader = (PIMAGE_NT_HEADERS)((LONG)pDOSHeader + pDOSHeader->e_lfanew);
+    pNTHeader = (PIMAGE_NT_HEADERS)PTRADD(pDOSHeader, pDOSHeader->e_lfanew);
     if (pNTHeader->Signature != LOWORD(IMAGE_NT_SIGNATURE)) // "PE"
         return 0;
 
     // RVA of export table
     lExportOffset = pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
     lExportSize = pNTHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+    UNUSED(lExportSize);
 
     // Pointer to export table and export functions array
-    pExportDir = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pBase + lExportOffset);
-    pFunctionArray = (PDWORD)((DWORD)pBase + pExportDir->AddressOfFunctions);
+    pExportDir = (PIMAGE_EXPORT_DIRECTORY)PTRADD(pBase, lExportOffset);
+    pFunctionArray = (PDWORD)PTRADD(pBase, pExportDir->AddressOfFunctions);
 
     // Check if requested ordinal # is valid
     if ((Ordinal < pExportDir->Base) ||
@@ -214,10 +216,10 @@ int GetProcLength(HMODULE hModule, DWORD Ordinal)
 
     // This works because the export table cannot have gaps
     // (if the ordinal is a gap then the corresponding export table entry contains zero)
-    pFunctionAddr = (FARPROC)((DWORD)pBase + pFunctionArray[Ordinal - pExportDir->Base]);
+    pFunctionAddr = (FARPROC)PTRADD(pBase, pFunctionArray[Ordinal - pExportDir->Base]);
 
     // Export forward ?
-    if (((DWORD)pFunctionAddr >= (DWORD)pExportDir) && ((DWORD)pFunctionAddr < ((DWORD)pExportDir + lExportSize)))
+    if (((uintptr_t)pFunctionAddr >= (uintptr_t)pExportDir) && ((uintptr_t)pFunctionAddr < PTRADD(pExportDir, lExportSize)))
     {
         szForwardedFunctionName = strchr((char *)pFunctionAddr, '.');
         if (!szForwardedFunctionName)
@@ -243,7 +245,7 @@ int GetProcLength(HMODULE hModule, DWORD Ordinal)
 
     for (i = 1; i <= (int)pExportDir->NumberOfFunctions; i++)
     {
-        pCurrentFunctionAddr = (FARPROC)((DWORD)pBase + pFunctionArray[i - pExportDir->Base]);
+        pCurrentFunctionAddr = (FARPROC)PTRADD(pBase, pFunctionArray[i - pExportDir->Base]);
         Diff = (PBYTE)pCurrentFunctionAddr - (PBYTE)pFunctionAddr;
         if (Diff > 0)
            Length = min(Length, Diff);
@@ -262,13 +264,13 @@ int GetProcLength(HMODULE hModule, DWORD Ordinal)
             // Code section
             if (pImageSectionArray[i].Characteristics & IMAGE_SCN_CNT_CODE)
             {
-                SectionStart = (DWORD)pBase + pImageSectionArray[i].VirtualAddress;
+                SectionStart = PTRADD(pBase, pImageSectionArray[i].VirtualAddress);
                 SectionEnd = SectionStart + pImageSectionArray[i].Misc.VirtualSize;
 
                 // Function lies within this section ?
-                if ((DWORD)pFunctionAddr >= SectionStart && (DWORD)pFunctionAddr <= SectionEnd)
+                if ((uintptr_t)pFunctionAddr >= SectionStart && (uintptr_t)pFunctionAddr <= SectionEnd)
                 {
-                    Length = SectionEnd - (DWORD)pFunctionAddr;
+                    Length = PTRDIFF(SectionEnd, pFunctionAddr);
                     break;
                 }
             }

@@ -66,6 +66,7 @@
 extern int crt_userinit(struct injcode_bearing *br);
 WINAPI void* crt_user_entry(void *arg);
 
+#if 0
 #ifdef EZ_TARGET_WINDOWS
 static void _init_stdout(){
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -86,6 +87,7 @@ static void _init_stdout(){
 	SetStdHandle(STD_OUTPUT_HANDLE, hConOut);
 	SetStdHandle(STD_ERROR_HANDLE, hConOut);
 }
+#endif
 #endif
 
 DLLEXPORT /**

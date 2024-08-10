@@ -223,6 +223,8 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 	UNUSED(expected_signal);
 
 	regs_t regs;
+	UNUSED(regs);
+
 	while(1){
 		uintptr_t ezstate = 0;
 		if(remote_read(ctx,

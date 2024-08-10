@@ -546,8 +546,8 @@ typedef struct _PROCESS_BASIC_INFORMATION {
     PPEB      PebBaseAddress;
     ULONG_PTR AffinityMask;
     KPRIORITY BasePriority;
-    HANDLE    UniqueProcessId;
-    HANDLE    InheritedFromUniqueProcessId;
+    ULONG_PTR UniqueProcessId;
+    ULONG_PTR    InheritedFromUniqueProcessId;
 } PROCESS_BASIC_INFORMATION, *PPROCESS_BASIC_INFORMATION;
 
 typedef struct _PROCESS_EXTENDED_BASIC_INFORMATION {
@@ -788,7 +788,7 @@ typedef struct _SYSTEM_PROCESS_INFORMATION {
 typedef struct {
     struct THREADLIST *pNext;
     struct THREADLIST *pPrev;
-    DWORD  pTDB;
+    uintptr_t pTDB;
 } THREADLIST, *PTHREADLIST;
 
 // Environment Database
@@ -1131,7 +1131,7 @@ typedef struct _PDB98 {                 // Size = 0xC4 (from Kernel32)
     PHANDLE_TABLE pHandleTable;         // 44 Pointer to Handle Table
     struct PDB98* ParentPDB;            // 48 Pointer to parent process (PDB)
     PMODREF MODREFList;                 // 4C Pointer to list of modules
-    DWORD   ThreadList;                 // 50 Pointer to list of threads
+    uintptr_t ThreadList;                 // 50 Pointer to list of threads
     DWORD   DebuggeeCB;                 // 54 Debuggee context block
     DWORD   LocalHeapFreeHead;          // 58 Free list for process default heap
     DWORD   InitialRing0ID;             // 5C Meaning unknown

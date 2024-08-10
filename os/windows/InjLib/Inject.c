@@ -18,6 +18,7 @@
  * - BufferSecurity Check = No (/GS-)                                          *
  *******************************************************************************/
 
+#include <vadefs.h>
 #define   DLL_EXPORT    // EXPORT functions
 
 #define   WIN32_LEAN_AND_MEAN
@@ -65,12 +66,12 @@ DWORD GetProcessInfo(DWORD dwPID)
 {
     WORD                ProcessFlags = 0;	// Initialize to zero
     HANDLE              hProcess;
-    DWORD               dwTID;
+    uintptr_t           dwTID;
     PIMAGE_NT_HEADERS   pNTHeader;
 
     PPDB        pPDB;
     PTDB        pTDB;
-    DWORD       *pThreadHead;
+    uintptr_t   *pThreadHead;
     PTHREADLIST pThreadNode;
     DWORD       TIBFlags;
     PVOID       pvStackUserTop;
@@ -113,7 +114,7 @@ DWORD GetProcessInfo(DWORD dwPID)
                 ProcessFlags |= fINVALID;
 
             // Get thread list (from PDB)
-            if (!(pThreadHead = (DWORD *)((PPDB98)pPDB)->ThreadList))
+            if (!(pThreadHead = (uintptr_t *)((PPDB98)pPDB)->ThreadList))
                 return MAKELONG(-1, ERROR_THREADLIST);
             if (!(pThreadNode = (THREADLIST *)*pThreadHead))
                 return MAKELONG(-1, ERROR_THREADLIST);
@@ -122,13 +123,13 @@ DWORD GetProcessInfo(DWORD dwPID)
             pTDB = (PTDB)pThreadNode->pTDB;
 
             // Check if TID is valid
-            dwTID = (DWORD)pTDB ^ dwObsfucator;
+            dwTID = (uintptr_t)pTDB ^ dwObsfucator;
             if (!IsThreadId(dwTID))
                 return MAKELONG(-1, ERROR_ISTHREADID);
 
             // If pointers are bellow 0x80000000 process not initialized (?!?)
             // (c) R. Picha
-            if ((int)pThreadHead > 0 || (int)pThreadNode > 0 || (int)pTDB > 0)
+            if ((uintptr_t)pThreadHead > 0 || (uintptr_t)pThreadNode > 0 || (uintptr_t)pTDB > 0)
                 ProcessFlags |= fNOTINITIALIZED;
 
             // Get TIB flags
@@ -155,7 +156,7 @@ DWORD GetProcessInfo(DWORD dwPID)
                     pvStackUserTop = NULL;
 
                 // Last DWORD pushed on stack
-                pvStackUserTop = (DWORD *)((DWORD)pvStackUserTop - sizeof(DWORD));
+                pvStackUserTop = (uintptr_t *)((uintptr_t)pvStackUserTop - sizeof(uintptr_t));
 
                 // Read last DWORD pushed on stack
                 if (!ReadProcessMemory(hProcess, pvStackUserTop, &StackUserTopContents, sizeof(StackUserTopContents), NULL))
@@ -281,19 +282,19 @@ DWORD GetProcessInfo(DWORD dwPID)
  *                                      *
  * Patches remote stub data at runtime. *
  ****************************************/
-int InitializeAndPatchStub(HANDLE hProcess, PBYTE pCode, OFFSETS offs, DWORD UserFunc, DWORD Native)
+int InitializeAndPatchStub(HANDLE hProcess, PBYTE pCode, OFFSETS offs, uintptr_t UserFunc, DWORD Native)
 {
     SIZE_T   nBytesWritten = 0;
     BOOL    fFinished = FALSE;
 
     if (OSWin9x)
     {
-        *(PDWORD)(pCode + offs.PUserFunc) = UserFunc;
-        *(PDWORD)(pCode + offs.PLdrShutdownThread) = (DWORD)LdrShutdownThread;
-        *(PDWORD)(pCode + offs.PNtFreeVirtualMemory) = (DWORD)NtFreeVirtualMemory;
-        *(PDWORD)(pCode + offs.PNtTerminateThread) = (DWORD)NtTerminateThread;
-        *(PDWORD)(pCode + offs.PNative) = Native;
-        *(PDWORD)(pCode + offs.PFinished) = FALSE;
+        *(uintptr_t *)(pCode + offs.PUserFunc) = UserFunc;
+        *(uintptr_t *)(pCode + offs.PLdrShutdownThread) = (uintptr_t)LdrShutdownThread;
+        *(uintptr_t *)(pCode + offs.PNtFreeVirtualMemory) = (uintptr_t)NtFreeVirtualMemory;
+        *(uintptr_t *)(pCode + offs.PNtTerminateThread) = (uintptr_t)NtTerminateThread;
+        *(uintptr_t *)(pCode + offs.PNative) = Native;
+        *(uintptr_t *)(pCode + offs.PFinished) = FALSE;
         return 0;
     }
     else
@@ -447,7 +448,7 @@ int RemoteExecute(HANDLE hProcess,                      // Remote process handle
             fNative = ((HIWORD(ProcessFlags) == IMAGE_SUBSYSTEM_NATIVE) && (ProcessFlags & fWINNT));
 
             // Patch Stub data
-            if (InitializeAndPatchStub(hProcess, pStubCode, StubOffs, (DWORD)pRemoteCode, fNative) != 0)
+            if (InitializeAndPatchStub(hProcess, pStubCode, StubOffs, (uintptr_t)pRemoteCode, fNative) != 0)
             {
                 ErrorCode = ERROR_PATCH;
                 break;
@@ -616,7 +617,6 @@ Initialized:
 /****************************
  * Remote InjectDll thread. *
  ****************************/
-#pragma check_stack(off)
 static DWORD WINAPI RemoteInjectDll(PRDATADLL pData)
 {
     pData->hRemoteDll = pData->LoadLibrary(pData->szDll);
@@ -720,7 +720,6 @@ int InjectDllW(HANDLE    hProcess,       // Remote process handle
  * Remote EjectDll thread. *
  ****************************/
 /*
-#pragma check_stack(off)
 static DWORD WINAPI RemoteEjectDll(PRDATADLL pData)
 {
     if (pData->szDll[0] != '\0')
@@ -732,7 +731,6 @@ static DWORD WINAPI RemoteEjectDll(PRDATADLL pData)
 }
 */
 
-#pragma check_stack(off)
 static DWORD WINAPI RemoteEjectDll(PRDATADLL pData)
 {
     int i = 0;
@@ -844,7 +842,7 @@ int InitializeAndPatchStubWndProc(HANDLE hProcess, PBYTE pCode, OFFSETS offs, DW
 
     if (OSWin9x)
     {
-        *(PDWORD)(pCode + offs.pRDATA) = pRDATA;
+        *(uintptr_t *)(pCode + offs.pRDATA) = pRDATA;
         return 0;
     }
     else
@@ -855,8 +853,6 @@ int InitializeAndPatchStubWndProc(HANDLE hProcess, PBYTE pCode, OFFSETS offs, DW
         return 0;
     }
 }
-
-#pragma check_stack(off)
 
 /////////////////////////////////////// DllMain ///////////////////////////////////////////
 

@@ -7,6 +7,7 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 #include <windows.h>
+#include <inttypes.h>
 #include "ezinject.h"
 #include "crt.h"
 #include "log.h"
@@ -23,7 +24,7 @@ EZAPI crt_thread_create(struct injcode_bearing *br, crt_thread_func_t pfnThreadE
 	);
 	br->hThread = hThread;
 	br->user_tid = dwThreadId;
-	DBG("tid: %u", br->user_tid);
+	DBG("tid: %"PRIdMAX, br->user_tid);
 
 	if(hThread == NULL || hThread == INVALID_HANDLE_VALUE){
 		PERROR("CreateThread");

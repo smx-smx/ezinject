@@ -68,18 +68,18 @@ typedef HMODULE (WINAPI *GETMODULEHANDLE)(char *); // ANSI
 // (if modified OFFSETS struc in Stub.asm must be modified too !)
 typedef struct _OFFSETS {
     // Stub() data
-    DWORD StubStart;
-    DWORD StubSize;
-    DWORD PUserFunc;
-    DWORD PLdrShutdownThread;
-    DWORD PNtFreeVirtualMemory;
-    DWORD PNtTerminateThread;
-    DWORD PNative;
-    DWORD PFinished;
+    uintptr_t StubStart;
+    uintptr_t StubSize;
+    uintptr_t PUserFunc;
+    uintptr_t PLdrShutdownThread;
+    uintptr_t PNtFreeVirtualMemory;
+    uintptr_t PNtTerminateThread;
+    uintptr_t PNative;
+    uintptr_t PFinished;
     // StubWndProc() data
-    DWORD StubWndProcStart;
-    DWORD StubWndProcSize;
-    DWORD pRDATA;
+    uintptr_t StubWndProcStart;
+    uintptr_t StubWndProcSize;
+    uintptr_t pRDATA;
 } OFFSETS, *POFFSETS;
 
 extern void __stdcall GetOffsets(POFFSETS offs);
@@ -128,10 +128,10 @@ int DLL_IMP_EXP EjectDllW(HANDLE hProcess, DWORD ProcessFlags, LPCWSTR szDllPath
 #endif
 
 // Exported functions type
-typedef DWORD DLL_IMP_EXP (* GETPROCESSINFO)(DWORD);
-typedef int DLL_IMP_EXP (* REMOTEEXECUTE)(HANDLE, DWORD, LPTHREAD_START_ROUTINE, PVOID, DWORD, DWORD, PDWORD);
-typedef int DLL_IMP_EXP (* INJECTDLL)(HANDLE, DWORD, LPCTSTR, DWORD, HINSTANCE *);
-typedef int DLL_IMP_EXP (* EJECTDLL)(HANDLE, DWORD, LPCTSTR, HINSTANCE, DWORD);
+typedef DWORD (* GETPROCESSINFO)(DWORD);
+typedef int (* REMOTEEXECUTE)(HANDLE, DWORD, LPTHREAD_START_ROUTINE, PVOID, DWORD, DWORD, PDWORD);
+typedef int (* INJECTDLL)(HANDLE, DWORD, LPCTSTR, DWORD, HINSTANCE *);
+typedef int (* EJECTDLL)(HANDLE, DWORD, LPCTSTR, HINSTANCE, DWORD);
 
 #ifdef __cplusplus
   }

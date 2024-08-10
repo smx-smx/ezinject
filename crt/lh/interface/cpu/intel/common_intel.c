@@ -53,13 +53,13 @@ int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *
 			cs_x86_op *op = &(detail->x86.operands[j]);
 			switch(op->type) {
 				case X86_OP_REG:
-					printf("\t\toperands["LU"].type: REG = %s\n", j, cs_reg_name(handle, op->reg));
+					printf("\t\toperands[%"PRIuMAX"].type: REG = %s\n", j, cs_reg_name(handle, op->reg));
 					break;
 				case X86_OP_MEM:
-					printf("\t\toperands["LU"].type: MEM\n", j);
+					printf("\t\toperands[%"PRIuMAX"].type: MEM\n", j);
 					if (op->mem.base != X86_REG_INVALID){
 						const char *reg_name = cs_reg_name(handle, op->mem.base);
-						printf("\t\t\toperands["LU"].mem.base: REG = %s\n", j, reg_name);
+						printf("\t\t\toperands[%"PRIuMAX"].mem.base: REG = %s\n", j, reg_name);
 						if(!strcmp(reg_name, (char *)&pcRegName)){
 							//apparently works for cmp, lea, anything mem relative hopefully
 							//if(!strcmp(insn->mnemonic, "cmp")){
@@ -79,14 +79,14 @@ int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *
 						}
 					}
 					if (op->mem.index != X86_REG_INVALID){
-						printf("\t\t\toperands["LU"].mem.index: REG = %s\n", j, cs_reg_name(handle, op->mem.index));
+						printf("\t\t\toperands[%"PRIuMAX"].mem.index: REG = %s\n", j, cs_reg_name(handle, op->mem.index));
 					}
 					if (op->mem.disp != 0){
-						printf("\t\t\toperands["LU"].mem.disp: 0x"LLX"\n", j, op->mem.disp);
+						printf("\t\t\toperands[%"PRIuMAX"].mem.disp: 0x%"PRIxPTR"\n", j, op->mem.disp);
 					}
 					break;
 				case X86_OP_IMM:
-					printf("\t\toperands["LU"].type: IMM = 0x"LLX"\n", j, op->imm);
+					printf("\t\toperands[%"PRIdMAX"].type: IMM = 0x%"PRIxPTR"\n", j, op->imm);
 					break;
 				case X86_OP_INVALID:
 				default:
