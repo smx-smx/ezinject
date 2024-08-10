@@ -355,7 +355,7 @@ HANDLE OpenThread9x(DWORD dwDesiredAccess,
         "push %[tid]\n\t"
         "push %[inherit]\n\t"
         "push %[access]\n\t"
-        "call %[openThread]\n\t"
+        "call *%[openThread]\n\t"
         "mov %%eax, %[hThread]"
     : [hThread] "=r"(hThread)
     : [tdb] "r"(pTDB),

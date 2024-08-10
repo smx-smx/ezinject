@@ -93,7 +93,7 @@ static uintptr_t _search_executable_region(HANDLE hProcess, LPVOID baseAddr){
 			break;
 		}
 		DBGPTR(lpMem);
-		DBG("mem protection: %"PRIuMAX, (nuint)mbi.Protect);
+		DBG("mem protection: %"PRIuMAX, (uintmax_t)mbi.Protect);
 
 		if(mbi.Type != MEM_IMAGE) goto next;
 		if((mbi.Protect & PAGE_NOACCESS)) goto next;
@@ -114,7 +114,7 @@ static void *get_base_winnt(pid_t pid, char *substr, char **ignores) {
 	HANDLE hProcess = INVALID_HANDLE_VALUE;
 
 
-	DBG("pid: %"PRIdMAX", substr: %s", pid, substr);
+	DBG("pid: %"PRIdMAX", substr: %s", (intmax_t)pid, substr);
 	hProcess = OpenProcess( PROCESS_QUERY_INFORMATION |
                             PROCESS_VM_READ,
                             FALSE, pid );
@@ -133,7 +133,7 @@ static void *get_base_winnt(pid_t pid, char *substr, char **ignores) {
 
 		pfnRtlQueryProcessDebugInformation((HANDLE)pid, RTL_DEBUG_QUERY_MODULES, debugBuffer);
 
-		DBG("number of modules: %"PRIuMAX, (nuint)debugBuffer->Modules->NumberOfModules);
+		DBG("number of modules: %"PRIuMAX, (uintmax_t)debugBuffer->Modules->NumberOfModules);
 		for(unsigned i=0; i<debugBuffer->Modules->NumberOfModules; i++){
 			PRTL_PROCESS_MODULE_INFORMATION mod = &debugBuffer->Modules->Modules[i];
 			char *imageFileName = mod->FullPathName;

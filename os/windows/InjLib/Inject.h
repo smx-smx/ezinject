@@ -42,14 +42,15 @@
 #define    ERROR_CREATETHREAD               11
 #define    ERROR_RTLCREATETHREAD            12
 #define    ERROR_INVALIDNTHEADER            13
-#define    ERROR_ISTHREADID                 14
-#define    ERROR_GETPDB                     15
-#define    ERROR_THREADLIST                 16
-#define    ERROR_LOADLIBRARY                17
-#define    ERROR_GETPROCADDRESS             18
-#define    ERROR_INVALIDPARAMETER           19
-#define    ERROR_PATCH                      20
-#define    ERROR_MAX                        20
+#define    ERROR_ISCODESAFE                 14
+#define    ERROR_ISTHREADID                 15
+#define    ERROR_GETPDB                     16
+#define    ERROR_THREADLIST                 17
+#define    ERROR_LOADLIBRARY                18
+#define    ERROR_GETPROCADDRESS             19
+#define    ERROR_INVALIDPARAMETER           20
+#define    ERROR_PATCH                      21
+#define    ERROR_MAX                        21
 
 struct _RDATA;
 

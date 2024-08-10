@@ -316,7 +316,7 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 			case __NR_munmap:
 				return r_current_sc_base + sc_virtualfree_offset;
 			default:
-				ERR("Unknown win32 syscall %"PRIuMAX, call->argv[0]);
+				ERR("Unknown win32 syscall %"PRIuPTR, call->argv[0]);
 				break;
 		}
 	} else {

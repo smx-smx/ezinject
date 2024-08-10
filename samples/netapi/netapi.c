@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <vadefs.h>
 #include "config.h"
 
 #if defined(EZ_TARGET_POSIX)
@@ -38,9 +39,11 @@
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 #if CMAKE_SIZEOF_VOID_P==4
+#define htonp(x) htonl(x)
 #define PTRSTR "4"
 #elif CMAKE_SIZEOF_VOID_P==8
 #define PTRSTR "8"
+#define htonp(x) htonll(x)
 #else
 #error "Unknown pointer size"
 #endif
@@ -149,7 +152,7 @@ intptr_t send_str(int fd, char *str){
 }
 
 intptr_t send_ptrval(int fd, void *ptr){
-	uintptr_t val = htonll((uintptr_t)ptr);
+	uintptr_t val = (uintptr_t)htonp((uintptr_t)ptr);
 	return send_data(fd, (uint8_t *)&val, sizeof(val));
 }
 

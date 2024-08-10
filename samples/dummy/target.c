@@ -42,7 +42,7 @@ void onSignal(int sigNum){
 void print_maps(){
 	pid_t pid = getpid();
 	char *path;
-	asprintf(&path, "/proc/%"PRIdMAX"/maps", pid);
+	asprintf(&path, "/proc/%"PRIuMAX"/maps", (uintmax_t)pid);
 	do {
 		FILE *fh = fopen(path, "r");
 		if(!fh){
@@ -75,7 +75,7 @@ int main(int argc, char *argv[])
 	print_maps();
 
 	int interactive = argc > 1;
-	printf("pid=%"PRIdMAX"\n&main=%p\n&return2=%p\n&func2=%p\n", (pid_t)getpid(), main, func1, func2);
+	printf("pid=%"PRIuMAX"\n&main=%p\n&return2=%p\n&func2=%p\n", (uintmax_t)getpid(), main, func1, func2);
 	for(;;)
 	{
 		int val = func1(0, 1);

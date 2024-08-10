@@ -343,7 +343,7 @@ int RemoteExecute(HANDLE hProcess,                      // Remote process handle
     PBYTE       pRemoteCode = NULL;
     PBYTE       pRemoteData = NULL;
     PVOID       pParams = NULL;
-    DWORD       FunctionSize;
+    SIZE_T      FunctionSize;
     SIZE_T      nBytesWritten = 0, nBytesRead = 0;
     HANDLE      hThread = NULL;
     DWORD       dwThreadId;
@@ -387,6 +387,13 @@ int RemoteExecute(HANDLE hProcess,                      // Remote process handle
                data = data + 5 + offset;
                Function = (LPTHREAD_START_ROUTINE)data;
 			}
+
+            // Check if function code is safe to be relocated
+            if (IsCodeSafe((PBYTE)Function, &FunctionSize) != 0)
+            {
+                ErrorCode = ERROR_ISCODESAFE;
+                break;
+            }
 
             // Allocate memory for function in remote process
             if (!(pRemoteCode = _VirtualAllocEx(hProcess, 0, FunctionSize, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)))

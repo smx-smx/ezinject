@@ -1006,7 +1006,7 @@ int main(int argc, char *argv[]){
 	}
 	ctx.r_xpage_base = (uintptr_t)get_base(ctx.target, NULL, NULL);
 
-	INFO("Attaching to %"PRIdMAX, ctx.target);
+	INFO("Attaching to %"PRIuMAX, (uintmax_t)ctx.target);
 
 	if(remote_attach(&ctx) < 0){
 		PERROR("remote_attach failed");

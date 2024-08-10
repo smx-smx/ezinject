@@ -39,27 +39,27 @@ int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *
 
 	size_t i, j;
 
-	count = cs_disasm(handle, codePtr, codeSz, (uint64_t)sourcePC, 0, &insns);
+	count = cs_disasm(handle, codePtr, codeSz, (uint64_t)(uintptr_t)sourcePC, 0, &insns);
 	if((ssize_t)count < 0)
 		goto err_disasm;
 
 	off_t curPos = 0;
 	for (i = 0; i < count; i++) {
 		cs_insn *insn = &(insns[i]);
-		printf("0x"LLX":\t%s\t\t%s\n", insn->address, insn->mnemonic, insn->op_str);
+		printf("0x%"PRIuPTR":\t%s\t\t%s\n", (uintptr_t)insn->address, insn->mnemonic, insn->op_str);
 		cs_detail *detail = insn->detail;
 
 		for(j=0; j<detail->x86.op_count; j++){
 			cs_x86_op *op = &(detail->x86.operands[j]);
 			switch(op->type) {
 				case X86_OP_REG:
-					printf("\t\toperands[%"PRIuMAX"].type: REG = %s\n", j, cs_reg_name(handle, op->reg));
+					printf("\t\toperands[%"PRIuMAX"].type: REG = %s\n", (uintmax_t)j, cs_reg_name(handle, op->reg));
 					break;
 				case X86_OP_MEM:
-					printf("\t\toperands[%"PRIuMAX"].type: MEM\n", j);
+					printf("\t\toperands[%"PRIuMAX"].type: MEM\n", (uintmax_t)j);
 					if (op->mem.base != X86_REG_INVALID){
 						const char *reg_name = cs_reg_name(handle, op->mem.base);
-						printf("\t\t\toperands[%"PRIuMAX"].mem.base: REG = %s\n", j, reg_name);
+						printf("\t\t\toperands[%"PRIuMAX"].mem.base: REG = %s\n", (uintmax_t)j, reg_name);
 						if(!strcmp(reg_name, (char *)&pcRegName)){
 							//apparently works for cmp, lea, anything mem relative hopefully
 							//if(!strcmp(insn->mnemonic, "cmp")){
@@ -79,14 +79,14 @@ int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *
 						}
 					}
 					if (op->mem.index != X86_REG_INVALID){
-						printf("\t\t\toperands[%"PRIuMAX"].mem.index: REG = %s\n", j, cs_reg_name(handle, op->mem.index));
+						printf("\t\t\toperands[%"PRIuMAX"].mem.index: REG = %s\n", (uintmax_t)j, cs_reg_name(handle, op->mem.index));
 					}
 					if (op->mem.disp != 0){
-						printf("\t\t\toperands[%"PRIuMAX"].mem.disp: 0x%"PRIxPTR"\n", j, op->mem.disp);
+						printf("\t\t\toperands[%"PRIuMAX"].mem.disp: 0x%"PRIxPTR"\n", (uintmax_t)j, (uintptr_t)op->mem.disp);
 					}
 					break;
 				case X86_OP_IMM:
-					printf("\t\toperands[%"PRIdMAX"].type: IMM = 0x%"PRIxPTR"\n", j, op->imm);
+					printf("\t\toperands[%"PRIuMAX"].type: IMM = 0x%"PRIxPTR"\n", (uintmax_t)j, (uintptr_t)op->imm);
 					break;
 				case X86_OP_INVALID:
 				default:

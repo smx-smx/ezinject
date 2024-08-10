@@ -1118,7 +1118,7 @@ Compare:
         bModRm = *pCode;
 
         if (bModRm & 0x18){}			// CALL
-        else if (bModRm & 0x28){}		// JMP
+        else if (bModRm & 0x28){}		// JMPF
         f = MODRM;
 
         goto Compare;
@@ -1180,4 +1180,49 @@ Compare:
     nBytes++;
 
     return nBytes;
+}
+
+/**************************************************************
+ * Return true if the code is safe to be relocated            *
+ * (no calls or absolute addressing used).                    *
+ * Returns the length of the function (until a RET is found). *
+ **************************************************************/
+int IsCodeSafe(PBYTE pCode, SIZE_T *CodeLen)
+{
+    int     Result = -1;
+    int     len;
+    uintptr_t CodeStart, CodeEnd;
+    int     Displacement = 0;
+    BOOL    EndFound = FALSE;
+    int     iIsCodeSafe = 0;
+
+    CodeEnd = CodeStart = (uintptr_t)pCode;
+
+    do
+    {
+       len = LengthDisassembler(pCode, &Result, &Displacement);
+
+       if (Result & CALLFOUND)
+           iIsCodeSafe |= CALLFOUND;
+
+       if (Result & ABSADDRFOUND)
+           iIsCodeSafe |= ABSADDRFOUND;
+
+       // End of function found if instruction is RET
+       // and there is no jump past this address
+       if ((Result & RETFOUND) && ((uintptr_t)pCode > CodeEnd))
+          EndFound = TRUE;
+
+       pCode += len; // Next instruction
+
+       // JMP destination address
+       if (Result & JMPFOUND)
+           CodeEnd = max(CodeEnd, (uintptr_t)pCode + Displacement);
+    } while (!EndFound);
+
+    CodeEnd = (uintptr_t)pCode;
+    if (CodeLen)
+        *CodeLen = CodeEnd - CodeStart;
+
+    return iIsCodeSafe;
 }
