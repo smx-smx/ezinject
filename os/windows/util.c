@@ -15,7 +15,8 @@
 #include <shlwapi.h>
 #include <TlHelp32.h>
 
-#include "ezinject_common.h"
+#include "ezinject.h"
+#include "dlfcn_compat.h"
 #include "log.h"
 #include "util.h"
 
@@ -32,6 +33,55 @@ NTSTATUS NTAPI (*pfnRtlDestroyQueryDebugBuffer)(PRTL_DEBUG_INFORMATION Buffer) =
 HANDLE WINAPI (*pfnCreateToolhelp32Snapshot)(DWORD dwFlags,DWORD th32ProcessID) = NULL;
 BOOL WINAPI (*pfnModule32First)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
 BOOL WINAPI (*pfnModule32Next)(HANDLE hSnapshot, LPMODULEENTRY32 lpme) = NULL;
+
+static EZAPI _win32_init_process_apis(OSVERSIONINFO *osvi){
+	/** init APIs for get_base */
+	if(osvi->dwPlatformId == VER_PLATFORM_WIN32_NT){
+		HMODULE ntdll = GetModuleHandle("ntdll.dll");
+		pfnRtlQueryProcessDebugInformation = LIB_GETSYM(ntdll, "RtlQueryProcessDebugInformation");
+		pfnRtlCreateQueryDebugBuffer = LIB_GETSYM(ntdll, "RtlCreateQueryDebugBuffer");
+		pfnRtlDestroyQueryDebugBuffer = LIB_GETSYM(ntdll, "RtlDestroyQueryDebugBuffer");
+		DBGPTR(pfnRtlQueryProcessDebugInformation);
+		DBGPTR(pfnRtlCreateQueryDebugBuffer);
+		DBGPTR(pfnRtlDestroyQueryDebugBuffer);
+		if(!pfnRtlQueryProcessDebugInformation || !pfnRtlCreateQueryDebugBuffer || !pfnRtlDestroyQueryDebugBuffer){
+			ERR("Failed to resolve Windows NT APIs");
+			return -1;
+		}
+	} else {
+		HMODULE hKernel32 = GetModuleHandle("kernel32.dll");
+		if(!hKernel32){
+			PERROR("GetModuleHandle");
+			return -1;
+		}
+		pfnCreateToolhelp32Snapshot = LIB_GETSYM(hKernel32, "CreateToolhelp32Snapshot");
+		pfnModule32First = LIB_GETSYM(hKernel32, "Module32First");
+		pfnModule32Next = LIB_GETSYM(hKernel32, "Module32Next");
+		DBGPTR(pfnCreateToolhelp32Snapshot);
+		DBGPTR(pfnModule32First);
+		DBGPTR(pfnModule32Next);
+		if(!pfnCreateToolhelp32Snapshot || !pfnModule32First || !pfnModule32Next){
+			ERR("Failed to resolve ToolHelp APIs");
+			return -1;
+		}
+	}
+	return 0;
+}
+
+EZAPI os_api_init(struct ezinj_ctx *ctx){
+	OSVERSIONINFO osvi = {
+		.dwOSVersionInfoSize = sizeof(osvi)
+	};
+	if(!GetVersionEx(&osvi)) {
+		PERROR("GetVersionEx");
+		return -1;
+	}
+	if(_win32_init_process_apis(&osvi) < 0){
+		ERR("_win32_init_process_apis() failed");
+		return -1;
+	}
+	return 0;
+}
 
 BOOL win32_errstr(DWORD dwErrorCode, LPTSTR pBuffer, DWORD cchBufferLength){
 	if(cchBufferLength == 0){

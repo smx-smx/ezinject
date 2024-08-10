@@ -6,9 +6,14 @@
  *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
+#include "ezinject.h"
 #include "ezinject_util.h"
 #include <stdbool.h>
 #include <string.h>
+
+EZAPI os_api_init(struct ezinj_ctx *ctx){
+	return 0;
+}
 
 void *get_base(pid_t pid, char *substr, char **ignores) {
 	char line[256];

@@ -14,8 +14,13 @@
 #include <ctype.h>
 #include <sys/syslimits.h>
 
+#include "ezinject.h"
 #include "ezinject_common.h"
 #include "log.h"
+
+EZAPI os_api_init(struct ezinj_ctx *ctx){
+	return 0;
+}
 
 static bool str_empty(char *str){
 	int l = strlen(str);

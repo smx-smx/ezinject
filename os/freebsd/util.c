@@ -8,13 +8,16 @@
  */
 #include <stdbool.h>
 #include <string.h>
-
-
 #include <sys/param.h>
 #include <sys/sysctl.h>
 #include <sys/user.h>
-
 #include <libprocstat.h>
+
+#include "ezinject.h"
+
+EZAPI os_api_init(struct ezinj_ctx *ctx){
+	return 0;
+}
 
 void *get_base(pid_t pid, char *substr, char **ignores) {
 	struct kinfo_vmentry *freep, *kve;

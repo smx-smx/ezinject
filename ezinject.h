@@ -174,8 +174,6 @@ struct call_req {
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
 
 /** remote API **/
-#define EZAPI intptr_t
-
 #include "ezinject_arch.h"
 
 EZAPI remote_call(
@@ -209,6 +207,8 @@ EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call);
 EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base);
 EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base);
 
-/** util api **/
+/** libc/util api **/
+EZAPI os_api_init(struct ezinj_ctx *ctx);
+EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx);
 void *get_base(pid_t pid, char *substr, char **ignores);
 #endif

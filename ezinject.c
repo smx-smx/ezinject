@@ -61,7 +61,6 @@ uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 #endif
 
 size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout);
-int resolve_libc_symbols(struct ezinj_ctx *ctx);
 
 /**
  * Prepares the target process for a call invocation with syscall convention
@@ -384,42 +383,6 @@ struct ezinj_str ezstr_new(enum ezinj_str_id id, char *str, size_t *pSize){
 #define LIBC_SEARCH C_LIBRARY_NAME
 #endif
 
-#ifdef EZ_TARGET_WINDOWS
-static EZAPI _win32_init_process_apis(OSVERSIONINFO *osvi){
-	/** init APIs for get_base */
-	if(osvi->dwPlatformId == VER_PLATFORM_WIN32_NT){
-		HMODULE ntdll = GetModuleHandle("ntdll.dll");
-		pfnRtlQueryProcessDebugInformation = LIB_GETSYM(ntdll, "RtlQueryProcessDebugInformation");
-		pfnRtlCreateQueryDebugBuffer = LIB_GETSYM(ntdll, "RtlCreateQueryDebugBuffer");
-		pfnRtlDestroyQueryDebugBuffer = LIB_GETSYM(ntdll, "RtlDestroyQueryDebugBuffer");
-		DBGPTR(pfnRtlQueryProcessDebugInformation);
-		DBGPTR(pfnRtlCreateQueryDebugBuffer);
-		DBGPTR(pfnRtlDestroyQueryDebugBuffer);
-		if(!pfnRtlQueryProcessDebugInformation || !pfnRtlCreateQueryDebugBuffer || !pfnRtlDestroyQueryDebugBuffer){
-			ERR("Failed to resolve Windows NT APIs");
-			return -1;
-		}
-	} else {
-		HMODULE hKernel32 = GetModuleHandle("kernel32.dll");
-		if(!hKernel32){
-			PERROR("GetModuleHandle");
-			return -1;
-		}
-		pfnCreateToolhelp32Snapshot = LIB_GETSYM(hKernel32, "CreateToolhelp32Snapshot");
-		pfnModule32First = LIB_GETSYM(hKernel32, "Module32First");
-		pfnModule32Next = LIB_GETSYM(hKernel32, "Module32Next");
-		DBGPTR(pfnCreateToolhelp32Snapshot);
-		DBGPTR(pfnModule32First);
-		DBGPTR(pfnModule32Next);
-		if(!pfnCreateToolhelp32Snapshot || !pfnModule32First || !pfnModule32Next){
-			ERR("Failed to resolve ToolHelp APIs");
-			return -1;
-		}
-	}
-	return 0;
-}
-#endif
-
 /**
  * @brief default implementation of libc lookup
  *
@@ -428,16 +391,16 @@ static EZAPI _win32_init_process_apis(OSVERSIONINFO *osvi){
 static int libc_init_default(struct ezinj_ctx *ctx){
 	char *ignores[] = {"ld-", NULL};
 
+	/**
+	 * $FIXME: this code does not belong here.
+	 * it should be refactored together with `libc_init_default`
+	 */
 #ifdef EZ_TARGET_WINDOWS
 	OSVERSIONINFO osvi = {
 		.dwOSVersionInfoSize = sizeof(osvi)
 	};
 	if(!GetVersionEx(&osvi)) {
 		PERROR("GetVersionEx");
-		return 1;
-	}
-	if(_win32_init_process_apis(&osvi) < 0){
-		ERR("_win32_init_process_apis() failed");
 		return 1;
 	}
 	if(osvi.dwPlatformId != VER_PLATFORM_WIN32_NT){
@@ -1001,7 +964,13 @@ int main(int argc, char *argv[]){
 	const char *argPid = argv[optind++];
 	ctx.target = strtoul(argPid, NULL, 10);
 
+	if(os_api_init(&ctx) != 0){
+		ERR("os_api_init() failed");
+		return 1;
+	}
+
 	if(libc_init(&ctx) != 0){
+		ERR("libc_init() failed");
 		return 1;
 	}
 	ctx.r_xpage_base = (uintptr_t)get_base(ctx.target, NULL, NULL);
