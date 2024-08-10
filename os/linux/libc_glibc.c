@@ -13,7 +13,7 @@
 #include "ezinject.h"
 #include "log.h"
 
-int resolve_libc_symbols(struct ezinj_ctx *ctx){
+EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	void *h_libc = dlopen(C_LIBRARY_NAME, RTLD_LAZY);
 	if(!h_libc){
 		ERR("dlopen("C_LIBRARY_NAME") failed: %s", dlerror());

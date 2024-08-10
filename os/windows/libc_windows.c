@@ -42,7 +42,7 @@ static int chrome_remove_sandbox(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-int resolve_libc_symbols(struct ezinj_ctx *ctx){
+EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	void *h_kernel32 = GetModuleHandleA("kernel32.dll");
 	if(!h_kernel32){
 		ERR("Failed to locate kernel32.dll");

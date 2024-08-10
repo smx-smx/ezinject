@@ -12,7 +12,7 @@
 #include "log.h"
 #include "ezinject_util.h"
 
-int resolve_libc_symbols(struct ezinj_ctx *ctx){
+EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	void *h_self = dlopen(NULL, RTLD_LAZY);
 	if(!h_self){
 		ERR("dlopen("DYN_LINKER_NAME") failed: %s", dlerror());

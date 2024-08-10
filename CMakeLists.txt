@@ -64,6 +64,7 @@ macro(check_symbol_withlibs symbol files libs result)
 	set(CMAKE_REQUIRED_LIBRARIES "${_CMAKE_REQUIRED_LIBRARIES}")
 endmacro()
 
+add_definitions(-D__STDC_FORMAT_MACROS)
 if(NOT HAVE_GNU_SOURCE)
 	add_definitions(-D_GNU_SOURCE)
 endif()

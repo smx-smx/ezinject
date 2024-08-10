@@ -13,7 +13,7 @@
 #include "log.h"
 #include "ezinject_util.h"
 
-int resolve_libc_symbols(struct ezinj_ctx *ctx){
+EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ez_addr ldso = {
 		.local = (uintptr_t)get_base(getpid(), "ld-uClibc", NULL),
 		.remote = (uintptr_t)get_base(ctx->target, "ld-uClibc", NULL)

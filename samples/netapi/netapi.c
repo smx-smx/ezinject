@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <vadefs.h>
 #include "config.h"
 
 #if defined(EZ_TARGET_POSIX)

@@ -76,7 +76,7 @@ int resolve_libc_symbols_android10(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-int resolve_libc_symbols(struct ezinj_ctx *ctx){
+EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	INFO("Trying new (Android 10) method");
 	if(resolve_libc_symbols_android10(ctx) == 0){
 		return 0;
