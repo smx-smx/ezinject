@@ -78,7 +78,8 @@ See the php module for an example
   - Android (tested on Android 2.x - 10.x)
 - FreeBSD (tested on FreeBSD 12)
 - Windows
-  - NT 6 (tested on Windows 10)
+  - Win32 (tested on Windows 95)
+  - NT (tested on Windows NT 3.51, Windows XP, Windows 10 64bit)
 - Darwin (tested on macOS 11)
 
 ## How does it work
