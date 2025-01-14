@@ -563,6 +563,7 @@ if(EZ_TARGET_POSIX)
 	)
 	if(EZ_TARGET_LINUX)
 		list(APPEND lib_sources
+			os/linux/common.c
 			os/linux/remote.c
 			os/linux/util.c
 		)
