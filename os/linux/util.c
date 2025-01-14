@@ -29,6 +29,9 @@ void *get_base(pid_t pid, char *substr, char **ignores) {
 
 	snprintf(line, 256, "/proc/%u/maps", pid);
 	FILE *fp = fopen(line, "r");
+	if(!fp){
+		return NULL;
+	}
 	while(fgets(line, sizeof(line), fp) != NULL){
 		strncpy(path, "[anonymous]", sizeof(path));
 
