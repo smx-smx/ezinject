@@ -1,6 +1,6 @@
 set(sources common_intel.c)
 if(EZ_ARCH_AMD64)
-	list(APPEND sources cpu_x86_64)
+	list(APPEND sources cpu_x86_64.c)
 elseif(EZ_ARCH_I386)
 	list(APPEND sources cpu_i386.c)
 else()

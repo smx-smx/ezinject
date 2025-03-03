@@ -12,6 +12,7 @@
 
 #include "ezinject.h"
 #include "log.h"
+#include "common.h"
 
 EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	void *h_libc = dlopen(C_LIBRARY_NAME, RTLD_LAZY);
@@ -20,10 +21,25 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 		return 1;
 	}
 
-	ez_addr libc_dlopen = sym_addr(h_libc, "__libc_dlopen_mode", ctx->libc);
-	if(libc_dlopen.remote == 0){
+	ez_addr libc_dlopen;
+	do {
+		libc_dlopen = sym_addr(h_libc, "__libc_dlopen_mode", ctx->libc);
+		if(libc_dlopen.remote != 0){
+			break;
+		}
+		INFO("__libc_dlopen_mode not found, trying glibc >= 2.34 method");
 		libc_dlopen = sym_addr(h_libc, "_dl_open", ctx->libc);
-	}
+		if(libc_dlopen.remote != 0){
+			break;
+		}
+		INFO("_dl_open not found, trying generic method");
+		if(!linux_resolve_libc_symbols_generic(ctx)){
+			// success
+			return 0;
+		}
+		ERR("failed to resolve glibc symbols");
+		return 1;
+	} while(0);
 
 	if(!libc_dlopen.remote){
 		ERR("failed to resolve glibc internal dlopen");
