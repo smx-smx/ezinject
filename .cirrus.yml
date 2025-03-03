@@ -113,7 +113,7 @@ linux_glibc_armv4_task:
 
 freebsd_x64_task:
   freebsd_instance:
-    image_family: freebsd-14-0
+    image_family: freebsd-14-2
 
   install_script:
     - pkg update
