@@ -39,10 +39,12 @@
 
 #if CMAKE_SIZEOF_VOID_P==4
 #define htonp(x) htonl(x)
+#define ntohp(x) ntohl(x)
 #define PTRSTR "4"
 #elif CMAKE_SIZEOF_VOID_P==8
 #define PTRSTR "8"
-#define htonp(x) htonll(x)
+#define htonp(x) ez_htonll(x)
+#define ntohp(x) ez_ntohll(x)
 #else
 #error "Unknown pointer size"
 #endif
@@ -72,7 +74,7 @@ LOG_SETUP(V_DBG);
  * NOTE: we must ensure the TCP packet is aligned to NET_IP_ALIGN bytes (2 on old Linux)
  * or it will not be dequeued from the skb (https://lwn.net/Articles/89597/)
  */
-#define MAX_BODYSZ 8
+#define MAX_BODYSZ 16384
 struct ez_pkt {
 	uint32_t magic;
 	uint32_t hdr_length;
@@ -80,18 +82,20 @@ struct ez_pkt {
 	uint8_t body[MAX_BODYSZ];
 };
 
+#define PACKET_HEADER_SIZE (sizeof(struct ez_pkt) - MAX_BODYSZ)
+
 static void _build_pkt(struct ez_pkt *pkt, uint8_t *data, unsigned length){
 	if(length > MAX_BODYSZ){
 		// if we overflowed
 		// we prefer being a no-op than sending an incorrect reply
 		length = 0;
 	}
-	if(data != NULL){
+	if(data != NULL && length > 0){
 		memcpy(pkt->body, data, length);
 	}
 
 	pkt->magic = htonl(0x4F4B3030); //OK00
-	pkt->hdr_length = ntohl(sizeof(*pkt));
+	pkt->hdr_length = ntohl(PACKET_HEADER_SIZE);
 	pkt->body_length = ntohl(length);
 }
 
@@ -123,6 +127,7 @@ intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
 			return -1;
 		}
 		acc += received;
+		DBG("remaining: %zu", acc);
 	}
 	return (intptr_t)acc;
 }
@@ -133,24 +138,27 @@ intptr_t send_data(int fd, void *data, unsigned size){
 	_build_pkt(&pkt, data, size);
 
 	uint8_t *pb = (uint8_t *)&pkt;
+
+	unsigned tx_size = MIN(PACKET_HEADER_SIZE + size, PACKET_HEADER_SIZE + MAX_BODYSZ);
+
 #ifdef WEBAPI_DEBUG
-	for(size_t i=0; i<sizeof(pkt); i++){
+	for(size_t i=0; i<tx_size; i++){
 		printf("%02hhx ", pb[i]);
 	}
 	puts("");
 #endif
 
-	if(send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
+	if(safe_send(fd, (void *)&pkt, tx_size, 0) != tx_size){
 		return -1;
 	}
 	return 0;
 }
 
-intptr_t send_str(int fd, char *str){
-	return send_data(fd, (uint8_t *)str, strlen(str));
+static inline intptr_t send_str(int fd, char *str){
+	return send_data(fd, (uint8_t *)str, str ? strlen(str) : 0);
 }
 
-intptr_t send_ptrval(int fd, void *ptr){
+static inline intptr_t send_ptrval(int fd, void *ptr){
 	uintptr_t val = (uintptr_t)htonp((uintptr_t)ptr);
 	return send_data(fd, (uint8_t *)&val, sizeof(val));
 }
@@ -172,7 +180,7 @@ void *read_ptr(uint8_t **ppData){
 
 	uintptr_t val = 0;
 	memcpy(&val, data, sizeof(val));
-	val = ntohl(val);
+	val = ntohp(val);
 
 	*ppData += sizeof(val);
 	return (void *)val;
@@ -215,11 +223,14 @@ int handle_client(int client){
 		SAFE_RECV(client, data, length, 0);
 
 		// prefer ptr-sized op, or all future accesses will be unaligned
-		uintptr_t op = (uintptr_t)read_ptr(&data);
+		uint32_t op = (uint32_t)(uintptr_t)read_ptr(&data);
+		DBG("cmd: %x", op);
 		switch(op){
 			case OP_INFO:{
 				DBG("OP_INFO");
-				#if defined(EZ_TARGET_POSIX)
+				#if defined(EZ_TARGET_DARWIN)
+				send_str(client, "darwin"PTRSTR);
+				#elif defined(EZ_TARGET_POSIX)
 				send_str(client, "posix"PTRSTR);
 				#elif defined(EZ_TARGET_WINDOWS)
 				send_str(client, "win32"PTRSTR);
@@ -232,7 +243,7 @@ int handle_client(int client){
 				DBG("OP_DLOPEN");
 				const char *path = (const char *)data;
 				void *handle = NULL;
-				if(length == 2 && path[0] == '0'){
+				if(*path == '\0'){
 					DBG("dlopen(NULL)");
 				#if defined(EZ_TARGET_POSIX)
 					handle = dlopen(NULL, RTLD_NOW);
@@ -378,7 +389,9 @@ int handle_client(int client){
 				serve = 0;
 				break;
 			}
-
+			default:
+				ERR("Unhandled command %x received", op);
+				break;
 		}
 
 		free(mem);
