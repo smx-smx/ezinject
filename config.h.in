@@ -33,6 +33,18 @@
 #cmakedefine DL_LIBRARY_NAME "@DL_LIBRARY_NAME@"
 #cmakedefine PTHREAD_LIBRARY_NAME "@PTHREAD_LIBRARY_NAME@"
 
+// NOTE: Windows uses emulated syscalls to map `mmap` to `VirtualAlloc` and `munmap` to `VirtualFree`
 #if (defined(EZ_TARGET_POSIX) || defined(EZ_TARGET_WINDOWS)) && !defined(EZ_TARGET_DARWIN)
-#define HAVE_SC
+#define HAVE_SYSCALLS
+#endif
+
+#ifdef HAVE_SYSCALLS
+#define HAVE_SHELLCODE
+#endif
+
+// platforms that can allocate memory and thread in remote processes
+// NOTE: this includes some versions of Windows (officially Windows XP+).
+// since we want to support Windows 9X and older NTOS versions, we explicitly don't list it here
+#if (defined(EZ_TARGET_DARWIN))
+#define HAVE_REMOTING
 #endif

@@ -21,6 +21,13 @@
 #include <ws2tcpip.h>
 #endif
 
+#ifdef EZ_TARGET_DARWIN
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <pwd.h>
+#endif
+
 
 #include "dlfcn_compat.h"
 
@@ -66,6 +73,25 @@ LOG_SETUP(V_DBG);
 #define C_STDCALL 0x53 // S
 #define C_THISCALL 0x54 // T
 
+#ifdef EZ_TARGET_DARWIN
+int fd_in = -1;
+int fd_out = -1;
+#endif
+
+#ifdef EZ_TARGET_DARWIN
+static int _darwin_is_sandboxed(){
+	return getenv("APP_SANDBOX_CONTAINER_ID") != NULL;
+}
+static char *_get_home_directory(const char *username) {
+    struct passwd *pw = getpwnam(username);
+    if (pw == NULL) {
+        PERROR("getpwnam");
+        return NULL;
+    }
+	return pw->pw_dir;
+}
+#endif
+
 /**
  *  NOTE: remember to not do unaligned writes, or it will break on ARM v4
  * https://developer.arm.com/documentation/dui0473/j/using-the-assembler/address-alignment
@@ -74,28 +100,15 @@ LOG_SETUP(V_DBG);
  * NOTE: we must ensure the TCP packet is aligned to NET_IP_ALIGN bytes (2 on old Linux)
  * or it will not be dequeued from the skb (https://lwn.net/Articles/89597/)
  */
-#define MAX_BODYSZ 16384
-struct ez_pkt {
+struct ez_pkt_hdr {
 	uint32_t magic;
 	uint32_t hdr_length;
 	uint32_t body_length;
-	uint8_t body[MAX_BODYSZ];
 };
 
-#define PACKET_HEADER_SIZE (sizeof(struct ez_pkt) - MAX_BODYSZ)
-
-static void _build_pkt(struct ez_pkt *pkt, uint8_t *data, unsigned length){
-	if(length > MAX_BODYSZ){
-		// if we overflowed
-		// we prefer being a no-op than sending an incorrect reply
-		length = 0;
-	}
-	if(data != NULL && length > 0){
-		memcpy(pkt->body, data, length);
-	}
-
+static void _build_pkt(struct ez_pkt_hdr *pkt, unsigned length){
 	pkt->magic = htonl(0x4F4B3030); //OK00
-	pkt->hdr_length = ntohl(PACKET_HEADER_SIZE);
+	pkt->hdr_length = ntohl(sizeof(*pkt));
 	pkt->body_length = ntohl(length);
 }
 
@@ -105,7 +118,11 @@ intptr_t safe_send(int fd, void *buf, size_t length, int flags){
 
 	size_t acc = 0;
 	while(acc < length){
+		#ifdef EZ_TARGET_DARWIN
+		ssize_t sent = write(fd_out, (void *)(&pb[acc]), length - acc);
+		#else
 		ssize_t sent = send(fd, (void *)(&pb[acc]), length - acc, 0);
+		#endif
 		if(sent < 0){
 			PERROR("send");
 			return -1;
@@ -121,36 +138,62 @@ intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
 
 	size_t acc = 0;
 	while(acc < length){
+		#ifdef EZ_TARGET_DARWIN
+		ssize_t received = read(fd_in, (void *)(&pb[acc]), length - acc);
+		#else
 		ssize_t received = recv(fd, (void *)(&pb[acc]), length - acc, 0);
+		#endif
 		if(received < 0){
 			PERROR("recv");
 			return -1;
 		}
 		acc += received;
-		DBG("remaining: %zu", acc);
+		DBG("remaining: %zu/%zu", acc, length);
 	}
 	return (intptr_t)acc;
 }
 
 intptr_t send_data(int fd, void *data, unsigned size){
-	struct ez_pkt pkt;
+	struct ez_pkt_hdr pkt;
 	memset(&pkt, 0x00, sizeof(pkt));
-	_build_pkt(&pkt, data, size);
+	_build_pkt(&pkt, size);
 
 	uint8_t *pb = (uint8_t *)&pkt;
 
-	unsigned tx_size = MIN(PACKET_HEADER_SIZE + size, PACKET_HEADER_SIZE + MAX_BODYSZ);
-
 #ifdef WEBAPI_DEBUG
-	for(size_t i=0; i<tx_size; i++){
+	for(size_t i=0; i<sizeof(pkt); i++){
 		printf("%02hhx ", pb[i]);
+	}
+	for(size_t i=0; i<size; i++){
+		printf("%02hhx ", ((uint8_t *)data)[i]);
 	}
 	puts("");
 #endif
 
-	if(safe_send(fd, (void *)&pkt, tx_size, 0) != tx_size){
+	if(safe_send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
 		return -1;
 	}
+	if(safe_send(fd, data, size, 0) != size){
+		return -1;
+	}
+	return 0;
+}
+
+
+intptr_t send_datahdr(int fd, unsigned size){
+	struct ez_pkt_hdr pkt;
+	memset(&pkt, 0x00, sizeof(pkt));
+	_build_pkt(&pkt, size);
+
+#ifdef EZ_TARGET_DARWIN
+	if(write(fd_out, (void *)&pkt, sizeof(pkt)) != sizeof(pkt)){
+		return -1;
+	}
+#else
+	if(send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
+		return -1;
+	}
+#endif
 	return 0;
 }
 
@@ -161,18 +204,6 @@ static inline intptr_t send_str(int fd, char *str){
 static inline intptr_t send_ptrval(int fd, void *ptr){
 	uintptr_t val = (uintptr_t)htonp((uintptr_t)ptr);
 	return send_data(fd, (uint8_t *)&val, sizeof(val));
-}
-
-intptr_t send_datahdr(int fd, unsigned size){
-	struct ez_pkt pkt;
-	memset(&pkt, 0x00, sizeof(pkt));
-
-	_build_pkt(&pkt, NULL, 0);
-	pkt.body_length = ntohl(size);
-	if(send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
-		return -1;
-	}
-	return 0;
 }
 
 void *read_ptr(uint8_t **ppData){
@@ -187,9 +218,11 @@ void *read_ptr(uint8_t **ppData){
 }
 
 int handle_client(int client){
+#ifndef EZ_TARGET_DARWIN
 	/** disable NAGLE algorithm (packet aggregation) **/
 	int flag = 1;
 	setsockopt(client, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+#endif
 
 	int last_txrx = 0;
 
@@ -209,7 +242,6 @@ int handle_client(int client){
 			break; \
 		} \
 	} while(0)
-
 
 	int serve = 1;
 	while(serve){
@@ -298,12 +330,11 @@ int handle_client(int client){
 
 				int length_aligned = ntohl(length + rem);
 
-				if(send_datahdr(client, 0) != 0){
+				if(send_datahdr(client, length_aligned) != 0){
 					ERR("send_datahdr failed");
 					serve = 0;
 					break;
 				}
-				SAFE_SEND(client, &length_aligned, sizeof(length_aligned), 0);
 
 				DBG("writing %d blocks", nblocks);
 				for(int i=0; i<nblocks; i++){
@@ -396,11 +427,88 @@ int handle_client(int client){
 
 		free(mem);
 	}
+#ifndef EZ_TARGET_DARWIN
 	close(client);
+#endif
 	return 0;
 }
 
 void *start_server(void *arg){
+#ifdef EZ_TARGET_DARWIN
+	int rc = -1;
+
+	char *fifo_path_in = NULL;
+	char *fifo_path_out = NULL;
+
+	do {
+		//char *home = getenv("HOME");
+		const char *user = getenv("USER");
+		if(!user){
+			fputs("USER environment variable not set\n", stderr);
+			break;
+		}
+		const char *home = _get_home_directory(user);
+		if(!home){
+			fputs("Cannot determine HOME directory\n", stderr);
+			break;
+		}
+
+		pid_t pid = getpid();
+
+		asprintf(&fifo_path_in, "%s/.Trash/netsock.%d", home, pid);
+		asprintf(&fifo_path_out, "%s/.Trash/netsock.%d", home, pid);
+
+		if (access(fifo_path_in, F_OK) == -1) {
+			INFO("creating FIFO-IN: %s", fifo_path_in);
+			if ((rc=mkfifo(fifo_path_in, 0666)) < 0) {
+				free(fifo_path_in);
+				PERROR("mkfifo");
+				break;
+			}
+		}
+
+		if (access(fifo_path_out, F_OK) == -1){
+			INFO("creating FIFO-OUT: %s", fifo_path_out);
+			if ((rc=mkfifo(fifo_path_out, 0666)) < 0) {
+				free(fifo_path_in);
+				free(fifo_path_out);
+				PERROR("mkfifo");
+				break;
+			}
+		}
+
+		INFO("opening FIFO-OUT: %s", fifo_path_out);
+		fd_out = open(fifo_path_out, O_WRONLY);
+		if(fd_out < 0){
+			PERROR("open");
+			free(fifo_path_in);
+			free(fifo_path_out);
+			break;
+		}
+
+		INFO("opening FIFO-IN: %s", fifo_path_in);
+		fd_in = open(fifo_path_in, O_RDONLY);
+		if(fd_in < 0){
+			PERROR("open");
+			free(fifo_path_in);
+			free(fifo_path_out);
+			break;
+		}
+		free(fifo_path_in);
+		free(fifo_path_out);
+	} while(0);
+
+	if(fd_in > -1 && fd_out > -1){
+		int run = 1;
+		while(run){
+			handle_client(0);
+		}
+		close(fd_in);
+		close(fd_out);
+	}
+
+	return (void *)(uintptr_t)rc;
+#else
 	unsigned short port = (unsigned short)(uintptr_t)arg;
 	int rc = 0;
 	do {
@@ -445,6 +553,7 @@ void *start_server(void *arg){
 	} while(0);
 
 	return (void *)(uintptr_t)rc;
+#endif
 }
 
 int lib_preinit(struct injcode_user *user){

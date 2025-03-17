@@ -7,6 +7,7 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 
+#undef PL_RETURN
 #define PL_RETURN(sc, x) do { \
 	((sc)->result = (x)); \
 	sc->libc_syscall(__NR_kill, \

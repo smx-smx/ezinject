@@ -94,6 +94,19 @@ void installHooks(){
 }
 #endif
 
+void printenv() {
+    char ** env;
+#if defined(EZ_TARGET_WINDOWS) && (_MSC_VER >= 1900)
+    env = *__p__environ();
+#else
+    extern char ** environ;
+    env = environ;
+#endif
+    for (; *env; ++env) {
+        printf("%s\n", *env);
+    }
+}
+
 int lib_preinit(struct injcode_user *user){
 	/**
 	 * this is needed for hooks pointing to code in this library
@@ -110,6 +123,10 @@ int lib_main(int argc, char *argv[]){
 	char cmd[128];
 	sprintf(cmd, "cat /proc/%u/maps", getpid());
 	system(cmd);
+	#endif
+	
+	#ifdef EZ_TARGET_POSIX
+	printenv();
 	#endif
 
 	lputs("Hello World from main");

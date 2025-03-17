@@ -81,8 +81,12 @@ struct ezinj_ctx {
 #ifdef EZ_TARGET_DARWIN
 	task_t task;
 	thread_t thread;
+	// $FIXME: this is kind of a hack, but we only do one allocation
+	// the better idea would be to add a `size` parameter to `remote_pl_free`
+	size_t last_alloc_size;
 #endif
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS) \
+|| defined(EZ_TARGET_DARWIN)
 	// holds the overwritten ELF header
 	uint8_t *saved_sc_data;
 	ssize_t saved_sc_size;
@@ -97,6 +101,17 @@ struct ezinj_ctx {
 	pfnCallHandler rcall_handler_post;
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
+#ifdef EZ_TARGET_DARWIN
+	ez_addr pthread_create_from_mach_thread;
+	ez_addr pthread_create;
+	ez_addr pthread_join;
+	ez_addr pthread_detach;
+	ez_addr pthread_self;
+	ez_addr mach_thread_self;
+	ez_addr task_self_trap;
+	ez_addr mach_port_allocate;
+	ez_addr thread_terminate;
+#endif
 #ifdef EZ_TARGET_LINUX
 	ez_addr libc_mmap;
 	ez_addr libc_open;

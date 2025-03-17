@@ -56,7 +56,7 @@ static ez_region region_pl_code = {
 	.end = (void *)&__stop_payload
 };
 
-#ifdef HAVE_SC
+#ifdef HAVE_SYSCALLS
 uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 #endif
 
@@ -132,7 +132,7 @@ intptr_t setregs_syscall(
 		}
 	}
 
-	#ifdef HAVE_SC
+	#ifdef HAVE_SYSCALLS
 	/**
 	 * this target supports true system calls
 	 * use a wrapper in-between to avoid stack corruption
@@ -239,7 +239,12 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
-	if(remote_continue(ctx, 0) < 0){
+	if(ctx->pl_debug) {
+		if(remote_detach(ctx) != 0){
+			PERROR("ptrace");
+			return -1;
+		}
+	} else if(remote_continue(ctx, 0) != 0){
 		PERROR("ptrace");
 		return -1;
 	}
@@ -282,7 +287,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	#endif
 	} while(wait);
 
-	if(call->syscall_mode == 0 && ctx->pl_debug){
+	if(call->syscall_mode == 0 || ctx->pl_debug){
 		return -1;
 	}
 
@@ -326,6 +331,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		}
 	}
 
+#ifndef HAVE_REMOTING
 	if(remote_setregs(ctx, &orig_ctx)){
 		PERROR("remote_setregs failed");
 	}
@@ -335,6 +341,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	DBG("PC: %p => %p",
 		(void *)call->insn_addr,
 		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
+#endif
 #endif
 
 	return call->rcall.result;
@@ -625,6 +632,18 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 #endif
 
+#ifdef EZ_TARGET_DARWIN
+	br->pthread_create = (void *)ctx->pthread_create.remote;
+	br->pthread_join = (void *)ctx->pthread_join.remote;
+	br->pthread_create_from_mach_thread = (void *)ctx->pthread_create_from_mach_thread.remote;
+	br->pthread_detach = (void *)ctx->pthread_detach.remote;
+	br->pthread_self = (void *)ctx->pthread_self.remote;
+	br->mach_thread_self = (void *)ctx->mach_thread_self.remote;
+	br->thread_terminate = (void *)ctx->thread_terminate.remote;
+	br->mach_port_allocate = (void *)ctx->mach_port_allocate.remote;
+	br->task_self_trap = (void *)ctx->task_self_trap.remote;
+#endif
+
 #ifdef EZ_TARGET_WINDOWS
 	br->WriteFile = (void *)ctx->write_file.remote;
 	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
@@ -787,6 +806,7 @@ int ezinject_main(
 	uintptr_t r_sc_elf = 0;
 	uintptr_t r_sc_vmem = 0;
 
+	#if defined(HAVE_SHELLCODE)
 	// allocate initial shellcode on the ELF header
 	INFO("target: allocating sc");
 	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
@@ -803,6 +823,7 @@ int ezinject_main(
 		ERR("remote_sc_check failed");
 		return -1;
 	}
+	#endif
 
 	intptr_t err = -1;
 	do {
@@ -847,6 +868,7 @@ int ezinject_main(
 		}
 		#endif
 
+		#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
 		// allocate new shellcode on a new memory map
 		// the current shellcode is used for the allocation
 		// this must be done before switching to payload mode
@@ -862,6 +884,7 @@ int ezinject_main(
 			ERR("remote_sc_free: ELF header restore failed");
 			return -1;
 		}
+		#endif
 
 		// switch to SIGSTOP wait mode
 		ctx->syscall_mode = 0;
@@ -906,6 +929,7 @@ int ezinject_main(
 		INFO("target: freeing payload memory");
 		remote_pl_free(ctx, remote_shm_ptr);
 
+	#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
 		// switch back to the ELF header, to free vmem
 		if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
 			ERR("remote_sc_alloc: failed to overwrite ELF header");
@@ -918,6 +942,7 @@ int ezinject_main(
 			ERR("remote_sc_free: failed to free memory map");
 			return -1;
 		}
+	#endif
 
 		// now free the ELF header once more (no syscalls allowed after this point)
 		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){

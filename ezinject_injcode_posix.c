@@ -74,16 +74,26 @@ INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 
 	// just to make sure it's really loaded
 	ctx->h_libdl = ctx->libdl.dlopen(ctx->libdl_name, RTLD_NOLOAD);
-	PCALL(ctx, inj_dbgptr, ctx->h_libdl);
 	if(ctx->h_libdl == NULL){
 		ctx->h_libdl = ctx->libdl.dlopen(ctx->libdl_name, RTLD_NOW | RTLD_GLOBAL);
 	}
+	PCALL(ctx, inj_dbgptr, ctx->h_libdl);
 
 	if(ctx->h_libdl == NULL){
 		return -1;
 	}
 
+#ifdef EZ_TARGET_DARWIN
+	void *h_self = ctx->libdl.dlopen(NULL, RTLD_LAZY);
+	if(h_self == NULL){
+		return -1;
+	}
+	intptr_t res = PCALL(ctx, inj_fetchsym, EZSTR_API_DLERROR, h_self, (void **)&ctx->libdl.dlerror);
+	ctx->libdl.dlclose(h_self);
+	return res;
+#else
 	return PCALL(ctx, inj_fetchsym, EZSTR_API_DLERROR, ctx->h_libdl, (void **)&ctx->libdl.dlerror);
+#endif
 }
 
 INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){

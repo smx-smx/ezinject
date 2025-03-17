@@ -21,6 +21,8 @@
 #include "ezinject_arch.h"
 #include "log.h"
 
+#include "ezinject_util.h"
+
 EZAPI remote_attach(struct ezinj_ctx *ctx){
 	pid_t 	pid;
 	task_t	task;
@@ -76,15 +78,52 @@ EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
 	return 0;
 }
 
+
+static int _dirty_hack_number_of_setregs = 0;
+
 EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
+	/**
+	  * macOS Sonoma introduced a very questionable change which limits `thread_set_state`
+	  * see https://gist.github.com/saagarjha/a70d44951cb72f82efee3317d80ac07f?permalink_comment_id=5075946#gistcomment-5075946
+	  *  
+	  * it's questionable because we can still read/write virtual memory and create remote threads
+	  * so this is more annoying than useful
+	  */
+	if(_dirty_hack_number_of_setregs > 0){
+		ERR("remote_setregs not allowed after the thread has been started");
+		return -1;
+	}
+	++_dirty_hack_number_of_setregs;
+
+	kern_return_t kr;
+	#if 0
 	mach_msg_type_number_t count = MACHINE_THREAD_STATE_COUNT;
-	kern_return_t kr = thread_set_state(
+	kr = thread_set_state(
 		ctx->thread, MACHINE_THREAD_STATE,
 		(thread_state_t)regs, count
 	);
 
 	if(kr != KERN_SUCCESS){
 		ERR("thread_set_state failed: %s", mach_error_string(kr));
+		return -1;
+	}
+	#endif
+
+	/**
+	  * $FIXME: arm64 support (no device to test)
+	  * adapted from https://github.com/koekeishiya/yabai/blob/master/src/osax/loader.m
+	  */
+	thread_state_flavor_t thread_flavor = x86_THREAD_STATE64;
+	mach_msg_type_number_t thread_flavor_count = x86_THREAD_STATE64_COUNT;
+	kr = thread_create_running(
+		ctx->task,
+		thread_flavor,
+		(thread_state_t)regs,
+		thread_flavor_count,
+		&ctx->thread
+	);
+	if (kr != KERN_SUCCESS) {
+		ERR("thread_create_running failed: %s", mach_error_string(kr));
 		return -1;
 	}
 

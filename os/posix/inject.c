@@ -24,11 +24,6 @@
 #include "ezinject_util.h"
 #include "ezinject_compat.h"
 
-#ifdef EZ_TARGET_DARWIN
-EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *sc_base){ return 0; }
-EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base){ return 0; }
-EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base){ return 0; }
-#else
 static ez_region region_sc_code = {
 	.start = (void *)&__start_syscall,
 	.end = (void *)&__stop_syscall
@@ -37,7 +32,9 @@ static ez_region region_sc_code = {
 // remote base of syscall code section
 static uintptr_t r_current_sc_base;
 
+#ifdef HAVE_SYSCALLS
 static off_t sc_wrapper_offset;
+#endif
 
 #ifdef EZ_TARGET_LINUX
 static off_t sc_mmap_offset;
@@ -93,7 +90,9 @@ static void _remote_sc_setup_offsets(){
 	sc_fn_offset = PTRDIFF(&injected_sc6, region_sc_code.start);
 #endif
 
+#ifdef HAVE_SYSCALLS
 	sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
+#endif
 
 #ifdef EZ_TARGET_LINUX
 	sc_mmap_offset = PTRDIFF(&injected_mmap, region_sc_code.start);
@@ -129,8 +128,12 @@ uintptr_t _remote_sc_addr(struct ezinj_ctx *ctx, uintptr_t addr){
 uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 	uintptr_t sc_base = 0;
 	if((flags & SC_ALLOC_ELFHDR) == SC_ALLOC_ELFHDR){
+#if defined(EZ_TARGET_DARWIN)
+		sc_base = remote_pl_alloc(ctx, size);
+#else
 		//sc_base = (uintptr_t)get_base(ctx->target, NULL, NULL);
 		sc_base = ctx->r_xpage_base;
+#endif
 	} else if((flags & SC_ALLOC_MMAP) == SC_ALLOC_MMAP){
 #if defined(EZ_TARGET_POSIX)
 		sc_base = CHECK(RSCALL6(ctx, __NR_mmap2,
@@ -159,6 +162,7 @@ uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 	return sc_base;
 }
 
+#ifdef HAVE_SYSCALLS
 /**
  * Get the address of the call wrapper
  **/
@@ -166,6 +170,7 @@ uintptr_t get_wrapper_address(struct ezinj_ctx *ctx){
 	uintptr_t sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
 	return r_current_sc_base + sc_wrapper_offset;
 }
+#endif
 
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *out_sc_base){
 	_remote_sc_setup_offsets();
@@ -248,10 +253,17 @@ EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base){
 
 EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base){
 	if((flags & SC_ALLOC_ELFHDR) == SC_ALLOC_ELFHDR){
+#ifdef EZ_TARGET_DARWIN
+		if(remote_pl_free(ctx, sc_base) != 0){
+			ERR("remote_pl_free failed");
+			return -1;
+		}
+#else
 		if(remote_write(ctx, sc_base, ctx->saved_sc_data, ctx->saved_sc_size) != ctx->saved_sc_size){
 			PERROR("remote_write failed");
 			return -1;
 		}
+#endif
 		if(ctx->saved_sc_data != NULL){
 			free(ctx->saved_sc_data);
 			ctx->saved_sc_data = NULL;
@@ -351,6 +363,7 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 }
 #endif
 
+#ifdef HAVE_SYSCALLS
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
 	UNUSED(ctx);
 
