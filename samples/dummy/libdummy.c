@@ -98,6 +98,9 @@ void printenv() {
     char ** env;
 #if defined(EZ_TARGET_WINDOWS) && (_MSC_VER >= 1900)
     env = *__p__environ();
+#elif defined(EZ_TARGET_FREEBSD)
+	// workaround https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=265008
+	char **environ = (char **)dlsym(RTLD_DEFAULT, "environ");
 #else
     extern char ** environ;
     env = environ;
@@ -124,7 +127,7 @@ int lib_main(int argc, char *argv[]){
 	sprintf(cmd, "cat /proc/%u/maps", getpid());
 	system(cmd);
 	#endif
-	
+
 	#ifdef EZ_TARGET_POSIX
 	printenv();
 	#endif
@@ -156,8 +159,8 @@ BOOL WINAPI DllMain(
     LPVOID lpReserved )  // reserved
 {
     // Perform actions based on the reason for calling.
-    switch( fdwReason ) 
-    { 
+    switch( fdwReason )
+    {
         case DLL_PROCESS_ATTACH: // Initialize once for each new process.
          // Return FALSE to fail DLL load.
         	break;
