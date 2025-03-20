@@ -298,16 +298,6 @@ INLINE void inj_plapi_init(struct injcode_call *sc, struct injcode_ctx *ctx){
 	#undef PCOPY
 }
 
-#ifdef EZ_TARGET_DARWIN
-INLINE int _inj_is_first_run(){
-	return br->tid == 0;
-}
-#else
-INLINE int _inj_is_first_run(){
-	return 1;
-}
-#endif
-
 intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	struct injcode_bearing *br = (struct injcode_bearing *)(sc->argv[0]);
 	struct injcode_ctx stack_ctx;
@@ -319,8 +309,10 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	ctx->br = br;
 	ctx->stbl = BR_STRTBL(br);
 
-	// init the string table, if it's the first time we're called
-	if(_inj_is_first_run()){
+	// relocate the string table, if not done already
+	if(!br->stbl_relocated){
+		br->stbl_relocated = 1;
+
 		/** convert string offsets to pointers */
 		char *str_base = (char *)PTRADD(ctx->stbl, sizeof(struct ezinj_str) * br->num_strings);
 		for(unsigned i=0; i<br->num_strings; i++){

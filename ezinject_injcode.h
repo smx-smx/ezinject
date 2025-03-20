@@ -218,6 +218,7 @@ struct injcode_bearing
 {
 	ssize_t mapping_size;
 
+	int stbl_relocated;
 	int pl_debug;
 	off_t stack_offset;
 	pthread_t user_tid;
