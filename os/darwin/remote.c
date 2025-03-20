@@ -133,7 +133,7 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	mach_msg_type_number_t read = 0;
 
-	vm_offset_t dataPointer = NULL;
+	void *dataPointer = NULL;
 	kern_return_t kr = vm_read(
 		ctx->task,
 		(vm_address_t)source,
