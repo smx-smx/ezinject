@@ -287,7 +287,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	#endif
 	} while(wait);
 
-	if(call->syscall_mode == 0 || ctx->pl_debug){
+	if(ctx->pl_debug){
 		return -1;
 	}
 
