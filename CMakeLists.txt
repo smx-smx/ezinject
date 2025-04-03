@@ -653,8 +653,8 @@ macro(ezinject_lib target_name mode)
 endmacro(ezinject_lib)
 
 ezinject_lib(libezinject_static STATIC)
-ezinject_lib(libezinject_shared SHARED)
-target_compile_definitions(libezinject_shared PUBLIC -DEZ_SHARED)
+#ezinject_lib(libezinject_shared SHARED)
+#target_compile_definitions(libezinject_shared PUBLIC -DEZ_SHARED)
 
 set(ezinject_sources
 	ezinject.c

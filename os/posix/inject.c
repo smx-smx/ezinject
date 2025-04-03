@@ -24,7 +24,7 @@
 #include "ezinject_util.h"
 #include "ezinject_compat.h"
 
-static ez_region region_sc_code = {
+ez_region region_sc_code = {
 	.start = (void *)&__start_syscall,
 	.end = (void *)&__stop_syscall
 };
@@ -70,6 +70,9 @@ static off_t trampoline_entry_label;
 static off_t sc_offset;
 static size_t sc_size;
 
+static off_t trap_offset_start;
+static off_t trap_offset_stop;
+
 #ifdef EZ_TARGET_POSIX
 static off_t sc_fn_offset;
 #endif
@@ -104,6 +107,9 @@ static void _remote_sc_setup_offsets(){
 	sc_virtualalloc_offset = PTRDIFF(&injected_virtual_alloc, region_sc_code.start);
 	sc_virtualfree_offset = PTRDIFF(&injected_virtual_free, region_sc_code.start);
 #endif
+
+	trap_offset_start = PTRDIFF(&injected_sc_trap_start, region_sc_code.start);
+	trap_offset_stop = PTRDIFF(&injected_sc_trap_stop, region_sc_code.start);
 
 	// always at the beginning of the shellcode
 	trampoline_offset = 0;
@@ -172,6 +178,13 @@ uintptr_t get_wrapper_address(struct ezinj_ctx *ctx){
 }
 #endif
 
+uintptr_t remote_sc_get_trap_start(){
+	return r_current_sc_base + trap_offset_start;
+}
+uintptr_t remote_sc_get_trap_stop(){
+	return r_current_sc_base + trap_offset_stop;
+}
+
 EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *out_sc_base){
 	_remote_sc_setup_offsets();
 
@@ -207,7 +220,8 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *out_sc_base){
 		region_sc_code.start,
 		REGION_LENGTH(region_sc_code)
 	);
-	DBG("dataLength: %zu", dataLength);
+	DBG("sc_size: %zu", dataLength);
+	DBG("sc_base: 0x"LX, sc_base);
 
 	intptr_t rc = -1;
 	do {

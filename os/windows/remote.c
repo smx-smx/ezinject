@@ -9,6 +9,7 @@
 
 #include "InjLib/Remote.h"
 #include "ezinject.h"
+#include "ezinject_injcode.h"
 
 static EZAPI _grant_debug_privileges(){
 	HANDLE token = NULL;
@@ -125,19 +126,149 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 	return written;
 }
 
+/**
+ * GetThreadContext and SetThreadContext can be async! (at least they are on x64!)
+ * For x64, Microsoft saves the registers in 2 separate, non-atomic operations:
+ * 1) non-volatile registers (like RIP) are read/written immediately in kernel-land
+ * 2) volatile registers (Rbx, Rbx, etc.) are read/written in userland by an APC call!
+ *
+ * when the thread is resumed, it will run the queued APC by jumping to an ASM snippet
+ * (not dissimilar from setjmp/longjmp) that will either save or restore the volatile registers.
+ *
+ * I'm not exactly sure why Microsoft implemented it like this
+ * (and I would love to know why), so if you happen to have some information, drop me a message
+ *
+ * the implications are that:
+ * - we must not be in a system call to capture sane register values
+ * (or else the kernel will overwrite the register values with the syscall result)
+ * - we must allow the thread to run for the APC to execute
+ * (or else we will not get the new volatile register values)
+ *
+ * in order to workaround this, we implement the following logic:
+ * NOTE: the thread *MUST* be suspended when calling this function
+ *
+ * 1. get the non-volatile registers (CONTEXT_CONTROL), which includes PC
+ * - this will be needed to restore the original program state later on
+ * 2. modify PC to jump to a trap (NOP + endless loop) that we previously wrote to SC
+ * 3. resume the thread
+ * - this runs the pending APC, and commits volatile registers
+ * 4. wait for the endless loop to hit
+ * 5. now that we're in a controlled state, we can read volatile registers
+ * 6. suspend the thread
+ * 7. merge the newly obtained register values with the original PC
+ *
+ * NOTE: the caller is expected to restore the context to continue execution
+ *
+ * References:
+ * - https://www.lodsb.com/why-ntsetcontextthread-destroys-volatile-registers
+ * - https://gist.github.com/NtRaiseHardError/ee7ee5edce7c0c11c8bf4e6ad24973a3#file-imagine-needing-writeprocessmemory-and-createremotethread-c-L57-L62
+ * - https://undev.ninja/nina-x64-process-injection/
+ * - https://stackoverflow.com/a/37909524/11782802
+ */
+static EZAPI _remote_hijack(struct ezinj_ctx *ctx, regs_t *regs_save){
+	memset(regs_save, 0x00, sizeof(*regs_save));
+	// get original PC
+	regs_save->ContextFlags = CONTEXT_CONTROL;
+	if(GetThreadContext(ctx->hThread, regs_save) == FALSE){
+		PERROR("GetThreadContext failed");
+		return -1;
+	}
+
+	regs_t regs;
+	memcpy(&regs, regs_save, sizeof(regs));
+
+	uintptr_t new_pc = remote_sc_get_trap_start();
+	DBG("PC Detour: %p -> %p", VPTR(REG(regs, REG_PC)), VPTR(new_pc));
+
+	// write detour PC value
+	REG(regs, REG_PC) = new_pc;
+	if(SetThreadContext(ctx->hThread, &regs) == FALSE){
+		PERROR("SetThreadContext failed");
+		return -1;
+	}
+
+	// let the process run the detour
+	remote_continue(ctx, 0);
+
+	// wait for the endless jump to hit (after the NOPs)
+	uintptr_t jmp_addr = remote_sc_get_trap_stop();
+	regs.ContextFlags = CONTEXT_ALL;
+	DBG("Waiting for trap hit at %p", VPTR(jmp_addr));
+	for(;;){
+		// sample new register values
+		if(GetThreadContext(ctx->hThread, &regs) == FALSE){
+			PERROR("GetThreadContext failed");
+			return -1;
+		}
+		//DBG("0x"LX", 0x"LX, REG(regs, REG_PC), jmp_addr);
+		if(REG(regs, REG_PC) == jmp_addr){
+			DBG("trap hit!");
+			break;
+		}
+		Sleep(50);
+	}
+
+	if(remote_suspend(ctx) < 0){
+		ERR("remote_suspend failed");
+	}
+
+	// get the original PC value before the overwrite
+	uintptr_t orig_pc = REG(*regs_save, REG_PC);
+
+	// overwrite registers with the new sample
+	memcpy(regs_save, &regs, sizeof(regs));
+
+	// restore the original PC
+	// which is the only register that was modified in the trap
+	REG(*regs_save, REG_PC) = orig_pc;
+	return 0;
+}
+
 EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
-	regs->ContextFlags = CONTEXT_ALL;
-	if(GetThreadContext(ctx->hThread, regs) == FALSE){
+	// migrate the thread to a safe well-known state
+	// and get its original registers
+	if(_remote_hijack(ctx, regs) != 0){
+		ERR("_remote_hijack() failed");
+		return -1;
+	}
+	// restore original regs
+	if(SetThreadContext(ctx->hThread, regs) == FALSE){
+		PERROR("SetThreadContext");
 		return -1;
 	}
 	return 0;
 }
 
 EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
-	regs->ContextFlags = CONTEXT_ALL;
-	if(SetThreadContext(ctx->hThread, regs) == FALSE){
+	// migrate the thread to a safe well-known state
+	// and get its original registers
+	regs_t regs_save;
+	if(_remote_hijack(ctx, &regs_save) != 0){
+		ERR("_remote_hijack() failed");
 		return -1;
 	}
+
+	// set the desired registers (with thread suspended)
+	regs->ContextFlags = CONTEXT_ALL;
+	if(SetThreadContext(ctx->hThread, regs) == FALSE){
+		PERROR("SetThreadContext");
+		return -1;
+	}
+
+	// we need to do this again
+	// to flush the APC queue and commit the volatile registers
+	// from the previous SetThreadContext call
+	if(_remote_hijack(ctx, &regs_save) != 0){
+		ERR("_remote_hijack() failed");
+		return -1;
+	}
+
+	// restore original regs
+	if(SetThreadContext(ctx->hThread, regs) == FALSE){
+		PERROR("SetThreadContext");
+		return -1;
+	}
+
 	return 0;
 }
 

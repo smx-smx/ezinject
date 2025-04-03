@@ -51,7 +51,7 @@ LOG_SETUP(V_INFO);
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
-static ez_region region_pl_code = {
+ez_region region_pl_code = {
 	.start = (void *)&__start_payload,
 	.end = (void *)&__stop_payload
 };
@@ -852,9 +852,6 @@ int ezinject_main(
 
 		struct ezinj_pl *pl = &ctx->pl;
 
-		#define PL_REMOTE_CODE(addr) \
-			PL_REMOTE(ctx, pl->code_start) + PTRDIFF(addr, region_pl_code.start)
-
 		#if defined(EZ_TARGET_LINUX)
 		INFO("target: copying payload (using files)");
 		if(remote_pl_copy(ctx) != 0){
@@ -899,12 +896,12 @@ int ezinject_main(
 		ctx->pl_stack.remote = (uintptr_t)PL_REMOTE(ctx, target_sp);
 
 		// use trampoline on PL
-		ctx->entry_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
+		ctx->entry_insn.remote = PL_REMOTE_CODE(ctx, &trampoline_entry);
 		// tell the trampoline to call the main injcode
-		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
+		ctx->branch_target.remote = PL_REMOTE_CODE(ctx, &injected_fn);
 
 		// init plapi
-		#define PLAPI_SET(ctx, fn) ctx->plapi.fn = PL_REMOTE_CODE(&fn)
+		#define PLAPI_SET(ctx, fn) ctx->plapi.fn = PL_REMOTE_CODE(ctx, &fn)
 		PLAPI_SET(ctx, inj_memset);
 		PLAPI_SET(ctx, inj_puts);
 		PLAPI_SET(ctx, inj_dchar);

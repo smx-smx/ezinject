@@ -45,6 +45,12 @@ typedef struct {
 // base.remote - (addr - local.base)
 #define EZ_REMOTE(ref, local_addr) (ref.remote + (PTRDIFF(local_addr, ref.local)))
 
+extern ez_region region_pl_code;
+
+#ifdef HAVE_SHELLCODE
+extern ez_region region_sc_code;
+#endif
+
 struct ezinj_pl {
 	uint8_t *br_start;
 	uint8_t *code_start;
@@ -54,6 +60,7 @@ struct ezinj_pl {
 struct ezinj_ctx;
 
 #define PL_REMOTE(ctx, addr) (ctx->mapped_mem.remote + PTRDIFF(addr, ctx->mapped_mem.local))
+#define PL_REMOTE_CODE(ctx, addr) PL_REMOTE(ctx, ctx->pl.code_start) + PTRDIFF(addr, region_pl_code.start)
 
 typedef EZAPI (*pfnCallHandler)(struct ezinj_ctx *ctx, struct injcode_call *rcall);
 
@@ -221,6 +228,8 @@ EZAPI remote_sc_check(struct ezinj_ctx *ctx);
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call);
 EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base);
 EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base);
+uintptr_t remote_sc_get_trap_start();
+uintptr_t remote_sc_get_trap_stop();
 
 /** libc/util api **/
 EZAPI os_api_init(struct ezinj_ctx *ctx);
