@@ -389,6 +389,10 @@ typedef struct {
 */
 #endif
 
+extern void SCAPI injected_sc_trap(void);
+extern void injected_sc_trap_start();
+extern void injected_sc_trap_stop();
+
 #ifdef EZ_TARGET_POSIX
 extern intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc1(volatile struct injcode_call *sc);

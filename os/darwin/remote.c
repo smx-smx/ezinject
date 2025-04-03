@@ -85,7 +85,7 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 	/**
 	  * macOS Sonoma introduced a very questionable change which limits `thread_set_state`
 	  * see https://gist.github.com/saagarjha/a70d44951cb72f82efee3317d80ac07f?permalink_comment_id=5075946#gistcomment-5075946
-	  *  
+	  *
 	  * it's questionable because we can still read/write virtual memory and create remote threads
 	  * so this is more annoying than useful
 	  */

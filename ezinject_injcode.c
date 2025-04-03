@@ -44,6 +44,16 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
+void SCAPI injected_sc_trap(void){
+	EMIT_LABEL("injected_sc_trap_start");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	EMIT_LABEL("injected_sc_trap_stop");
+	asm volatile(JMP_INSN " .");
+}
+
 #ifdef EZ_TARGET_LINUX
 /**
  * Old glibc has broken syscall(3) argument handling for mmap
