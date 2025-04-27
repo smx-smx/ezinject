@@ -334,36 +334,14 @@ int handle_client(int client){
 				size_t length = (size_t)read_ptr(&data);
 				DBG("length: %zu", length);
 
-				int blocksize = 4096;
-				int nblocks = length / blocksize;
-				int blockoff = length % blocksize;
-
-				// align to multiple of NETALIGN (2)
-				int rem = (length % sizeof(uintptr_t));
-				uintptr_t padding = 0;
-
-				int length_aligned = ntohl(length + rem);
-
-				if(send_datahdr(client, length_aligned) != 0){
+				if(send_datahdr(client, length) != 0){
 					ERR("send_datahdr failed");
 					serve = 0;
 					break;
 				}
 
-				DBG("writing %d blocks", nblocks);
-				for(int i=0; i<nblocks; i++){
-					SAFE_SEND(client, start_addr, blocksize, 0);
-					start_addr += blocksize;
-				}
-				DBG("writing %d bytes", blockoff);
-				if(blockoff > 0){
-					SAFE_SEND(client, start_addr, blockoff, 0);
-				}
-
-				if(rem > 0){
-					DBG("writing rem: %d", rem);
-					SAFE_SEND(client, &padding, rem, 0);
-				}
+				DBG("sending %zu bytes", length);
+				SAFE_SEND(client, start_addr, length, 0);
 				break;
 			}
 			case OP_POKE:{
@@ -372,19 +350,8 @@ int handle_client(int client){
 				size_t length = (size_t)read_ptr(&data);
 				DBG("size: %zu", length);
 
-				int blocksize = 4096;
-				int nblocks = length / blocksize;
-				int blockoff = length % blocksize;
-
-				DBG("reading %d blocks", nblocks);
-				for(int i=0; i<nblocks; i++){
-					SAFE_RECV(client, start_addr, blocksize, 0);
-					start_addr += blocksize;
-				}
-				DBG("reading %d bytes", blockoff);
-				if(blockoff > 0){
-					SAFE_RECV(client, start_addr, blockoff, 0);
-				}
+				DBG("receiving %zu bytes", length);
+				SAFE_RECV(client, start_addr, length, 0);
 
 				if(send_str(client, NULL) != 0){
 					ERR("send_str failed");
