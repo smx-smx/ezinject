@@ -1,5 +1,4 @@
-# TODO: confirm minimum requirement
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.20)
 
 set(HAVE_CMAKE314 TRUE)
 if(${CMAKE_VERSION} VERSION_LESS "3.14")
@@ -17,7 +16,10 @@ if(HAVE_CMAKE314)
 	check_pie_supported()
 endif()
 
+include(FetchContent)
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")
+include(${CMAKE_SOURCE_DIR}/cmake/common.cmake)
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
 	set(EZ_TARGET_LINUX TRUE)
@@ -707,39 +709,7 @@ endif()
 add_subdirectory(crt)
 
 if(USE_FRIDA_GUM)
-	find_package(PkgConfig REQUIRED)
-
-	# do we have frida-gum?
-	pkg_check_modules(FRIDA_GUM
-		IMPORTED_TARGET frida-gum-1.0 GLOBAL
-	)
-
-	if(NOT FRIDA_GUM)
-		execute_process(
-			COMMAND ${CMAKE_COMMAND}
-				-G "${CMAKE_GENERATOR}"
-				-B "${CMAKE_BINARY_DIR}/external"
-				-S "${CMAKE_SOURCE_DIR}/external/frida-gum"
-			COMMAND ${CMAKE_COMMAND}
-				--build
-				${CMAKE_SOURCE_DIR}/external/frida-gum
-		)
-	endif()
-
-	# check for it again, this time we must have it
-	pkg_check_modules(FRIDA_GUM_STATIC
-		REQUIRED
-		IMPORTED_TARGET frida-gum-1.0 GLOBAL
-	)
-
-	include(CMakePrintHelpers)
-	cmake_print_properties(TARGETS
-		PkgConfig::FRIDA_GUM_STATIC
-	PROPERTIES
-		INTERFACE_LINK_LIBRARIES
-	)
-
-	add_link_options(-Wl,--gc-sections)
+	include(external/frida-gum/frida-gum.cmake)
 endif()
 
 add_subdirectory(samples)
