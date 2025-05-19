@@ -105,7 +105,7 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 			break;
 		}
 
-		if(CHECK(RSCALL1(ctx, __NR_close, r_fd)) < 0){
+		if((int)CHECK(RSCALL1(ctx, __NR_close, r_fd)) < 0){
 			ERR("remote close(2) failed");
 			break;
 		}
