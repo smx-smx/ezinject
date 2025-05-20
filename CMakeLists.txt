@@ -44,11 +44,22 @@ if(NOT EZ_TARGET_WINDOWS AND NOT EZ_TARGET_DARWIN)
 endif()
 
 include(CheckIncludeFile)
-
 include(CheckSymbolExists)
+include(CheckCSourceCompiles)
+
 check_symbol_exists("PSR_T_BIT" "asm/ptrace.h" HAVE_PSR_T_BIT)
 check_symbol_exists("strsignal" "string.h" HAVE_STRSIGNAL)
-check_symbol_exists("RTLD_NOLOAD" "dlfcn.h" HAVE_RTLD_NOLOAD)
+
+check_c_source_compiles("
+#define _GNU_SOURCE
+#include <dlfcn.h>
+int main(){
+	int x = RTLD_NOLOAD;
+	return 0;
+}
+
+" HAVE_RTLD_NOLOAD)
+
 check_symbol_exists("__arm__" "" EZ_ARCH_ARM)
 check_symbol_exists("__aarch64__" "" EZ_ARCH_ARM64)
 check_symbol_exists("__i386__" "" EZ_ARCH_I386)
