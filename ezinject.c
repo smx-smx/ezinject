@@ -367,6 +367,10 @@ intptr_t remote_call(
 }
 
 struct ezinj_str ezstr_new(enum ezinj_str_id id, char *str, size_t *pSize){
+	if(!str){
+		str = "";
+	}
+
 	struct ezinj_str bstr = {
 		.id = (enum ezinj_str_id)id,
 		.str = str
@@ -502,8 +506,6 @@ int push_string(
 	size_t *dyn_str_size,
 	char *str
 ){
-	if(!str){ return -1; }
-
 	unsigned index = MAX(str_id, *num_strings);
 	if(index >= *capacity){
 		// insert index + 128 new items
@@ -590,6 +592,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 	PUSH_STRING(EZSTR_API_CRT_INIT, "crt_init");
+	PUSH_STRING(EZSTR_LOG_FILEPATH, ctx->module_logfile);
 
 	// argv0
 	PUSH_STRING(EZSTR_ARGV0, libName);
@@ -959,10 +962,6 @@ int ezinject_main(
 
 int main(int argc, char *argv[]){
 	ezinject_log_init();
-	if(argc < 3) {
-		ERR("Usage: %s pid library-to-inject", argv[0]);
-		return 1;
-	}
 
 #ifdef DEBUG
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -971,13 +970,18 @@ int main(int argc, char *argv[]){
 
 	memset(&ctx, 0x00, sizeof(ctx));
 
+	const char *module_logfile = NULL;
+
 	{
 		int c;
-		while ((c = getopt (argc, argv, "dv:")) != -1){
+		while ((c = getopt (argc, argv, "hdl:v:")) != -1){
 			switch(c){
 				case 'd':
 					WARN("payload debugging enabled, the target **WILL** freeze");
 					ctx.pl_debug = 1;
+					break;
+				case 'l':;
+					module_logfile = strdup(optarg);
 					break;
 				case 'v':;
 					switch(toupper(*optarg)){
@@ -986,12 +990,21 @@ int main(int argc, char *argv[]){
 							break;
 					}
 					break;
+				case 'h':
+					goto usage;
 			}
 		}
 	}
 
+	if(argc < 3) {
+		usage:
+		ERR("Usage: %s [-h|-d|-l <log_path>|-v <verbosity>] <pid> <library.so> [args...]", argv[0]);
+		return 1;
+	}
+
 	const char *argPid = argv[optind++];
 	ctx.target = strtoul(argPid, NULL, 10);
+	ctx.module_logfile = (char *)module_logfile;
 
 	if(os_api_init(&ctx) != 0){
 		ERR("os_api_init() failed");

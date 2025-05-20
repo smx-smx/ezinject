@@ -16,7 +16,6 @@
 #include <sched.h>
 #include <pthread.h>
 #include <unistd.h>
-#include <libgen.h>
 
 #ifdef EZ_TARGET_LINUX
 #include <sys/prctl.h>
@@ -93,71 +92,27 @@ static void _init_stdout(){
 #endif
 #endif
 
-static char *sys_get_temp_dir(){
-	char *tmpfile = tempnam(NULL, NULL); 
-	if(!tmpfile) return NULL;
-
-	char *tmp = strdup(tmpfile);
-	if(!tmp) {
-		free(tmpfile);
-		return NULL;
-	}
-
-	char *parent = dirname(tmp);
-	char *result = strdup(parent);
-	free(tmp);
-	free(tmpfile);
-	return result;
-}
-
-#ifdef _WIN32
-#define PATH_SEPARATOR "\\"
-#else
-#define PATH_SEPARATOR "/"
-#endif
-
-
 static char *crt_get_log_filepath(struct injcode_bearing *br){
-	char *temp_dir = sys_get_temp_dir();
-	if(!temp_dir){
-		return NULL;
+	char *log_path = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
+	if(strlen(log_path) > 0){
+		return log_path;
 	}
-
-	pid_t host_pid = getpid();
-
-	char *argv0 = BR_STRTBL(br)[EZSTR_ARGV0].str;
-	char *tmp = strdup(argv0);
-	char *lib_name = basename(tmp);
-	char *lastdot = strrchr(lib_name, '.');
-	if(lastdot){
-		*lastdot = '\0';
-	}
-
-	int buf_length = strlen(temp_dir) + strlen(lib_name) + 64;
-
-	char *buf = calloc(buf_length, sizeof(char));
-	if(!buf){
-		free(tmp);
-		return NULL;
-	}
-	snprintf(buf, buf_length, "%s" PATH_SEPARATOR "%s-%u.log",
-		temp_dir,
-		lib_name, host_pid);
-
-	free(tmp);
-	return buf;
+	return NULL;
 }
 
 static void crt_loginit(struct injcode_bearing *br){
 	char *log_file_path = crt_get_log_filepath(br);
-	if(log_file_path){
-		log_config_t log_cfg = {
-			.verbosity = V_DBG,
-			.log_leave_open = 0,
-			.log_output = fopen(log_file_path, "w+")
-		};
-		log_init(&log_cfg);
+	FILE *log_handle = fopen(log_file_path, "w+");
+	if(!log_handle){
+		log_handle = stdout;
 	}
+
+	log_config_t log_cfg = {
+		.verbosity = V_DBG,
+		.log_leave_open = log_handle == stdout ? 1 : 0,
+		.log_output = log_handle
+	};
+	log_init(&log_cfg);
 }
 
 DLLEXPORT extern int crt_init(struct injcode_bearing *br);
