@@ -1,6 +1,5 @@
 add_ezinject_library(dummy_cpp
 	USE_LH
-	#USE_LOG
 	SOURCES libdummy.cpp
 )
 

@@ -56,8 +56,6 @@
 #error "Unknown pointer size"
 #endif
 
-LOG_SETUP(V_DBG);
-
 #define WEBAPI_DEBUG
 
 #define OP_INFO 0x49 // I
@@ -583,6 +581,10 @@ void *start_server(void *arg){
 	}
 	free(arg);
 	return (void *)(uintptr_t)rc;
+}
+
+int lib_loginit(){
+	return -1;
 }
 
 int lib_preinit(struct injcode_user *user){

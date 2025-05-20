@@ -16,6 +16,8 @@
 #define UNUSED(x) (void)(x)
 #define ALIGNMSK(y) ((y)-1)
 
+#define WEAK __attribute__((weak))
+
 #ifdef ALIGN
 #undef ALIGN
 #endif

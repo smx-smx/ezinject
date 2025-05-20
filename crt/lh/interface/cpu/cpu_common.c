@@ -47,6 +47,7 @@ uint8_t *inj_build_jump(void *dstAddr, void *srcAddr, size_t *jumpSzPtr){
 	if(jumpSzPtr)
 		*jumpSzPtr = jumpSz;
 
+	enum verbosity_level verbosity = log_get_verbosity();
 	if(verbosity > 3){
 		INFO("jump");
 		hexdump(buffer, jumpSz);

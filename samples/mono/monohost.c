@@ -23,9 +23,6 @@
 
 #include "interface/if_hook.h"
 
-
-LOG_SETUP(V_DBG);
-
 #define DEBUG
 
 #ifdef _WIN32
@@ -402,6 +399,10 @@ int __cdecl clrInit(
 		fn_mono_thread_detach(rootThread);
 	}
 	return rc;
+}
+
+int lib_loginit(){
+	return -1;
 }
 
 int lib_preinit(struct injcode_user *user){

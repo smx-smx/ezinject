@@ -6,7 +6,6 @@ include_directories(
 )
 
 add_ezinject_library(mono
-	USE_LOG
 	USE_LH
 	SOURCES
 		monohost.c

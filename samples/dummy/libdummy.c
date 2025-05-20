@@ -9,8 +9,6 @@
 #include "ezinject_util.h"
 #include "ezinject_injcode.h"
 
-LOG_SETUP(V_DBG);
-
 #ifdef USE_LH
 typedef int(*testFunc_t)(int arg1, int arg2);
 
@@ -108,6 +106,25 @@ void printenv() {
     for (; *env; ++env) {
         printf("%s\n", *env);
     }
+}
+
+int lib_loginit(){
+#ifdef USE_CUSTOM_LOG
+	char *tmpfile = tempnam(NULL, "libdummy-");
+	log_config_t cfg = {
+		.log_leave_open = 0,
+		.log_output = fopen(tmpfile, "w+"),
+		.verbosity = V_DBG
+	};
+	lib_log_init(&cfg);
+	return 0;
+#else
+
+	/**
+	 * use the default implementation
+	 **/
+	return -1;
+#endif
 }
 
 int lib_preinit(struct injcode_user *user){

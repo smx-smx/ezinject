@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Stefano Moioli <smxdev4@gmail.com>
+ * Copyright (C) 2025 Stefano Moioli <smxdev4@gmail.com>
  * This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
  * Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
  *  1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
@@ -15,17 +15,28 @@
 #include <inttypes.h>
 #include "config.h"
 
-extern enum verbosity_level
-{
+enum verbosity_level {
 	V_ERR = 0,
 	V_WARN,
 	V_INFO,
 	V_DBG
-} verbosity
-#ifdef EZ_TARGET_POSIX
-__attribute__((weak))
-#endif
-;
+};
+
+typedef struct {
+    enum verbosity_level verbosity;
+    FILE *log_output;
+    int log_leave_open;
+} log_config_t;
+
+void log_init(log_config_t *cfg);
+void log_fini();
+void log_puts(const char *str);
+void log_printf(const char *format, ...);
+void log_putchar(int ch);
+void log_log(enum verbosity_level verbosity, const char *format, ...);
+enum verbosity_level log_get_verbosity();
+void log_set_verbosity(int verbosity);
+
 
 #if __WORDSIZE == 64
 #define LX "%lx"
@@ -49,45 +60,12 @@ __attribute__((weak))
 
 #define DBGPTR(p) DBG("%s=%p", #p, (void *)p)
 
-#ifdef LOG_USE_FILE
-#define LOG_RESERVED_HANDLE __ghLog
-#else
-#define LOG_RESERVED_HANDLE stdout
-#endif
+#define lputs(str) log_puts(str)
+#define lprintf(fmt, ...) log_printf(fmt, ##__VA_ARGS__)
+#define lputchar(ch) log_putchar(ch)
 
-#define __LOG_DECLARE_VERBOSITY(verb) \
-    enum verbosity_level verbosity = verb
-
-#ifdef LOG_USE_FILE
-#include <stdlib.h>
-extern FILE *LOG_RESERVED_HANDLE;
-
-#define LOG_SETUP(verb) \
-    FILE *LOG_RESERVED_HANDLE; \
-    __LOG_DECLARE_VERBOSITY(verb)
-
-#define LOG_INIT(filePath) do { \
-    LOG_RESERVED_HANDLE = fopen(filePath, "w+"); \
-    if(LOG_RESERVED_HANDLE == NULL){ \
-        fprintf(stderr, "Cannot open log file '%s' for writing\n", filePath); \
-        abort(); \
-    } \
-    setvbuf(LOG_RESERVED_HANDLE, NULL, _IONBF, 0); \
-} while(0);
-#define LOG_FINI() fclose(LOG_RESERVED_HANDLE);
-#else
-#define LOG_SETUP(verb) __LOG_DECLARE_VERBOSITY(verb)
-#define LOG_INIT(filePath)
-#define LOG_FINI()
-#endif
-
-#define lputs(str) fputs(str "\n", LOG_RESERVED_HANDLE)
-#define lprintf(fmt, ...) fprintf(LOG_RESERVED_HANDLE, fmt, ##__VA_ARGS__)
-#define lputchar(ch) fputc(ch, LOG_RESERVED_HANDLE)
-
-#define LOG(verb, fmt, ...) do{ \
-    if((int)verbosity>=verb) lprintf(LOG_PREFIX fmt "\n", ##__VA_ARGS__); \
-} while(0)
+#define LOG(verb, fmt, ...) \
+    log_log(verb, fmt "\n", ##__VA_ARGS__)
 
 #define INFO(fmt, ...) LOG(V_INFO, "[INFO] " fmt, ##__VA_ARGS__)
 #define WARN(fmt, ...) LOG(V_WARN, "[WARN] " fmt, ##__VA_ARGS__)

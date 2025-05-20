@@ -67,5 +67,16 @@
 # define ez_ntohll(x) (((uint64_t)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))
 #endif
 
+#if defined(_WIN32) || defined(__CYGWIN__)
+  #define DLLEXPORT __declspec(dllexport)
+#else
+  #define DLLEXPORT __attribute__((visibility("default")))
+#endif
+
+
+#ifdef EZ_TARGET_WINDOWS
+#else
+#define WINAPI
+#endif
 
 #endif

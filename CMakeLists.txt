@@ -483,42 +483,38 @@ configure_file(
 	${CMAKE_BINARY_DIR}/config.h
 )
 
+# we must make an object library to link at once
+# otherwise `crt_init` will be stripped
+# this is the safest way to support old compilers too
+add_library(ezinject_crt OBJECT
+	crt/crt.c
+	crt/crt_user.c
+	ezinject_util.c
+	log.c
+)
+if(EZ_TARGET_POSIX)
+	target_sources(ezinject_crt PRIVATE
+		crt/crt_posix.c
+	)
+elseif(EZ_TARGET_WINDOWS)
+	target_sources(ezinject_crt PRIVATE
+		crt/crt_windows.c
+		os/windows/util.c
+	)
+endif()
+
 function(add_ezinject_library target)
-	cmake_parse_arguments(LIB "USE_LH;USE_LOG" "" "SOURCES" ${ARGN})
+	cmake_parse_arguments(LIB "USE_LH" "" "SOURCES" ${ARGN})
 
 	set(sources "${LIB_SOURCES}")
-
-	list(APPEND sources
-		${CMAKE_SOURCE_DIR}/crt/crt.c
-		${CMAKE_SOURCE_DIR}/crt/crt_user.c
-		${CMAKE_SOURCE_DIR}/ezinject_util.c
-	)
-
-	if(EZ_TARGET_POSIX)
-		list(APPEND sources
-			${CMAKE_SOURCE_DIR}/crt/crt_posix.c
-		)
-	elseif(EZ_TARGET_WINDOWS)
-		list(APPEND sources
-			${CMAKE_SOURCE_DIR}/crt/crt_windows.c
-			${CMAKE_SOURCE_DIR}/os/windows/util.c
-		)
-	endif()
-
-	set(moduledefs "MODULE_NAME=\"${target}\"")
-	if(LIB_USE_LOG)
-		list(APPEND moduledefs "LOG_USE_FILE")
-	endif()
-
-	foreach(source_file IN LISTS sources)
-		set_source_files_properties("${source_file}" PROPERTIES COMPILE_DEFINITIONS "${moduledefs}")
-	endforeach()
 
 	add_library(${target} SHARED ${sources})
 
 	if(NOT REQUIRES_LIBPTHREAD STREQUAL "")
 		target_link_libraries(${target} pthread)
 	endif()
+
+	target_link_libraries(${target} ezinject_crt)
 
 	if(LIB_USE_LH)
 		# force a dependency on the hook library
@@ -635,7 +631,7 @@ if(EZ_TARGET_LINUX)
 	add_executable(ezpatch
 		elfparse.c
 		ezpatch.c
-		elfparse.c
+		log.c
 		ezinject_util.c
 		os/linux/util.c
 	)
@@ -659,6 +655,7 @@ ezinject_lib(libezinject_static STATIC)
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
+	log.c
 	${target_sources}
 )
 

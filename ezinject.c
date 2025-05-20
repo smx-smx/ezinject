@@ -46,9 +46,6 @@
 #include "os/windows/util.h"
 #endif
 
-
-LOG_SETUP(V_INFO);
-
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
 ez_region region_pl_code = {
@@ -788,6 +785,15 @@ void print_maps(){
 void print_maps(){}
 #endif
 
+static void ezinject_log_init(){
+	log_config_t log = {
+		.log_leave_open = 1,
+		.log_output = stdout,
+		.verbosity = V_INFO
+	};
+	log_init(&log);
+}
+
 int ezinject_main(
 	struct ezinj_ctx *ctx,
 	int argc, char *argv[]
@@ -952,6 +958,7 @@ int ezinject_main(
 }
 
 int main(int argc, char *argv[]){
+	ezinject_log_init();
 	if(argc < 3) {
 		ERR("Usage: %s pid library-to-inject", argv[0]);
 		return 1;
@@ -975,7 +982,7 @@ int main(int argc, char *argv[]){
 				case 'v':;
 					switch(toupper(*optarg)){
 						case 'D':
-							verbosity = V_DBG;
+							log_set_verbosity(V_DBG);
 							break;
 					}
 					break;

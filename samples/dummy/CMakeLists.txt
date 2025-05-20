@@ -7,7 +7,6 @@ add_executable(target target.c)
 
 add_ezinject_library(dummy
 	#USE_LH
-	#USE_LOG
 	SOURCES libdummy.c
 )
 target_compile_options(dummy PUBLIC -D__USE_MINGW_ANSI_STDIO=0)

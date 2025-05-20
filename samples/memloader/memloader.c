@@ -8,12 +8,14 @@
 #include "ezinject_injcode.h"
 #include "log.h"
 
-LOG_SETUP(V_DBG);
-
 extern void blob_start();
 extern void blob_end();
 
 static struct injcode_user *gUser;
+
+int lib_loginit(){
+	return -1;
+}
 
 int lib_preinit(struct injcode_user *user){
 	gUser = user;

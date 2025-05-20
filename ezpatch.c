@@ -25,8 +25,6 @@
 #include "ezinject_util.h"
 #include "elfparse.h"
 
-LOG_SETUP(V_DBG);
-
 void apply_patch(pid_t target, void *target_addr, void *patch, size_t patchlen)
 {
 	void **target_addr_p = (void**)target_addr;
