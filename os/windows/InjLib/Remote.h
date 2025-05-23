@@ -3,7 +3,7 @@
 
 #include <windows.h>
 #include <tlhelp32.h>
-#include "struct.h"
+#include "Struct.h"
 
 // Ordinal of Kernel32.GDIReallyCares()
 #define GDIREALLYCARES_ORDINAL 0x17     // 23

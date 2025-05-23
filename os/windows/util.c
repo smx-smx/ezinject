@@ -13,7 +13,7 @@
 #include <windows.h>
 #include <psapi.h>
 #include <shlwapi.h>
-#include <TlHelp32.h>
+#include <tlhelp32.h>
 
 #include "ezinject.h"
 #include "dlfcn_compat.h"

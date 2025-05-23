@@ -26,6 +26,9 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
 	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll" ".a")
+	if(NOT CMAKE_HOST_WIN32)
+		set(CMAKE_LINK_LIBRARY_SUFFIX "")
+	endif()
 	string(APPEND CMAKE_EXE_LINKER_FLAGS " -static-libgcc")
 	string(APPEND CMAKE_SHARED_LINKER_FLAGS " -static-libgcc")
 	set(EZ_TARGET_WINDOWS TRUE)
@@ -37,10 +40,6 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
 	message(STATUS "SDK Path: ${CMAKE_OSX_SYSROOT}")
 else()
 	message(FATAL_ERROR "Unsupported OS ${CMAKE_SYSTEM_NAME}")
-endif()
-
-if(NOT EZ_TARGET_WINDOWS AND NOT EZ_TARGET_DARWIN)
-	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export-dynamic")
 endif()
 
 include(CheckIncludeFile)
@@ -503,6 +502,7 @@ add_library(ezinject_crt OBJECT
 	ezinject_util.c
 	log.c
 )
+
 if(EZ_TARGET_POSIX)
 	target_sources(ezinject_crt PRIVATE
 		crt/crt_posix.c
@@ -528,10 +528,12 @@ function(add_ezinject_library target)
 	target_link_libraries(${target} ezinject_crt)
 
 	if(LIB_USE_LH)
+		target_compile_definitions(${target} PRIVATE USE_LH)
+
 		# force a dependency on the hook library
 		# even if user code doesn't use it
 		if(USING_GNU_LD)
-			target_link_options(${target} PUBLIC
+			target_link_options(${target} PRIVATE
 				-Wl,--whole-archive
 					$<TARGET_FILE:lh_hook>
 				-Wl,--no-whole-archive
@@ -674,7 +676,7 @@ add_executable(ezinject ${ezinject_sources})
 target_link_libraries(ezinject libezinject_static)
 
 if(ENABLE_STATIC)
-	target_link_options(ezinject PUBLIC -static)
+	target_link_options(ezinject PRIVATE -static)
 endif()
 
 check_c_compiler_flag("-ffunction-sections" HAVE_CFLAG_FFUNCTION_SECTIONS)

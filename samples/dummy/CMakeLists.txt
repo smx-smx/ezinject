@@ -1,18 +1,10 @@
-add_executable(target target.c)
-
-#set(ARG_USE_LH "")
-#if(NOT EZ_TARGET_WINDOWS)
-#	set(ARG_USE_LH "USE_LH")
-#endif()
-
 add_ezinject_library(dummy
 	#USE_LH
 	SOURCES libdummy.c
 )
-target_compile_options(dummy PUBLIC -D__USE_MINGW_ANSI_STDIO=0)
+target_compile_definitions(dummy PRIVATE __USE_MINGW_ANSI_STDIO=0)
 if(EZ_TARGET_WINDOWS)
-	target_link_options(dummy PUBLIC -nostdlib)
-	target_link_libraries(dummy msvcrt)
+	target_link_options(dummy PRIVATE "LINKER:-entry=MyDllMainCRTStartup")
 endif()
 
 set(required_libs "")
@@ -28,6 +20,8 @@ if(EZ_ARCH_MIPS AND UCLIBC_OLD)
 endif()
 
 target_link_libraries(dummy ${required_libs})
+
+add_executable(target target.c)
 
 if(EZ_TARGET_POSIX)
 	add_executable(target_dl target_dl.c)

@@ -161,12 +161,7 @@ return 0;
 }
 
 #ifdef EZ_TARGET_WINDOWS
-BOOL __stdcall DllMainCRTStartup(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved){
-	return TRUE;
-}
-
-BOOL WINAPI DllEntryPoint(HINSTANCE hinstDLL, DWORD fdwReason,
-LPVOID lpReserved){
+BOOL __stdcall MyDllMainCRTStartup(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved){
 	return TRUE;
 }
 
