@@ -459,13 +459,23 @@ if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR (EZ_ARCH_ARM AND USE_ARM_THUMB))
 endif()
 
 if(USE_CAPSTONE OR (HAVE_CPU_VLE AND NOT USE_FRIDA_GUM))
-	set(USE_CAPSTONE ON)
+	set(CAPSTONE_REQUIRED "")
+	# if user requested, it's a required dependency
+	if(USE_CAPSTONE)
+		set(CAPSTONE_REQUIRED REQUIRED)
+	endif()
 	if(NOT CAPSTONE_PREFIX)
+		# try to find capstone
 		if(NOT CAPSTONE_INCLUDE_DIRS AND NOT CAPSTONE_LIBRARIES)
-			find_package(CAPSTONE REQUIRED)
+			find_package(CAPSTONE ${CAPSTONE_REQUIRED})
 		endif()
-		include_directories(${CAPSTONE_INCLUDE_DIRS})
+		if(CAPSTONE_FOUND AND DEFINED CAPSTONE_INCLUDE_DIRS)
+			include_directories(${CAPSTONE_INCLUDE_DIRS})
+			# found usable capstone
+			set(USE_CAPSTONE TRUE)
+		endif()
 	else()
+		# user provided path
 		find_library(
 				CAPSTONE_LIBRARIES REQUIRED
 				NO_DEFAULT_PATH
