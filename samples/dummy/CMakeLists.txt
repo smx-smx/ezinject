@@ -24,7 +24,9 @@ target_link_libraries(dummy ${required_libs})
 add_executable(target target.c)
 target_include_directories(target PRIVATE ${EZINJECT_INCLUDE_DIRS})
 # export exe symbols for dlsym (LH will use dlsym to find the function to hook)
-target_link_options(target PRIVATE "LINKER:-export-dynamic")
+if(NOT EZ_TARGET_DARWIN)
+	target_link_options(target PRIVATE "LINKER:-export-dynamic")
+endif()
 
 INSTALL(TARGETS target)
 
