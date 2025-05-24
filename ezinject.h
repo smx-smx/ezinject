@@ -45,6 +45,12 @@ typedef struct {
 // base.remote - (addr - local.base)
 #define EZ_REMOTE(ref, local_addr) (ref.remote + (PTRDIFF(local_addr, ref.local)))
 
+extern ez_region region_pl_code;
+
+#ifdef HAVE_SHELLCODE
+extern ez_region region_sc_code;
+#endif
+
 struct ezinj_pl {
 	uint8_t *br_start;
 	uint8_t *code_start;
@@ -54,6 +60,7 @@ struct ezinj_pl {
 struct ezinj_ctx;
 
 #define PL_REMOTE(ctx, addr) (ctx->mapped_mem.remote + PTRDIFF(addr, ctx->mapped_mem.local))
+#define PL_REMOTE_CODE(ctx, addr) PL_REMOTE(ctx, ctx->pl.code_start) + PTRDIFF(addr, region_pl_code.start)
 
 typedef EZAPI (*pfnCallHandler)(struct ezinj_ctx *ctx, struct injcode_call *rcall);
 
@@ -70,6 +77,7 @@ struct ezinj_ctx {
 	int syscall_mode;
 	pid_t target;
 	uintptr_t r_xpage_base;
+	char *module_logfile;
 #ifdef EZ_TARGET_WINDOWS
 	int wait_call_seq;
 	DEBUG_EVENT ev;
@@ -81,8 +89,12 @@ struct ezinj_ctx {
 #ifdef EZ_TARGET_DARWIN
 	task_t task;
 	thread_t thread;
+	// $FIXME: this is kind of a hack, but we only do one allocation
+	// the better idea would be to add a `size` parameter to `remote_pl_free`
+	size_t last_alloc_size;
 #endif
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
+#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS) \
+|| defined(EZ_TARGET_DARWIN)
 	// holds the overwritten ELF header
 	uint8_t *saved_sc_data;
 	ssize_t saved_sc_size;
@@ -97,6 +109,17 @@ struct ezinj_ctx {
 	pfnCallHandler rcall_handler_post;
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
+#ifdef EZ_TARGET_DARWIN
+	ez_addr pthread_create_from_mach_thread;
+	ez_addr pthread_create;
+	ez_addr pthread_join;
+	ez_addr pthread_detach;
+	ez_addr pthread_self;
+	ez_addr mach_thread_self;
+	ez_addr task_self_trap;
+	ez_addr mach_port_allocate;
+	ez_addr thread_terminate;
+#endif
 #ifdef EZ_TARGET_LINUX
 	ez_addr libc_mmap;
 	ez_addr libc_open;
@@ -206,6 +229,8 @@ EZAPI remote_sc_check(struct ezinj_ctx *ctx);
 EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call);
 EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base);
 EZAPI remote_sc_set(struct ezinj_ctx *ctx, uintptr_t sc_base);
+uintptr_t remote_sc_get_trap_start();
+uintptr_t remote_sc_get_trap_stop();
 
 /** libc/util api **/
 EZAPI os_api_init(struct ezinj_ctx *ctx);

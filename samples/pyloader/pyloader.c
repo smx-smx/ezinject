@@ -19,7 +19,9 @@
 
 #define UNUSED(x) (void)(x)
 
-LOG_SETUP(V_DBG);
+int lib_loginit(){
+	return -1;
+}
 
 int lib_preinit(struct injcode_user *user){
 	UNUSED(user);

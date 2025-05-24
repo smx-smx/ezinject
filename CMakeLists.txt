@@ -26,6 +26,9 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
 elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
 	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
 	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll" ".a")
+	if(NOT CMAKE_HOST_WIN32)
+		set(CMAKE_LINK_LIBRARY_SUFFIX "")
+	endif()
 	string(APPEND CMAKE_EXE_LINKER_FLAGS " -static-libgcc")
 	string(APPEND CMAKE_SHARED_LINKER_FLAGS " -static-libgcc")
 	set(EZ_TARGET_WINDOWS TRUE)
@@ -39,16 +42,23 @@ else()
 	message(FATAL_ERROR "Unsupported OS ${CMAKE_SYSTEM_NAME}")
 endif()
 
-if(NOT EZ_TARGET_WINDOWS AND NOT EZ_TARGET_DARWIN)
-	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export-dynamic")
-endif()
-
 include(CheckIncludeFile)
-
 include(CheckSymbolExists)
+include(CheckCSourceCompiles)
+
 check_symbol_exists("PSR_T_BIT" "asm/ptrace.h" HAVE_PSR_T_BIT)
 check_symbol_exists("strsignal" "string.h" HAVE_STRSIGNAL)
-check_symbol_exists("RTLD_NOLOAD" "dlfcn.h" HAVE_RTLD_NOLOAD)
+
+check_c_source_compiles("
+#define _GNU_SOURCE
+#include <dlfcn.h>
+int main(){
+	int x = RTLD_NOLOAD;
+	return 0;
+}
+
+" HAVE_RTLD_NOLOAD)
+
 check_symbol_exists("__arm__" "" EZ_ARCH_ARM)
 check_symbol_exists("__aarch64__" "" EZ_ARCH_ARM64)
 check_symbol_exists("__i386__" "" EZ_ARCH_I386)
@@ -449,13 +459,23 @@ if(EZ_ARCH_I386 OR EZ_ARCH_AMD64 OR (EZ_ARCH_ARM AND USE_ARM_THUMB))
 endif()
 
 if(USE_CAPSTONE OR (HAVE_CPU_VLE AND NOT USE_FRIDA_GUM))
-	set(USE_CAPSTONE ON)
+	set(CAPSTONE_REQUIRED "")
+	# if user requested, it's a required dependency
+	if(USE_CAPSTONE)
+		set(CAPSTONE_REQUIRED REQUIRED)
+	endif()
 	if(NOT CAPSTONE_PREFIX)
+		# try to find capstone
 		if(NOT CAPSTONE_INCLUDE_DIRS AND NOT CAPSTONE_LIBRARIES)
-			find_package(CAPSTONE REQUIRED)
+			find_package(CAPSTONE ${CAPSTONE_REQUIRED})
 		endif()
-		include_directories(${CAPSTONE_INCLUDE_DIRS})
+		if(CAPSTONE_FOUND AND DEFINED CAPSTONE_INCLUDE_DIRS)
+			include_directories(${CAPSTONE_INCLUDE_DIRS})
+			# found usable capstone
+			set(USE_CAPSTONE TRUE)
+		endif()
 	else()
+		# user provided path
 		find_library(
 				CAPSTONE_LIBRARIES REQUIRED
 				NO_DEFAULT_PATH
@@ -483,36 +503,31 @@ configure_file(
 	${CMAKE_BINARY_DIR}/config.h
 )
 
+# we must make an object library to link at once
+# otherwise `crt_init` will be stripped
+# this is the safest way to support old compilers too
+add_library(ezinject_crt OBJECT
+	crt/crt.c
+	crt/crt_user.c
+	ezinject_util.c
+	log.c
+)
+
+if(EZ_TARGET_POSIX)
+	target_sources(ezinject_crt PRIVATE
+		crt/crt_posix.c
+	)
+elseif(EZ_TARGET_WINDOWS)
+	target_sources(ezinject_crt PRIVATE
+		crt/crt_windows.c
+		os/windows/util.c
+	)
+endif()
+
 function(add_ezinject_library target)
-	cmake_parse_arguments(LIB "USE_LH;USE_LOG" "" "SOURCES" ${ARGN})
+	cmake_parse_arguments(LIB "USE_LH" "" "SOURCES" ${ARGN})
 
 	set(sources "${LIB_SOURCES}")
-
-	list(APPEND sources
-		${CMAKE_SOURCE_DIR}/crt/crt.c
-		${CMAKE_SOURCE_DIR}/crt/crt_user.c
-		${CMAKE_SOURCE_DIR}/ezinject_util.c
-	)
-
-	if(EZ_TARGET_POSIX)
-		list(APPEND sources
-			${CMAKE_SOURCE_DIR}/crt/crt_posix.c
-		)
-	elseif(EZ_TARGET_WINDOWS)
-		list(APPEND sources
-			${CMAKE_SOURCE_DIR}/crt/crt_windows.c
-			${CMAKE_SOURCE_DIR}/os/windows/util.c
-		)
-	endif()
-
-	set(moduledefs "MODULE_NAME=\"${target}\"")
-	if(LIB_USE_LOG)
-		list(APPEND moduledefs "LOG_USE_FILE")
-	endif()
-
-	foreach(source_file IN LISTS sources)
-		set_source_files_properties("${source_file}" PROPERTIES COMPILE_DEFINITIONS "${moduledefs}")
-	endforeach()
 
 	add_library(${target} SHARED ${sources})
 
@@ -520,11 +535,15 @@ function(add_ezinject_library target)
 		target_link_libraries(${target} pthread)
 	endif()
 
+	target_link_libraries(${target} ezinject_crt)
+
 	if(LIB_USE_LH)
+		target_compile_definitions(${target} PRIVATE USE_LH)
+
 		# force a dependency on the hook library
 		# even if user code doesn't use it
 		if(USING_GNU_LD)
-			target_link_options(${target} PUBLIC
+			target_link_options(${target} PRIVATE
 				-Wl,--whole-archive
 					$<TARGET_FILE:lh_hook>
 				-Wl,--no-whole-archive
@@ -635,7 +654,7 @@ if(EZ_TARGET_LINUX)
 	add_executable(ezpatch
 		elfparse.c
 		ezpatch.c
-		elfparse.c
+		log.c
 		ezinject_util.c
 		os/linux/util.c
 	)
@@ -653,12 +672,13 @@ macro(ezinject_lib target_name mode)
 endmacro(ezinject_lib)
 
 ezinject_lib(libezinject_static STATIC)
-ezinject_lib(libezinject_shared SHARED)
-target_compile_definitions(libezinject_shared PUBLIC -DEZ_SHARED)
+#ezinject_lib(libezinject_shared SHARED)
+#target_compile_definitions(libezinject_shared PUBLIC -DEZ_SHARED)
 
 set(ezinject_sources
 	ezinject.c
 	ezinject_injcode.c
+	log.c
 	${target_sources}
 )
 
@@ -666,7 +686,7 @@ add_executable(ezinject ${ezinject_sources})
 target_link_libraries(ezinject libezinject_static)
 
 if(ENABLE_STATIC)
-	target_link_options(ezinject PUBLIC -static)
+	target_link_options(ezinject PRIVATE -static)
 endif()
 
 check_c_compiler_flag("-ffunction-sections" HAVE_CFLAG_FFUNCTION_SECTIONS)

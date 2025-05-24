@@ -43,11 +43,27 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 		ERR("vm_protect failed to set current page privs: %s", mach_error_string(kr));
 		return 0;
 	}
+	ctx->last_alloc_size = mapping_size;
 	return address;
 }
 
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 	return 0;
+	/*
+	kern_return_t kr = vm_deallocate(
+		ctx->task,
+		(vm_address_t)remote_shmaddr,
+		ctx->last_alloc_size
+	);
+	if(kr != KERN_SUCCESS){
+		ERR("vm_deallocate failed");
+		return -1;
+	}
+	return 0;
+	*/
 }
 
-EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){ return 0; }
+EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
+	return 0;
+}
+

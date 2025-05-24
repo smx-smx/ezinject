@@ -44,6 +44,16 @@
 #define __RTLD_DLOPEN 0x80000000 /* glibc internal */
 #endif
 
+void SCAPI injected_sc_trap(void){
+	EMIT_LABEL("injected_sc_trap_start");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	asm volatile("nop\n");
+	EMIT_LABEL("injected_sc_trap_stop");
+	asm volatile(JMP_INSN " .");
+}
+
 #ifdef EZ_TARGET_LINUX
 /**
  * Old glibc has broken syscall(3) argument handling for mmap
@@ -269,6 +279,8 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 
 	// fetch argv[0], the library absolute path
 	ctx->userlib_name = BR_STRTBL(br)[EZSTR_ARGV0].str;
+
+	PCALL(ctx, inj_puts, ctx->userlib_name);
 	br->userlib = inj_dlopen(ctx, ctx->userlib_name, RTLD_NOW);
 
 	PCALL(ctx, inj_dbgptr, br->userlib);
@@ -300,25 +312,59 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	struct injcode_bearing *br = (struct injcode_bearing *)(sc->argv[0]);
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;
+
 	sc->plapi.inj_memset(NULL, ctx, 0x00, sizeof(*ctx));
 	inj_plapi_init(sc, ctx);
 
 	ctx->br = br;
 	ctx->stbl = BR_STRTBL(br);
 
-	if(br->pl_debug){
-		return 0;
+	// relocate the string table, if not done already
+	if(!br->stbl_relocated){
+		br->stbl_relocated = 1;
+
+		/** convert string offsets to pointers */
+		char *str_base = (char *)PTRADD(ctx->stbl, sizeof(struct ezinj_str) * br->num_strings);
+		for(unsigned i=0; i<br->num_strings; i++){
+			ctx->stbl[i].str = (char *)PTRADD(ctx->stbl[i].str, str_base);
+		}
 	}
 
-	/** convert string offsets to pointers */
-	char *str_base = (char *)PTRADD(ctx->stbl, sizeof(struct ezinj_str) * br->num_strings);
-	for(unsigned i=0; i<br->num_strings; i++){
-		ctx->stbl[i].str = (char *)PTRADD(ctx->stbl[i].str, str_base);
+	#if 0
+	if(br->pl_debug){
+		asm volatile(JMP_INSN " .");
 	}
+	#endif
+
 
 	intptr_t result = 0;
 	// entry
 	PCALL(ctx, inj_dchar, 'e');
+
+	#ifdef EZ_TARGET_DARWIN
+	int thread_is_parent = br->tid == 0;
+	if(thread_is_parent){
+		PCALL(ctx, inj_dchar, 't');
+
+		sc->mach_thread = br->mach_thread_self();
+
+		// sc->trampoline.fn_addr
+		if(br->pthread_create_from_mach_thread(&br->tid, NULL, (void * (*)(void *))injected_fn, sc) != 0){
+			PCALL(ctx, inj_dchar, '!');
+			result = INJ_ERR_DARWIN_THREAD;
+			goto pl_exit;
+		}
+		goto pl_exit;
+	} else {
+		// detach ourselves to free resources
+		// (the parent can't do it because it has no TLS)
+		br->pthread_detach(br->pthread_self());
+
+		// kill the parent thread
+		// (the parent can't do it because it has no TLS within `thread_terminate`)
+		br->thread_terminate(sc->mach_thread);
+	}
+	#endif
 
 	ctx->libdl_name = BR_STRTBL(br)[EZSTR_API_LIBDL].str;
 	ctx->libpthread_name = BR_STRTBL(br)[EZSTR_API_LIBPTHREAD].str;
@@ -333,7 +379,6 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	PCALL(ctx, inj_dchar, 'p');
 
 	PCALL(ctx, inj_puts, ctx->libpthread_name);
-	//asm volatile(JMP_INSN " .");
 	ctx->h_libthread = inj_dlopen(ctx, ctx->libpthread_name, RTLD_LAZY | RTLD_GLOBAL);
 	if(!ctx->h_libthread){
 		PCALL(ctx, inj_dchar, '!');
@@ -369,6 +414,8 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		char *errstr = NULL;
 		if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
 			PCALL(ctx, inj_puts, errstr);
+		} else {
+			PCALL(ctx, inj_dchar, '?');
 		}
 		result = INJ_ERR_DLOPEN;
 		goto pl_exit;
@@ -407,8 +454,22 @@ pl_exit:
 		ctx->libdl.dlclose(ctx->h_libthread);
 	}*/
 
+	#ifdef EZ_TARGET_DARWIN
+	if(thread_is_parent){
+		// it looks we can't kill a thread created from `thread_create_running`, so we do hacks
+		asm volatile(JMP_INSN " .");
+		//return 0;
+	} else {
+		sc->result = result;
+		br->libc_syscall(__NR_kill,
+			br->libc_syscall(__NR_getpid),
+			SIGSTOP);
+		return 0;
+	}
+	#else
 	// return to ezinject
 	PL_RETURN(sc, result);
+	#endif
 
 	asm volatile(JMP_INSN " .");
 

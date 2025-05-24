@@ -44,6 +44,8 @@
 #include "ezinject.h"
 #include "ezinject_common.h"
 #include "ezinject_injcode.h"
+#include "ezinject_compat.h"
+#include "ezinject_module.h"
 
 #include "log.h"
 
@@ -90,16 +92,35 @@ static void _init_stdout(){
 #endif
 #endif
 
-DLLEXPORT /**
- * called from injcode
- */
-int crt_init(struct injcode_bearing *br){
-#ifdef EZ_TARGET_WINDOWS
-	LOG_INIT(MODULE_NAME".log");
-	//_init_stdout();
-#else
-	LOG_INIT("/tmp/"MODULE_NAME".log");
-#endif
+static char *crt_get_log_filepath(struct injcode_bearing *br){
+	char *log_path = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
+	if(strlen(log_path) > 0){
+		return log_path;
+	}
+	return NULL;
+}
+
+static void crt_loginit(struct injcode_bearing *br){
+	char *log_file_path = crt_get_log_filepath(br);
+	FILE *log_handle = fopen(log_file_path, "w+");
+	if(!log_handle){
+		log_handle = stdout;
+	}
+
+	log_config_t log_cfg = {
+		.verbosity = V_DBG,
+		.log_leave_open = log_handle == stdout ? 1 : 0,
+		.log_output = log_handle
+	};
+	log_init(&log_cfg);
+}
+
+DLLEXPORT extern int crt_init(struct injcode_bearing *br);
+
+DLLEXPORT int crt_init(struct injcode_bearing *br){
+	if(lib_loginit() != 0){
+		crt_loginit(br);
+	}
 
 	INFO("library loaded!");
 
@@ -147,6 +168,6 @@ WINAPI void *crt_user_entry(void *arg) {
 		ERR("crt_thread_notify failed");
 	}
 	DBG("ret");
-	LOG_FINI();
+	log_fini();
 	return NULL;
 }

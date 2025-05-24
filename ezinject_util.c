@@ -13,11 +13,6 @@
 #include "dlfcn_compat.h"
 #include "ezinject.h"
 
-#ifdef EZ_SHARED
-#include "log.h"
-LOG_SETUP(V_DBG);
-#endif
-
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
 	uintptr_t sym_addr = (uintptr_t)LIB_GETSYM(handle, sym_name);
 	ez_addr sym = {

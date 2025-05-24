@@ -1,5 +1,4 @@
 add_ezinject_library(netapi
-	#USE_LOG
 	SOURCES netapi.c
 )
 if(EZ_TARGET_POSIX)

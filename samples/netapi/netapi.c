@@ -21,6 +21,13 @@
 #include <ws2tcpip.h>
 #endif
 
+#ifdef EZ_TARGET_POSIX
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <pwd.h>
+#endif
+
 
 #include "dlfcn_compat.h"
 
@@ -49,8 +56,6 @@
 #error "Unknown pointer size"
 #endif
 
-LOG_SETUP(V_DBG);
-
 #define WEBAPI_DEBUG
 
 #define OP_INFO 0x49 // I
@@ -66,6 +71,30 @@ LOG_SETUP(V_DBG);
 #define C_STDCALL 0x53 // S
 #define C_THISCALL 0x54 // T
 
+enum server_mode {
+	SERVER_MODE_UNDEFINED = -1,
+	SERVER_MODE_FIFO,
+	SERVER_MODE_SOCKET
+};
+
+enum server_mode mode = SERVER_MODE_UNDEFINED;
+int fd_in = -1;
+int fd_out = -1;
+
+#ifdef EZ_TARGET_DARWIN
+static int _darwin_is_sandboxed(){
+	return getenv("APP_SANDBOX_CONTAINER_ID") != NULL;
+}
+static char *_get_home_directory(const char *username) {
+    struct passwd *pw = getpwnam(username);
+    if (pw == NULL) {
+        PERROR("getpwnam");
+        return NULL;
+    }
+	return pw->pw_dir;
+}
+#endif
+
 /**
  *  NOTE: remember to not do unaligned writes, or it will break on ARM v4
  * https://developer.arm.com/documentation/dui0473/j/using-the-assembler/address-alignment
@@ -74,30 +103,40 @@ LOG_SETUP(V_DBG);
  * NOTE: we must ensure the TCP packet is aligned to NET_IP_ALIGN bytes (2 on old Linux)
  * or it will not be dequeued from the skb (https://lwn.net/Articles/89597/)
  */
-#define MAX_BODYSZ 16384
-struct ez_pkt {
+struct ez_pkt_hdr {
 	uint32_t magic;
 	uint32_t hdr_length;
 	uint32_t body_length;
-	uint8_t body[MAX_BODYSZ];
 };
 
-#define PACKET_HEADER_SIZE (sizeof(struct ez_pkt) - MAX_BODYSZ)
-
-static void _build_pkt(struct ez_pkt *pkt, uint8_t *data, unsigned length){
-	if(length > MAX_BODYSZ){
-		// if we overflowed
-		// we prefer being a no-op than sending an incorrect reply
-		length = 0;
-	}
-	if(data != NULL && length > 0){
-		memcpy(pkt->body, data, length);
-	}
-
+static void _build_pkt(struct ez_pkt_hdr *pkt, unsigned length){
 	pkt->magic = htonl(0x4F4B3030); //OK00
-	pkt->hdr_length = ntohl(PACKET_HEADER_SIZE);
+	pkt->hdr_length = ntohl(sizeof(*pkt));
 	pkt->body_length = ntohl(length);
 }
+
+ssize_t netapi_read(int fd, void *buf, size_t length, int flags){
+	switch(mode){
+		case SERVER_MODE_FIFO:
+			return read(fd_in, buf, length);
+		case SERVER_MODE_SOCKET:
+			return recv(fd, buf, length, flags);
+		default:
+			abort();
+	}
+}
+
+ssize_t netapi_write(int fd, void *buf, size_t length, int flags){
+	switch(mode){
+		case SERVER_MODE_FIFO:
+			return write(fd_out, buf, length);
+		case SERVER_MODE_SOCKET:
+			return send(fd, buf, length, flags);
+		default:
+			abort();
+	}
+}
+
 
 intptr_t safe_send(int fd, void *buf, size_t length, int flags){
 	UNUSED(flags);
@@ -105,7 +144,7 @@ intptr_t safe_send(int fd, void *buf, size_t length, int flags){
 
 	size_t acc = 0;
 	while(acc < length){
-		ssize_t sent = send(fd, (void *)(&pb[acc]), length - acc, 0);
+		ssize_t sent = netapi_write(fd, (void *)(&pb[acc]), length - acc, 0);
 		if(sent < 0){
 			PERROR("send");
 			return -1;
@@ -121,34 +160,50 @@ intptr_t safe_recv(int fd, void *buf, size_t length, int flags){
 
 	size_t acc = 0;
 	while(acc < length){
-		ssize_t received = recv(fd, (void *)(&pb[acc]), length - acc, 0);
+		ssize_t received = netapi_read(fd, (void *)(&pb[acc]), length - acc, 0);
 		if(received < 0){
 			PERROR("recv");
 			return -1;
 		}
 		acc += received;
-		DBG("remaining: %zu", acc);
+		DBG("remaining: %zu/%zu", acc, length);
 	}
 	return (intptr_t)acc;
 }
 
 intptr_t send_data(int fd, void *data, unsigned size){
-	struct ez_pkt pkt;
+	struct ez_pkt_hdr pkt;
 	memset(&pkt, 0x00, sizeof(pkt));
-	_build_pkt(&pkt, data, size);
+	_build_pkt(&pkt, size);
 
 	uint8_t *pb = (uint8_t *)&pkt;
 
-	unsigned tx_size = MIN(PACKET_HEADER_SIZE + size, PACKET_HEADER_SIZE + MAX_BODYSZ);
-
 #ifdef WEBAPI_DEBUG
-	for(size_t i=0; i<tx_size; i++){
+	for(size_t i=0; i<sizeof(pkt); i++){
 		printf("%02hhx ", pb[i]);
+	}
+	for(size_t i=0; i<size; i++){
+		printf("%02hhx ", ((uint8_t *)data)[i]);
 	}
 	puts("");
 #endif
 
-	if(safe_send(fd, (void *)&pkt, tx_size, 0) != tx_size){
+	if(safe_send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
+		return -1;
+	}
+	if(safe_send(fd, data, size, 0) != size){
+		return -1;
+	}
+	return 0;
+}
+
+
+intptr_t send_datahdr(int fd, unsigned size){
+	struct ez_pkt_hdr pkt;
+	memset(&pkt, 0x00, sizeof(pkt));
+	_build_pkt(&pkt, size);
+
+	if(netapi_write(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
 		return -1;
 	}
 	return 0;
@@ -163,18 +218,6 @@ static inline intptr_t send_ptrval(int fd, void *ptr){
 	return send_data(fd, (uint8_t *)&val, sizeof(val));
 }
 
-intptr_t send_datahdr(int fd, unsigned size){
-	struct ez_pkt pkt;
-	memset(&pkt, 0x00, sizeof(pkt));
-
-	_build_pkt(&pkt, NULL, 0);
-	pkt.body_length = ntohl(size);
-	if(send(fd, (void *)&pkt, sizeof(pkt), 0) != sizeof(pkt)){
-		return -1;
-	}
-	return 0;
-}
-
 void *read_ptr(uint8_t **ppData){
 	uint8_t *data = *ppData;
 
@@ -187,9 +230,11 @@ void *read_ptr(uint8_t **ppData){
 }
 
 int handle_client(int client){
-	/** disable NAGLE algorithm (packet aggregation) **/
-	int flag = 1;
-	setsockopt(client, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+	if(mode == SERVER_MODE_SOCKET){
+		/** disable NAGLE algorithm (packet aggregation) **/
+		int flag = 1;
+		setsockopt(client, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+	}
 
 	int last_txrx = 0;
 
@@ -209,7 +254,6 @@ int handle_client(int client){
 			break; \
 		} \
 	} while(0)
-
 
 	int serve = 1;
 	while(serve){
@@ -288,37 +332,14 @@ int handle_client(int client){
 				size_t length = (size_t)read_ptr(&data);
 				DBG("length: %zu", length);
 
-				int blocksize = 4096;
-				int nblocks = length / blocksize;
-				int blockoff = length % blocksize;
-
-				// align to multiple of NETALIGN (2)
-				int rem = (length % sizeof(uintptr_t));
-				uintptr_t padding = 0;
-
-				int length_aligned = ntohl(length + rem);
-
-				if(send_datahdr(client, 0) != 0){
+				if(send_datahdr(client, length) != 0){
 					ERR("send_datahdr failed");
 					serve = 0;
 					break;
 				}
-				SAFE_SEND(client, &length_aligned, sizeof(length_aligned), 0);
 
-				DBG("writing %d blocks", nblocks);
-				for(int i=0; i<nblocks; i++){
-					SAFE_SEND(client, start_addr, blocksize, 0);
-					start_addr += blocksize;
-				}
-				DBG("writing %d bytes", blockoff);
-				if(blockoff > 0){
-					SAFE_SEND(client, start_addr, blockoff, 0);
-				}
-
-				if(rem > 0){
-					DBG("writing rem: %d", rem);
-					SAFE_SEND(client, &padding, rem, 0);
-				}
+				DBG("sending %zu bytes", length);
+				SAFE_SEND(client, start_addr, length, 0);
 				break;
 			}
 			case OP_POKE:{
@@ -327,19 +348,8 @@ int handle_client(int client){
 				size_t length = (size_t)read_ptr(&data);
 				DBG("size: %zu", length);
 
-				int blocksize = 4096;
-				int nblocks = length / blocksize;
-				int blockoff = length % blocksize;
-
-				DBG("reading %d blocks", nblocks);
-				for(int i=0; i<nblocks; i++){
-					SAFE_RECV(client, start_addr, blocksize, 0);
-					start_addr += blocksize;
-				}
-				DBG("reading %d bytes", blockoff);
-				if(blockoff > 0){
-					SAFE_RECV(client, start_addr, blockoff, 0);
-				}
+				DBG("receiving %zu bytes", length);
+				SAFE_RECV(client, start_addr, length, 0);
 
 				if(send_str(client, NULL) != 0){
 					ERR("send_str failed");
@@ -396,17 +406,120 @@ int handle_client(int client){
 
 		free(mem);
 	}
+#ifndef EZ_TARGET_DARWIN
 	close(client);
+#endif
 	return 0;
 }
 
-void *start_server(void *arg){
-	unsigned short port = (unsigned short)(uintptr_t)arg;
+#ifdef EZ_TARGET_POSIX
+static int _start_server_pipe(char *fifo_dir){
+	int rc = -1;
+
+	char *fifo_path_in = NULL;
+	char *fifo_path_out = NULL;
+
+	int use_provided_dir = 1;
+	#ifdef EZ_TARGET_DARWIN
+	use_provided_dir = !_darwin_is_sandboxed();
+	#endif
+
+	do {
+		pid_t pid = getpid();
+
+		if(!use_provided_dir){
+			#ifdef EZ_TARGET_DARWIN
+			const char *user = getenv("USER");
+			if(!user){
+				fputs("USER environment variable not set\n", stderr);
+				break;
+			}
+			const char *home = _get_home_directory(user);
+			if(!home){
+				fputs("Cannot determine HOME directory\n", stderr);
+				break;
+			}
+
+
+			asprintf(&fifo_path_in, "%s/.Trash/netsock.in.%d", home, pid);
+			asprintf(&fifo_path_out, "%s/.Trash/netsock.out.%d", home, pid);
+			#endif
+		} else {
+			if(!fifo_dir){
+				char *tmpdir = getenv("TMPDIR");
+				if(!tmpdir){
+					fputs("TMPDIR environment variable not set\n", stderr);
+					break;
+				}
+				fifo_dir = tmpdir;
+			}
+			asprintf(&fifo_path_in, "%s/netsock.in.%d", fifo_dir, pid);
+			asprintf(&fifo_path_out, "%s/netsock.out.%d", fifo_dir, pid);
+		}
+
+		if(!fifo_path_in || !fifo_path_out){
+			break;
+		}
+
+		if (access(fifo_path_in, F_OK) == -1) {
+			INFO("creating FIFO-IN: %s", fifo_path_in);
+			if ((rc=mkfifo(fifo_path_in, 0666)) < 0) {
+				free(fifo_path_in);
+				PERROR("mkfifo");
+				break;
+			}
+		}
+
+		if (access(fifo_path_out, F_OK) == -1){
+			INFO("creating FIFO-OUT: %s", fifo_path_out);
+			if ((rc=mkfifo(fifo_path_out, 0666)) < 0) {
+				free(fifo_path_in);
+				free(fifo_path_out);
+				PERROR("mkfifo");
+				break;
+			}
+		}
+
+		INFO("opening FIFO-OUT: %s", fifo_path_out);
+		fd_out = open(fifo_path_out, O_WRONLY);
+		if(fd_out < 0){
+			PERROR("open");
+			free(fifo_path_in);
+			free(fifo_path_out);
+			break;
+		}
+
+		INFO("opening FIFO-IN: %s", fifo_path_in);
+		fd_in = open(fifo_path_in, O_RDONLY);
+		if(fd_in < 0){
+			PERROR("open");
+			free(fifo_path_in);
+			free(fifo_path_out);
+			break;
+		}
+		free(fifo_path_in);
+		free(fifo_path_out);
+	} while(0);
+
+	if(fd_in > -1 && fd_out > -1){
+		int run = 1;
+		while(run){
+			handle_client(0);
+		}
+		close(fd_in);
+		close(fd_out);
+	}
+
+	return rc;
+}
+#endif
+
+static int _start_server_socket(short port){
 	int rc = 0;
 	do {
-		int sock = socket(AF_INET, SOCK_STREAM, 0);
-		if(sock < 0){
-			perror("socket");
+		fd_in = fd_out = socket(AF_INET, SOCK_STREAM, 0);
+		if(fd_in < 0){
+			PERROR("socket");
 			rc = -1;
 			break;
 		}
@@ -417,17 +530,17 @@ void *start_server(void *arg){
 			.sin_port = htons(port)
 		};
 		int enable = 1;
-		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *)&enable, sizeof(int)) < 0){
-    		perror("setsockopt(SO_REUSEADDR)");
+		if (setsockopt(fd_in, SOL_SOCKET, SO_REUSEADDR, (void *)&enable, sizeof(int)) < 0){
+    		PERROR("setsockopt(SO_REUSEADDR)");
 		}
-		if(bind(sock, (struct sockaddr *)&sa, sizeof(sa)) < 0){
-			perror("bind");
+		if(bind(fd_in, (struct sockaddr *)&sa, sizeof(sa)) < 0){
+			PERROR("bind");
 			rc = -1;
 			break;
 		}
 
-		if(listen(sock, 5) < 0){
-			perror("listen");
+		if(listen(fd_in, 5) < 0){
+			PERROR("listen");
 			rc = -1;
 			break;
 		}
@@ -436,15 +549,42 @@ void *start_server(void *arg){
 		while(run){
 			struct sockaddr_in sac;
 			socklen_t saclen = sizeof(sac);
-			int client = accept(sock, (struct sockaddr *)&sac, &saclen);
+			int client = accept(fd_in, (struct sockaddr *)&sac, &saclen);
 			if(client < 0){
-				perror("accept");
+				PERROR("accept");
 			}
 			/*int result =*/ handle_client(client);
 		}
 	} while(0);
 
+	return rc;
+}
+
+void *start_server(void *arg){
+	int rc;
+	switch(mode){
+		case SERVER_MODE_SOCKET:{
+			unsigned short port = (short)strtoul(arg, NULL, 10);
+			rc = _start_server_socket(port);
+		}
+		break;
+		#ifdef EZ_TARGET_POSIX
+		case SERVER_MODE_FIFO:{
+			char *fifo_dir = arg;
+			rc = _start_server_pipe(fifo_dir);
+		}
+		break;
+		#endif
+		default:
+			fputs("Invalid server mode\n", stderr);
+			rc = -1;
+	}
+	free(arg);
 	return (void *)(uintptr_t)rc;
+}
+
+int lib_loginit(){
+	return -1;
 }
 
 int lib_preinit(struct injcode_user *user){
@@ -458,14 +598,28 @@ int lib_main(int argc, char *argv[]){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
 
-	if(argc < 2){
-		lprintf("usage: %s [port]\n", argv[0]);
+	if(argc < 3){
+		usage:
+		lprintf("usage: %s [-p|-f] [port|directory]\n", argv[0]);
 		return 1;
 	}
 
-	uintptr_t port = strtoul(argv[1], NULL, 10);
+	if(!strcmp(argv[1], "-p")){
+		mode = SERVER_MODE_SOCKET;
+	}
+	#ifdef EZ_TARGET_POSIX
+	else if(!strcmp(argv[1], "-f")){
+		mode = SERVER_MODE_FIFO;
+	}
+	#endif
+	else {
+		goto usage;
+	}
+
+	char *arg_dup = strdup(argv[2]);
+
 	pthread_t tid;
-	pthread_create(&tid, NULL, start_server, (void *)port);
+	pthread_create(&tid, NULL, start_server, (void *)arg_dup);
 	pthread_detach(tid);
 	return 0;
 }

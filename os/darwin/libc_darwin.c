@@ -12,11 +12,97 @@
 #include "log.h"
 #include "ezinject_util.h"
 
+static EZAPI _resolve_kernel(struct ezinj_ctx *ctx){
+	ez_addr kernel = {
+		.local = (uintptr_t) get_base(getpid(), "libsystem_kernel", NULL),
+		.remote = (uintptr_t) get_base(ctx->target, "libsystem_kernel", NULL)
+	};
+	DBGPTR(kernel.local);
+	DBGPTR(kernel.remote);
+	if(!kernel.local || !kernel.remote){
+		ERR("Cannot find libsystem_kernel");
+		return -1;
+	}
+	
+	void *h_self = dlopen(NULL, RTLD_LAZY);
+	if(!h_self){
+		ERR("dlopen(NULL) failed: %s", dlerror());
+		return -1;
+	}
+
+	ez_addr mach_thread_self = sym_addr(h_self, "mach_thread_self", kernel);
+	ez_addr thread_terminate = sym_addr(h_self, "thread_terminate", kernel);
+	ez_addr mach_port_allocate = sym_addr(h_self, "mach_port_allocate", kernel);
+	ez_addr task_self_trap = sym_addr(h_self, "task_self_trap", kernel);
+
+	if(!mach_thread_self.local || !mach_thread_self.remote
+	|| !thread_terminate.local || !thread_terminate.remote
+	|| !mach_port_allocate.local || !mach_port_allocate.remote
+	|| !task_self_trap.local || !task_self_trap.remote
+	){
+		ERR("Cannot resolve kernel symbols");
+		dlclose(h_self);
+		return -1;
+	}
+
+	ctx->mach_thread_self = mach_thread_self;
+	ctx->thread_terminate = thread_terminate;
+	ctx->mach_port_allocate = mach_port_allocate;
+	ctx->task_self_trap = task_self_trap;
+
+	dlclose(h_self);
+	return 0;
+}
+
+static EZAPI _resolve_pthread(struct ezinj_ctx *ctx){
+	ez_addr pthread = {
+		.local = (uintptr_t) get_base(getpid(), "libsystem_pthread", NULL),
+		.remote = (uintptr_t) get_base(ctx->target, "libsystem_pthread", NULL)
+	};
+	DBGPTR(pthread.local);
+	DBGPTR(pthread.remote);
+	if(!pthread.local || !pthread.remote){
+		ERR("Cannot find libsystem_pthread");
+		return -1;
+	}
+
+	void *h_self = dlopen(NULL, RTLD_LAZY);
+	if(!h_self){
+		ERR("dlopen(NULL) failed: %s", dlerror());
+		return -1;
+	}
+
+	ez_addr pthread_create = sym_addr(h_self, "pthread_create", pthread);
+	ez_addr pthread_create_from_mach_thread = sym_addr(h_self, "pthread_create_from_mach_thread", pthread);
+	ez_addr pthread_join = sym_addr(h_self, "pthread_join", pthread);
+	ez_addr pthread_detach = sym_addr(h_self, "pthread_detach", pthread);
+	ez_addr pthread_self = sym_addr(h_self, "pthread_self", pthread);
+
+	if(!pthread_create.local || !pthread_create.remote
+	|| !pthread_join.local || !pthread_join.remote
+	|| !pthread_create_from_mach_thread.local || !pthread_create_from_mach_thread.remote
+	|| !pthread_detach.local || !pthread_detach.remote
+	|| !pthread_self.local || !pthread_self.remote){
+		ERR("Cannot resolve pthread symbols");
+		dlclose(h_self);
+		return -1;
+	}
+
+	ctx->pthread_create = pthread_create;
+	ctx->pthread_join = pthread_join;
+	ctx->pthread_create_from_mach_thread = pthread_create_from_mach_thread;
+	ctx->pthread_detach = pthread_detach;
+	ctx->pthread_self = pthread_self;
+
+	dlclose(h_self);
+	return 0;
+}
+
 EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	void *h_self = dlopen(NULL, RTLD_LAZY);
 	if(!h_self){
-		ERR("dlopen("DYN_LINKER_NAME") failed: %s", dlerror());
-		return 1;
+		ERR("dlopen(NULL) failed: %s", dlerror());
+		return -1;
 	}
 
 	ez_addr linker = {
@@ -46,7 +132,9 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ctx->dlopen_offset = PTRDIFF(linker_dlopen.local, linker.local);
 	ctx->dlclose_offset = PTRDIFF(linker_dlclose.local, linker.local);
 	ctx->dlsym_offset = PTRDIFF(linker_dlsym.local, linker.local);
-
 	dlclose(h_self);
+
+	_resolve_pthread(ctx);
+	_resolve_kernel(ctx);
 	return 0;
 }

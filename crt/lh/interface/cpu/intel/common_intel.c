@@ -64,6 +64,7 @@ int inj_relocate_code(void *codePtr, unsigned int codeSz, void *sourcePC, void *
 							//apparently works for cmp, lea, anything mem relative hopefully
 							//if(!strcmp(insn->mnemonic, "cmp")){
 								unsigned displacement = (sourcePC + insn->size) - destPC;
+								enum verbosity_level verbosity = log_get_verbosity();
 								if(verbosity >= 3){
 									LOG(3, ">> New Displacement: %u", displacement);
 									DBG("instruction before");

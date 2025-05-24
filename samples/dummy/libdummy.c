@@ -9,8 +9,6 @@
 #include "ezinject_util.h"
 #include "ezinject_injcode.h"
 
-LOG_SETUP(V_DBG);
-
 #ifdef USE_LH
 typedef int(*testFunc_t)(int arg1, int arg2);
 
@@ -94,6 +92,41 @@ void installHooks(){
 }
 #endif
 
+void printenv() {
+    char ** env;
+#if defined(EZ_TARGET_WINDOWS) && (_MSC_VER >= 1900)
+    env = *__p__environ();
+#elif defined(EZ_TARGET_FREEBSD)
+	// workaround https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=265008
+	char **environ = (char **)dlsym(RTLD_DEFAULT, "environ");
+#else
+    extern char ** environ;
+    env = environ;
+#endif
+    for (; *env; ++env) {
+        printf("%s\n", *env);
+    }
+}
+
+int lib_loginit(){
+#ifdef USE_CUSTOM_LOG
+	char *tmpfile = tempnam(NULL, "libdummy-");
+	log_config_t cfg = {
+		.log_leave_open = 0,
+		.log_output = fopen(tmpfile, "w+"),
+		.verbosity = V_DBG
+	};
+	lib_log_init(&cfg);
+	return 0;
+#else
+
+	/**
+	 * use the default implementation
+	 **/
+	return -1;
+#endif
+}
+
 int lib_preinit(struct injcode_user *user){
 	/**
 	 * this is needed for hooks pointing to code in this library
@@ -112,6 +145,10 @@ int lib_main(int argc, char *argv[]){
 	system(cmd);
 	#endif
 
+	#ifdef EZ_TARGET_POSIX
+	printenv();
+	#endif
+
 	lputs("Hello World from main");
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
@@ -124,12 +161,7 @@ return 0;
 }
 
 #ifdef EZ_TARGET_WINDOWS
-BOOL __stdcall DllMainCRTStartup(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved){
-	return TRUE;
-}
-
-BOOL WINAPI DllEntryPoint(HINSTANCE hinstDLL, DWORD fdwReason,
-LPVOID lpReserved){
+BOOL __stdcall MyDllMainCRTStartup(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved){
 	return TRUE;
 }
 
@@ -139,8 +171,8 @@ BOOL WINAPI DllMain(
     LPVOID lpReserved )  // reserved
 {
     // Perform actions based on the reason for calling.
-    switch( fdwReason ) 
-    { 
+    switch( fdwReason )
+    {
         case DLL_PROCESS_ATTACH: // Initialize once for each new process.
          // Return FALSE to fail DLL load.
         	break;

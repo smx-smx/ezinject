@@ -16,6 +16,8 @@
 #define UNUSED(x) (void)(x)
 #define ALIGNMSK(y) ((y)-1)
 
+#define WEAK __attribute__((weak))
+
 #ifdef ALIGN
 #undef ALIGN
 #endif
@@ -59,6 +61,7 @@ enum ezinj_str_id {
 	EZSTR_API_GET_EXIT_CODE_THREAD,
 #endif
 	EZSTR_API_CRT_INIT,
+	EZSTR_LOG_FILEPATH,
 	EZSTR_ARGV0,
 	EZSTR_MAX_DEFAULT
 };

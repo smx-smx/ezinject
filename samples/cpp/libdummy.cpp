@@ -14,7 +14,6 @@ extern "C" {
 	#include "ezinject_injcode.h"
 }
 
-LOG_SETUP(V_DBG);
 
 typedef int (*testFunc_t)(std::string& str);
 
@@ -84,6 +83,10 @@ void installHooks(){
 }
 
 extern "C" {
+	int lib_loginit(){
+		return -1;
+	}
+
 	int lib_preinit(struct injcode_user *user){
 		/**
 		 * this is needed for hooks pointing to code in this library

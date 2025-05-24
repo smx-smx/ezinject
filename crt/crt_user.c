@@ -8,9 +8,7 @@
  */
 #include "ezinject_injcode.h"
 #include "log.h"
-
-extern int lib_preinit(struct injcode_user *user);
-extern int lib_main(int argc, char *argv[]);
+#include "ezinject_module.h"
 
 int crt_userinit(struct injcode_bearing *br){
 	int result;

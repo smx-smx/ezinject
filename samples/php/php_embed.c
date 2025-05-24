@@ -13,7 +13,9 @@
 
 #include <sapi/embed/php_embed.h>
 
-LOG_SETUP(V_DBG);
+int lib_loginit(){
+	return -1;
+}
 
 int lib_preinit(struct injcode_user *user){
 	user->persist = 1;

@@ -46,17 +46,14 @@
 #include "os/windows/util.h"
 #endif
 
-
-LOG_SETUP(V_INFO);
-
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
-static ez_region region_pl_code = {
+ez_region region_pl_code = {
 	.start = (void *)&__start_payload,
 	.end = (void *)&__stop_payload
 };
 
-#ifdef HAVE_SC
+#ifdef HAVE_SYSCALLS
 uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 #endif
 
@@ -132,7 +129,7 @@ intptr_t setregs_syscall(
 		}
 	}
 
-	#ifdef HAVE_SC
+	#ifdef HAVE_SYSCALLS
 	/**
 	 * this target supports true system calls
 	 * use a wrapper in-between to avoid stack corruption
@@ -239,7 +236,12 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
-	if(remote_continue(ctx, 0) < 0){
+	if(ctx->pl_debug) {
+		if(remote_detach(ctx) != 0){
+			PERROR("ptrace");
+			return -1;
+		}
+	} else if(remote_continue(ctx, 0) != 0){
 		PERROR("ptrace");
 		return -1;
 	}
@@ -282,7 +284,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	#endif
 	} while(wait);
 
-	if(call->syscall_mode == 0 && ctx->pl_debug){
+	if(ctx->pl_debug){
 		return -1;
 	}
 
@@ -326,6 +328,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		}
 	}
 
+#ifndef HAVE_REMOTING
 	if(remote_setregs(ctx, &orig_ctx)){
 		PERROR("remote_setregs failed");
 	}
@@ -335,6 +338,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	DBG("PC: %p => %p",
 		(void *)call->insn_addr,
 		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
+#endif
 #endif
 
 	return call->rcall.result;
@@ -363,6 +367,10 @@ intptr_t remote_call(
 }
 
 struct ezinj_str ezstr_new(enum ezinj_str_id id, char *str, size_t *pSize){
+	if(!str){
+		str = "";
+	}
+
 	struct ezinj_str bstr = {
 		.id = (enum ezinj_str_id)id,
 		.str = str
@@ -498,8 +506,6 @@ int push_string(
 	size_t *dyn_str_size,
 	char *str
 ){
-	if(!str){ return -1; }
-
 	unsigned index = MAX(str_id, *num_strings);
 	if(index >= *capacity){
 		// insert index + 128 new items
@@ -586,6 +592,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 	PUSH_STRING(EZSTR_API_CRT_INIT, "crt_init");
+	PUSH_STRING(EZSTR_LOG_FILEPATH, ctx->module_logfile);
 
 	// argv0
 	PUSH_STRING(EZSTR_ARGV0, libName);
@@ -623,6 +630,18 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #ifdef EZ_ARCH_MIPS
 	br->uclibc_mips_got_reloc = (void *)ctx->uclibc_mips_got_reloc.remote;
 #endif
+#endif
+
+#ifdef EZ_TARGET_DARWIN
+	br->pthread_create = (void *)ctx->pthread_create.remote;
+	br->pthread_join = (void *)ctx->pthread_join.remote;
+	br->pthread_create_from_mach_thread = (void *)ctx->pthread_create_from_mach_thread.remote;
+	br->pthread_detach = (void *)ctx->pthread_detach.remote;
+	br->pthread_self = (void *)ctx->pthread_self.remote;
+	br->mach_thread_self = (void *)ctx->mach_thread_self.remote;
+	br->thread_terminate = (void *)ctx->thread_terminate.remote;
+	br->mach_port_allocate = (void *)ctx->mach_port_allocate.remote;
+	br->task_self_trap = (void *)ctx->task_self_trap.remote;
 #endif
 
 #ifdef EZ_TARGET_WINDOWS
@@ -769,6 +788,15 @@ void print_maps(){
 void print_maps(){}
 #endif
 
+static void ezinject_log_init(){
+	log_config_t log = {
+		.log_leave_open = 1,
+		.log_output = stdout,
+		.verbosity = V_INFO
+	};
+	log_init(&log);
+}
+
 int ezinject_main(
 	struct ezinj_ctx *ctx,
 	int argc, char *argv[]
@@ -787,6 +815,7 @@ int ezinject_main(
 	uintptr_t r_sc_elf = 0;
 	uintptr_t r_sc_vmem = 0;
 
+	#if defined(HAVE_SHELLCODE)
 	// allocate initial shellcode on the ELF header
 	INFO("target: allocating sc");
 	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
@@ -803,6 +832,7 @@ int ezinject_main(
 		ERR("remote_sc_check failed");
 		return -1;
 	}
+	#endif
 
 	intptr_t err = -1;
 	do {
@@ -831,9 +861,6 @@ int ezinject_main(
 
 		struct ezinj_pl *pl = &ctx->pl;
 
-		#define PL_REMOTE_CODE(addr) \
-			PL_REMOTE(ctx, pl->code_start) + PTRDIFF(addr, region_pl_code.start)
-
 		#if defined(EZ_TARGET_LINUX)
 		INFO("target: copying payload (using files)");
 		if(remote_pl_copy(ctx) != 0){
@@ -847,6 +874,7 @@ int ezinject_main(
 		}
 		#endif
 
+		#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
 		// allocate new shellcode on a new memory map
 		// the current shellcode is used for the allocation
 		// this must be done before switching to payload mode
@@ -862,6 +890,7 @@ int ezinject_main(
 			ERR("remote_sc_free: ELF header restore failed");
 			return -1;
 		}
+		#endif
 
 		// switch to SIGSTOP wait mode
 		ctx->syscall_mode = 0;
@@ -876,12 +905,12 @@ int ezinject_main(
 		ctx->pl_stack.remote = (uintptr_t)PL_REMOTE(ctx, target_sp);
 
 		// use trampoline on PL
-		ctx->entry_insn.remote = PL_REMOTE_CODE(&trampoline_entry);
+		ctx->entry_insn.remote = PL_REMOTE_CODE(ctx, &trampoline_entry);
 		// tell the trampoline to call the main injcode
-		ctx->branch_target.remote = PL_REMOTE_CODE(&injected_fn);
+		ctx->branch_target.remote = PL_REMOTE_CODE(ctx, &injected_fn);
 
 		// init plapi
-		#define PLAPI_SET(ctx, fn) ctx->plapi.fn = PL_REMOTE_CODE(&fn)
+		#define PLAPI_SET(ctx, fn) ctx->plapi.fn = PL_REMOTE_CODE(ctx, &fn)
 		PLAPI_SET(ctx, inj_memset);
 		PLAPI_SET(ctx, inj_puts);
 		PLAPI_SET(ctx, inj_dchar);
@@ -906,6 +935,7 @@ int ezinject_main(
 		INFO("target: freeing payload memory");
 		remote_pl_free(ctx, remote_shm_ptr);
 
+	#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
 		// switch back to the ELF header, to free vmem
 		if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
 			ERR("remote_sc_alloc: failed to overwrite ELF header");
@@ -918,6 +948,7 @@ int ezinject_main(
 			ERR("remote_sc_free: failed to free memory map");
 			return -1;
 		}
+	#endif
 
 		// now free the ELF header once more (no syscalls allowed after this point)
 		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
@@ -930,10 +961,7 @@ int ezinject_main(
 }
 
 int main(int argc, char *argv[]){
-	if(argc < 3) {
-		ERR("Usage: %s pid library-to-inject", argv[0]);
-		return 1;
-	}
+	ezinject_log_init();
 
 #ifdef DEBUG
 	setvbuf(stdout, NULL, _IONBF, 0);
@@ -942,27 +970,41 @@ int main(int argc, char *argv[]){
 
 	memset(&ctx, 0x00, sizeof(ctx));
 
+	const char *module_logfile = NULL;
+
 	{
 		int c;
-		while ((c = getopt (argc, argv, "dv:")) != -1){
+		while ((c = getopt (argc, argv, "hdl:v:")) != -1){
 			switch(c){
 				case 'd':
 					WARN("payload debugging enabled, the target **WILL** freeze");
 					ctx.pl_debug = 1;
 					break;
+				case 'l':;
+					module_logfile = strdup(optarg);
+					break;
 				case 'v':;
 					switch(toupper(*optarg)){
 						case 'D':
-							verbosity = V_DBG;
+							log_set_verbosity(V_DBG);
 							break;
 					}
 					break;
+				case 'h':
+					goto usage;
 			}
 		}
 	}
 
+	if(argc < 3) {
+		usage:
+		ERR("Usage: %s [-h|-d|-l <log_path>|-v <verbosity>] <pid> <library.so> [args...]", argv[0]);
+		return 1;
+	}
+
 	const char *argPid = argv[optind++];
 	ctx.target = strtoul(argPid, NULL, 10);
+	ctx.module_logfile = (char *)module_logfile;
 
 	if(os_api_init(&ctx) != 0){
 		ERR("os_api_init() failed");

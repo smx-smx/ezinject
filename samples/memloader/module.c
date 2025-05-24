@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include "ezinject_injcode.h"
 
+int lib_loginit(){
+	return -1;
+}
+
 int lib_preinit(struct injcode_user *user){
 	UNUSED(user);
 	return 0;

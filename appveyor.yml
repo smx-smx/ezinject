@@ -2,14 +2,14 @@ version: 2.0.{build}
 
 image:
   - Visual Studio 2019
-  - Ubuntu
+  - Ubuntu2204
   - macos
 
 for:
   -
     matrix:
       only:
-        - image: Ubuntu
+        - image: Ubuntu2204
     install:
       - sudo apt-get update -qq
       - sudo apt-get install -y libcapstone-dev

@@ -123,78 +123,30 @@ freebsd_x64_task:
   test_script:
     - (cd build; ctest -V)
 
-windows_x64_task:
-  timeout_in: 90m
+windows_x86_task:
   windows_container:
-    image: cirrusci/windowsservercore:2019
-    os_version: 2019
+    dockerfile: .ci/windows/Dockerfile
+  env:
+    CIRRUS_SHELL: powershell
+    MSYS: winsymlinks:nativestrict
+    MSYSTEM: MINGW32
+    CHERE_INVOKING: 1
+  script:
+    - C:\tools\msys64\usr\bin\bash.exe -lc "mkdir build"
+    - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake .. -G 'MSYS Makefiles'"
+    - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake --build . -j $(nproc)"
+    - exit $LastExitCode
+  test_script:
+    - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && ctest -V"
+
+windows_x64_task:
+  windows_container:
+    dockerfile: .ci/windows/Dockerfile
   env:
     CIRRUS_SHELL: powershell
     MSYS: winsymlinks:nativestrict
     MSYSTEM: MINGW64
-    MSYS2_URL: https://github.com/msys2/msys2-installer/releases/download/2024-07-27/msys2-base-x86_64-20240727.sfx.exe
-    MSYS2_FINGERPRINT: 0
-    MSYS2_PACKAGES: "
-      diffutils git grep make pkgconf sed
-      mingw-w64-x86_64-binutils
-      mingw-w64-x86_64-gcc
-      mingw-w64-x86_64-cmake
-      mingw-w64-x86_64-pkgconf
-      mingw-w64-x86_64-capstone
-    "
     CHERE_INVOKING: 1
-  msys2_cache:
-    folder: C:\tools\archive
-    reupload_on_changes: false
-    # These env variables are used to generate fingerprint to trigger the cache procedure
-    # If wanna to force re-populate msys2, increase MSYS2_FINGERPRINT
-    fingerprint_script:
-      - |
-        echo $env:CIRRUS_TASK_NAME
-        echo $env:MSYS2_URL
-        echo $env:MSYS2_FINGERPRINT
-        echo $env:MSYS2_PACKAGES
-    populate_script:
-      - |
-        md -Force C:\tools\archive\pkg
-        $start_time = Get-Date
-        bitsadmin /transfer msys_download /dynamic /download /priority FOREGROUND $env:MSYS2_URL C:\tools\archive\base.exe
-        Write-Output "Download time taken: $((Get-Date).Subtract($start_time))"
-        cd C:\tools
-        C:\tools\archive\base.exe -y
-        del -Force C:\tools\archive\base.exe
-        Write-Output "Base install time taken: $((Get-Date).Subtract($start_time))"
-        $start_time = Get-Date
-        ((Get-Content -path C:\tools\msys64\etc\\post-install\\07-pacman-key.post -Raw) -replace '--refresh-keys', '--version') | Set-Content -Path C:\tools\msys64\etc\\post-install\\07-pacman-key.post
-        C:\tools\msys64\usr\bin\bash.exe -lc "sed -i 's/^CheckSpace/#CheckSpace/g' /etc/pacman.conf"
-        C:\tools\msys64\usr\bin\bash.exe -lc "export"
-        C:\tools\msys64\usr\bin\pacman.exe --noconfirm -Sy
-        echo Y | C:\tools\msys64\usr\bin\pacman.exe --noconfirm -Suu --overwrite=*
-        taskkill /F /FI "MODULES eq msys-2.0.dll"
-        tasklist
-        C:\tools\msys64\usr\bin\bash.exe -lc "mv -f /etc/pacman.conf.pacnew /etc/pacman.conf || true"
-        C:\tools\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -Syyuu --overwrite=*"
-        Write-Output "Core install time taken: $((Get-Date).Subtract($start_time))"
-        $start_time = Get-Date
-        C:\tools\msys64\usr\bin\bash.exe -lc "pacman --noconfirm -S --needed $env:MSYS2_PACKAGES"
-        Write-Output "Package install time taken: $((Get-Date).Subtract($start_time))"
-        $start_time = Get-Date
-        del -Force -ErrorAction SilentlyContinue C:\tools\msys64\etc\mtab
-        del -Force -ErrorAction SilentlyContinue C:\tools\msys64\dev\fd
-        del -Force -ErrorAction SilentlyContinue C:\tools\msys64\dev\stderr
-        del -Force -ErrorAction SilentlyContinue C:\tools\msys64\dev\stdin
-        del -Force -ErrorAction SilentlyContinue C:\tools\msys64\dev\stdout
-        del -Force -Recurse -ErrorAction SilentlyContinue C:\tools\msys64\var\cache\pacman\pkg
-        tar cf C:\tools\archive\msys64.tar -C C:\tools\ msys64
-        Write-Output "Package archive time taken: $((Get-Date).Subtract($start_time))"
-        del -Force -Recurse -ErrorAction SilentlyContinue c:\tools\msys64
-  install_script:
-    - |
-      $start_time = Get-Date
-      cd C:\tools
-      ls C:\tools\archive\msys64.tar
-      tar xf C:\tools\archive\msys64.tar
-      Write-Output "Extract msys2 time taken: $((Get-Date).Subtract($start_time))"
   script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "mkdir build"
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake .. -G 'MSYS Makefiles'"

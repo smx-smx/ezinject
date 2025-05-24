@@ -25,6 +25,12 @@
 */
 #endif
 
+#ifdef EZ_TARGET_DARWIN
+#include <mach/mach.h>
+#include <mach/mach_init.h>
+#include <mach/thread_act.h>
+#endif
+
 #define SC_MAX_ARGS 8
 #include "ezinject_common.h"
 
@@ -167,6 +173,9 @@ struct injcode_call {
 	DWORD WINAPI (*SuspendThread)(HANDLE hThread);
 	HANDLE WINAPI (*GetCurrentThread)(VOID);
 #endif
+#ifdef EZ_TARGET_DARWIN
+	thread_act_t mach_thread;
+#endif
 
 	uintptr_t ezstate;
 
@@ -209,6 +218,7 @@ struct injcode_bearing
 {
 	ssize_t mapping_size;
 
+	int stbl_relocated;
 	int pl_debug;
 	off_t stack_offset;
 	pthread_t user_tid;
@@ -217,6 +227,29 @@ struct injcode_bearing
 	HANDLE hEvent;
 #endif
 	void *userlib;
+
+#if defined(EZ_TARGET_DARWIN)
+	pthread_t tid;
+
+	int (*pthread_create)(pthread_t *restrict thread,
+		const pthread_attr_t *restrict attr,
+		typeof(void *(void *)) *start_routine,
+		void *restrict arg);
+	int (*pthread_join)(pthread_t thread, void **value_ptr);
+	int (*pthread_create_from_mach_thread)(
+		pthread_t *thread,
+		const pthread_attr_t *attr,
+		void *(*start_routine)(void *), void *arg);
+	pthread_t (*pthread_self)(void);
+	int (*pthread_detach)(pthread_t thread);
+	kern_return_t (*thread_terminate)(thread_act_t target_act);
+	kern_return_t (*mach_port_allocate)
+		(ipc_space_t        task,
+		mach_port_right_t   right,
+		mach_port_name_t    *name);
+	thread_act_t (*mach_thread_self)(void);
+	mach_port_t  (*task_self_trap)(void);
+#endif
 
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
@@ -356,6 +389,10 @@ typedef struct {
 */
 #endif
 
+extern void SCAPI injected_sc_trap(void);
+extern void injected_sc_trap_start();
+extern void injected_sc_trap_stop();
+
 #ifdef EZ_TARGET_POSIX
 extern intptr_t SCAPI injected_sc0(volatile struct injcode_call *sc);
 extern intptr_t SCAPI injected_sc1(volatile struct injcode_call *sc);
@@ -402,5 +439,6 @@ extern uint8_t __stop_syscall SECTION_END("syscall");
 #define INJ_ERR_API 3
 #define INJ_ERR_DLOPEN 4
 #define INJ_ERR_WAIT 5
+#define INJ_ERR_DARWIN_THREAD 6
 
 #endif

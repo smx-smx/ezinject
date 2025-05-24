@@ -1,5 +1,5 @@
 set(CMAKE_SYSTEM_NAME Windows)
-set(TOOLCHAIN_PREFIX x86_64-w64-mingw32)
+set(TOOLCHAIN_PREFIX i686-w64-mingw32)
 set(_MINGW_THREAD_MODEL win32)
 
 # cross compilers to use for C, C++ and Fortran

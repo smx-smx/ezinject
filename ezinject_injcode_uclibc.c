@@ -11,7 +11,7 @@
 #ifndef UCLIBC_OLD
 #define MAX_SCAN_LIMIT 25
 
-#define SIGN_MASK(x) ((intptr_t)(x)) >> ((sizeof(intptr_t) * 8) - 1)
+#define SIGN_MASK(x) (((intptr_t)(x)) >> ((sizeof(intptr_t) * 8) - 1))
 #define ABS(x) (((intptr_t)(x) + SIGN_MASK(x)) ^ SIGN_MASK(x))
 
 INLINE unsigned _get_global_scope_offset(struct injcode_ctx *ctx){
