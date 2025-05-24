@@ -379,6 +379,28 @@ install(
 	DESTINATION include/ezinject
 )
 
+set(all_headers ${ezinject_headers})
+
+if(EZ_TARGET_WINDOWS)
+	list(APPEND all_headers
+		os/windows/util.h
+		os/windows/InjLib/Struct.h)
+	install(
+		FILES
+			os/windows/InjLib/Struct.h
+		DESTINATION
+			include/ezinject/os/windows/InjLib
+	)
+	install(
+		FILES
+			os/windows/util.h
+		DESTINATION
+			include/ezinject/os/windows
+	)
+endif()
+
+
+
 install(
 	FILES ${EZ_ARCH_HEADER}
 	DESTINATION include/ezinject/arch
@@ -514,7 +536,7 @@ if(EZ_TARGET_LINUX)
 	)
 endif()
 
-add_library(libezinject_static 
+add_library(libezinject_static
 	log.c
 	${ezinject_sources}
 )
@@ -525,7 +547,7 @@ target_include_directories(libezinject_static PUBLIC
 add_executable(ezinject
 	ezinject.c
 	ezinject_injcode.c
-	${ezinject_headers}
+	${all_headers}
 )
 target_link_libraries(ezinject libezinject_static)
 

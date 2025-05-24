@@ -134,6 +134,7 @@ windows_x86_task:
     MSYS: winsymlinks:nativestrict
     MSYSTEM: MINGW32
     CHERE_INVOKING: 1
+    EZSDK_SMOKE_TEST: 1
   script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "mkdir build"
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake .. -G 'MSYS Makefiles'"
@@ -150,6 +151,7 @@ windows_x64_task:
     MSYS: winsymlinks:nativestrict
     MSYSTEM: MINGW64
     CHERE_INVOKING: 1
+    EZSDK_SMOKE_TEST: 1
   script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "mkdir build"
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake .. -G 'MSYS Makefiles'"
