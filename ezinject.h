@@ -137,7 +137,9 @@ struct ezinj_ctx {
 	ez_addr virtual_free;
 	ez_addr suspend_thread;
 	ez_addr get_current_thread;
+	ez_addr create_file;
 	ez_addr write_file;
+	ez_addr close_handle;
 	ez_addr nt_register_dll_noti;
 	ez_addr nt_unregister_dll_noti;
 #endif

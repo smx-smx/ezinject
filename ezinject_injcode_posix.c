@@ -117,3 +117,25 @@ INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
 	UNUSED(ctx);
 	return 0;
 }
+
+INLINE intptr_t inj_loginit(struct injcode_ctx *ctx){
+	struct injcode_bearing *br = ctx->br;
+	char *log_filename = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
+
+	int log_handle = STDOUT_FILENO;
+
+	if(inj_strlen(log_filename) > 0){
+		int new_log_handle = br->libc_syscall(__NR_open, log_filename, O_WRONLY);
+		if(new_log_handle >= 0){
+			log_handle = new_log_handle;
+		}
+	}
+	ctx->log_handle = log_handle;
+	return 0;
+}
+
+INLINE intptr_t inj_logfini(struct injcode_ctx *ctx){
+	if(ctx->log_handle != STDOUT_FILENO){
+		ctx->br->libc_syscall(__NR_close, ctx->log_handle);
+	}
+}

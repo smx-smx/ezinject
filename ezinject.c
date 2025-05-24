@@ -591,8 +591,21 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	PUSH_STRING(EZSTR_API_GET_EXIT_CODE_THREAD, "GetExitCodeThread");
 #endif
 
+char logPath[PATH_MAX];
+#if defined(EZ_TARGET_POSIX)
+	if(!realpath(ctx->module_logfile, logPath)) {
+		ERR("realpath: %s", logPath);
+		PERROR("realpath");
+		return NULL;
+	}
+#elif defined(EZ_TARGET_WINDOWS)
+	{
+		GetFullPathNameA(ctx->module_logfile, sizeof(logPath), logPath, NULL);
+	}
+#endif
+
 	PUSH_STRING(EZSTR_API_CRT_INIT, "crt_init");
-	PUSH_STRING(EZSTR_LOG_FILEPATH, ctx->module_logfile);
+	PUSH_STRING(EZSTR_LOG_FILEPATH, logPath);
 
 	// argv0
 	PUSH_STRING(EZSTR_ARGV0, libName);
@@ -645,7 +658,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 #ifdef EZ_TARGET_WINDOWS
+	br->CreateFileA = (void *)ctx->create_file.remote;
 	br->WriteFile = (void *)ctx->write_file.remote;
+	br->CloseHandle = (void *)ctx->close_handle.remote;
 	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
 	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
 	br->kernel32_base = ctx->libdl.remote;

@@ -26,7 +26,7 @@ void log_set_verbosity(int verbosity){
 }
 
 void log_fini(){
-    if(log.log_output && log.log_output != stdout){
+    if(log.log_output && (!log.log_leave_open || log.log_output != stdout)){
         fclose(log.log_output);
     }
 }
@@ -49,7 +49,7 @@ void log_printf(const char *format, ...){
     va_end(ap);
 }
 
-void log_log(enum verbosity_level verbosity, const char *format, ...){
+void log_logf(enum verbosity_level verbosity, const char *format, ...){
     if(verbosity > log.verbosity) return;
     va_list ap;
     va_start(ap, format);

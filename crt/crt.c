@@ -104,9 +104,11 @@ static void crt_loginit(struct injcode_bearing *br){
 	FILE *log_handle = stdout;
 	char *log_file_path = crt_get_log_filepath(br);
 	if(log_file_path){
-		FILE *new_log_handle = fopen(log_file_path, "w+");
+		FILE *new_log_handle = fopen(log_file_path, "a");
 		if(new_log_handle){
 			log_handle = new_log_handle;
+		} else {
+			fprintf(stderr, "fopen '%s' failed\n", log_file_path);
 		}
 	}
 	log_config_t log_cfg = {

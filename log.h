@@ -33,7 +33,7 @@ void log_fini();
 void log_puts(const char *str);
 void log_printf(const char *format, ...);
 void log_putchar(int ch);
-void log_log(enum verbosity_level verbosity, const char *format, ...);
+void log_logf(enum verbosity_level verbosity, const char *format, ...);
 enum verbosity_level log_get_verbosity();
 void log_set_verbosity(int verbosity);
 
@@ -60,12 +60,12 @@ void log_set_verbosity(int verbosity);
 
 #define DBGPTR(p) DBG("%s=%p", #p, (void *)p)
 
-#define lputs(str) log_puts(str)
+#define lputs(str) log_puts(str "\n")
 #define lprintf(fmt, ...) log_printf(fmt, ##__VA_ARGS__)
 #define lputchar(ch) log_putchar(ch)
 
 #define LOG(verb, fmt, ...) \
-    log_log(verb, fmt "\n", ##__VA_ARGS__)
+    log_logf(verb, fmt "\n", ##__VA_ARGS__)
 
 #define INFO(fmt, ...) LOG(V_INFO, "[INFO] " fmt, ##__VA_ARGS__)
 #define WARN(fmt, ...) LOG(V_WARN, "[WARN] " fmt, ##__VA_ARGS__)

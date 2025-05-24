@@ -70,8 +70,12 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ctx->suspend_thread = suspend_thread;
 	ctx->get_current_thread = get_current_thread;
 
+	ez_addr create_file = sym_addr(h_kernel32, "CreateFileA", kernel32);
 	ez_addr write_file = sym_addr(h_kernel32, "WriteFile", kernel32);
+	ez_addr close_handle = sym_addr(h_kernel32, "CloseHandle", kernel32);
+	ctx->create_file = create_file;
 	ctx->write_file = write_file;
+	ctx->close_handle = close_handle;
 
 	DBGADDR(virtual_alloc);
 	DBGADDR(virtual_free);

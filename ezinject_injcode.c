@@ -177,12 +177,16 @@ INLINE uint64_t str64(uint64_t x){
 #include "ezinject_injcode_windows.h"
 #endif
 
+#ifdef EZ_TARGET_WINDOWS
+typedef HANDLE log_handle_t;
+#else
+typedef int log_handle_t;
+#endif
+
 struct injcode_ctx {
 	struct injcode_bearing *br;
 
-#ifdef EZ_TARGET_WINDOWS
-	HANDLE output_handle;
-#endif
+	log_handle_t log_handle;
 
 	struct dl_api libdl;
 	struct thread_api libthread;
@@ -339,6 +343,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	intptr_t result = 0;
 	// entry
+	inj_loginit(ctx);
 	PCALL(ctx, inj_dchar, 'e');
 
 	#ifdef EZ_TARGET_DARWIN
@@ -453,6 +458,8 @@ pl_exit:
 	/*if(ctx->h_libthread != NULL){
 		ctx->libdl.dlclose(ctx->h_libthread);
 	}*/
+
+	inj_logfini(ctx);
 
 	#ifdef EZ_TARGET_DARWIN
 	if(thread_is_parent){

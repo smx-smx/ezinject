@@ -302,6 +302,9 @@ struct injcode_bearing
 		LPDWORD      lpNumberOfBytesWritten,
 		LPOVERLAPPED lpOverlapped
 	);
+	BOOL (*CloseHandle)(
+		HANDLE hObject
+	);
 	NTSTATUS NTAPI (*LdrRegisterDllNotification)(
   		ULONG   Flags,
 		PVOID	NotificationFunction,

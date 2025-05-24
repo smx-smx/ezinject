@@ -17,3 +17,10 @@ INLINE void itoa16(uintptr_t addr, char *buf){
         }
         buf[i++] = '\0';
 }
+
+INLINE int inj_strlen(const char *str){
+        int l = 0;
+	const char *p = str;
+	while(*(p++)) ++l;
+        return l;
+}

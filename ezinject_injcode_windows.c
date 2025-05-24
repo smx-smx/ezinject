@@ -158,3 +158,35 @@ INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
 	inj_remove_chrome_sandbox(ctx);
 	return 0;
 }
+
+INLINE intptr_t inj_loginit(struct injcode_ctx *ctx){
+	struct injcode_bearing *br = ctx->br;
+	char *log_filename = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
+
+	HANDLE log_handle = (HANDLE)STD_OUTPUT_HANDLE;
+
+	if(inj_strlen(log_filename) > 0){
+		HANDLE new_log_handle = ctx->br->CreateFileA(
+			log_filename,
+			GENERIC_WRITE,
+			// we must allow concurrent write from crt
+			FILE_SHARE_READ | FILE_SHARE_WRITE,
+			NULL,
+			CREATE_ALWAYS,
+			FILE_ATTRIBUTE_NORMAL,
+			NULL
+		);
+		if(new_log_handle != INVALID_HANDLE_VALUE){
+			log_handle = new_log_handle;
+		}
+	}
+
+	ctx->log_handle = log_handle;
+	return 0;
+}
+
+INLINE intptr_t inj_logfini(struct injcode_ctx *ctx){
+	if(ctx->log_handle != (HANDLE)STD_OUTPUT_HANDLE){
+		ctx->br->CloseHandle(ctx->log_handle);
+	}
+}
