@@ -101,12 +101,14 @@ static char *crt_get_log_filepath(struct injcode_bearing *br){
 }
 
 static void crt_loginit(struct injcode_bearing *br){
+	FILE *log_handle = stdout;
 	char *log_file_path = crt_get_log_filepath(br);
-	FILE *log_handle = fopen(log_file_path, "w+");
-	if(!log_handle){
-		log_handle = stdout;
+	if(log_file_path){
+		FILE *new_log_handle = fopen(log_file_path, "w+");
+		if(new_log_handle){
+			log_handle = new_log_handle;
+		}
 	}
-
 	log_config_t log_cfg = {
 		.verbosity = V_DBG,
 		.log_leave_open = log_handle == stdout ? 1 : 0,
@@ -114,8 +116,6 @@ static void crt_loginit(struct injcode_bearing *br){
 	};
 	log_init(&log_cfg);
 }
-
-DLLEXPORT extern int crt_init(struct injcode_bearing *br);
 
 DLLEXPORT int crt_init(struct injcode_bearing *br){
 	if(lib_loginit() != 0){
@@ -139,7 +139,6 @@ DLLEXPORT int crt_init(struct injcode_bearing *br){
 	}
 	return 0;
 }
-
 
 /**
  * User thread: runs on a new stack created by pthread_create

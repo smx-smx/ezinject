@@ -12,12 +12,7 @@
 #include <libgen.h>
 #include <unistd.h>
 
-#include "log.h"
-#include "ezinject_util.h"
-#include "ezinject_injcode.h"
-#include "dlfcn_compat.h"
-
-#define UNUSED(x) (void)(x)
+#include "ezinject_module.h"
 
 int lib_loginit(){
 	return -1;

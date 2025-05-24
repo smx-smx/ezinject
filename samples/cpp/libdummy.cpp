@@ -6,12 +6,7 @@
 #include <string>
 
 extern "C" {
-	#include "log.h"
-	#include "ezinject_util.h"
-	#include "interface/if_hook.h"
-	#include "interface/cpu/if_sljit.h"
-
-	#include "ezinject_injcode.h"
+	#include "ezinject_module.h"
 }
 
 

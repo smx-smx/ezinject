@@ -1,5 +1,5 @@
 # TODO: confirm minimum requirement
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 
 set(HAVE_CMAKE314 TRUE)
 if(${CMAKE_VERSION} VERSION_LESS "3.14")
@@ -7,7 +7,7 @@ if(${CMAKE_VERSION} VERSION_LESS "3.14")
     message(WARNING "CMake older than 3.14 detected. You might experience problems with Android builds")
 	set(HAVE_CMAKE314 FALSE)
 endif()
-project(ezpatch C ASM)
+project(ezinject C ASM)
 enable_language(CXX OPTIONAL)
 enable_testing()
 
@@ -17,125 +17,56 @@ if(HAVE_CMAKE314)
 	check_pie_supported()
 endif()
 
+set(ezinject_target_export ezinject-targets)
+install(
+	EXPORT ${ezinject_target_export}
+	FILE ezinject-targets.cmake
+	DESTINATION lib/cmake/ezinject
+)
+include(CMakePackageConfigHelpers)
+set(INCLUDE_INSTALL_DIR include/ezinject)
+set(CRT_INSTALL_DIR lib/ezinject/crt)
+configure_package_config_file(cmake/config.cmake.in
+	"${CMAKE_BINARY_DIR}/ezinject-config.cmake"
+	INSTALL_DESTINATION "lib/cmake/ezinject"
+	PATH_VARS
+		INCLUDE_INSTALL_DIR
+		CRT_INSTALL_DIR
+)
+install(
+	FILES
+		${CMAKE_BINARY_DIR}/ezinject-config.cmake
+		cmake/ezinject.cmake
+	DESTINATION lib/cmake/ezinject
+)
+
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")
+include(cmake/ezinject.cmake)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-	set(EZ_TARGET_LINUX TRUE)
-elseif(${CMAKE_SYSTEM_NAME} STREQUAL "FreeBSD")
-	set(EZ_TARGET_FREEBSD TRUE)
-elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
-	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
-	SET(CMAKE_FIND_LIBRARY_SUFFIXES ".lib" ".dll" ".a")
-	if(NOT CMAKE_HOST_WIN32)
-		set(CMAKE_LINK_LIBRARY_SUFFIX "")
-	endif()
-	string(APPEND CMAKE_EXE_LINKER_FLAGS " -static-libgcc")
-	string(APPEND CMAKE_SHARED_LINKER_FLAGS " -static-libgcc")
-	set(EZ_TARGET_WINDOWS TRUE)
-elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
-	SET(CMAKE_FIND_LIBRARY_PREFIXES "" "lib")
-	SET(CMAKE_FIND_LIBRARY_SUFFIXES "" ".a" ".dylib")
-	set(EZ_TARGET_DARWIN TRUE)
-
-	message(STATUS "SDK Path: ${CMAKE_OSX_SYSROOT}")
-else()
-	message(FATAL_ERROR "Unsupported OS ${CMAKE_SYSTEM_NAME}")
-endif()
-
-include(CheckIncludeFile)
-include(CheckSymbolExists)
-include(CheckCSourceCompiles)
-
-check_symbol_exists("PSR_T_BIT" "asm/ptrace.h" HAVE_PSR_T_BIT)
-check_symbol_exists("strsignal" "string.h" HAVE_STRSIGNAL)
-
-check_c_source_compiles("
-#define _GNU_SOURCE
-#include <dlfcn.h>
-int main(){
-	int x = RTLD_NOLOAD;
-	return 0;
-}
-
-" HAVE_RTLD_NOLOAD)
-
-check_symbol_exists("__arm__" "" EZ_ARCH_ARM)
-check_symbol_exists("__aarch64__" "" EZ_ARCH_ARM64)
-check_symbol_exists("__i386__" "" EZ_ARCH_I386)
-check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
-check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
-check_symbol_exists("__ANDROID__" "" EZ_TARGET_ANDROID)
-check_symbol_exists("_GNU_SOURCE" "" HAVE_GNU_SOURCE)
-
-macro(check_symbol_withlibs symbol files libs result)
-	set(_CMAKE_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES}")
-	set(CMAKE_REQUIRED_LIBRARIES "${libs}")
-	check_symbol_exists("${symbol}" "${files}" ${result})
-	set(CMAKE_REQUIRED_LIBRARIES "${_CMAKE_REQUIRED_LIBRARIES}")
-endmacro()
-
-add_definitions(-D__STDC_FORMAT_MACROS)
-if(NOT HAVE_GNU_SOURCE)
-	add_definitions(-D_GNU_SOURCE)
-endif()
-
-if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD OR EZ_TARGET_DARWIN)
-	set(EZ_TARGET_POSIX TRUE)
-endif()
-
-set(USING_GNU_LD FALSE)
-
-if(APPLE AND (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang"))
-elseif(MSVC)
-else()
-	# assume gcc + binutils
-	# $TODO: could use CheckLinkerFlag in CMake 3.18
-	set(USING_GNU_LD TRUE)
-endif()
-
-include_directories(
-	${CMAKE_SOURCE_DIR}
-	${CMAKE_BINARY_DIR}
-	${CMAKE_CURRENT_SOURCE_DIR}/crt/lh
-)
-add_definitions(
-	-DLH_JUMP_ABS
-)
+add_definitions(-DLH_JUMP_ABS)
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 11)
 
-
-set(_common_flags " -Wall")
-if(EZ_TARGET_POSIX)
-	string(APPEND _common_flags " -fPIC")
-endif()
-string(APPEND CMAKE_C_FLAGS ${_common_flags})
-string(APPEND CMAKE_CXX_FLAGS ${_common_flags})
-
+add_compile_options(-Wall)
 include(CheckCCompilerFlag)
 check_c_compiler_flag("-Wextra" HAVE_WEXTRA)
 check_c_compiler_flag("-Werror=implicit-function-declaration" HAVE_WERROR_IMPLICIT_FN)
-check_c_compiler_flag("-std=gnu99" HAVE_STDGNU)
 check_c_compiler_flag("-Wno-unused-parameter" HAVE_WNO_UNUSED_PARAMETER)
 check_c_compiler_flag("-Wno-cast-function-type" HAVE_WNO_CAST_FUNCTION_TYPE)
 
 if(HAVE_WEXTRA)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wextra")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
+	add_compile_options(-Wextra)
 endif()
 if(HAVE_WERROR_IMPLICIT_FN)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror=implicit-function-declaration")
+	add_compile_options(-Werror=implicit-function-declaration)
 endif()
 if(HAVE_WNO_UNUSED_PARAMETER)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-parameter")
+	add_compile_options(-Wno-unused-parameter)
 endif()
 if(HAVE_WNO_CAST_FUNCTION_TYPE)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-cast-function-type")
-endif()
-# for gcc 3.x
-if(HAVE_STDGNU)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
+	add_compile_options(-Wno-cast-function-type)
 endif()
 
 if(CMAKE_TOOLCHAIN_FILE)
@@ -154,139 +85,7 @@ if(NOT DEFINED DEBUG)
 	endif()
 endif()
 
-include(CheckLibraryExists)
 
-set(REQUIRES_LIBPTHREAD REQUIRED)
-set(REQUIRES_LIBDL REQUIRED)
-
-if(EZ_TARGET_ANDROID)
-	set(prefix ${CMAKE_SYSROOT}/usr/lib/${ANDROID_TOOLCHAIN_NAME})
-	# remove last dash
-	string(FIND "${prefix}" "-" index REVERSE)
-	string(SUBSTRING "${prefix}" 0 ${index}	prefix)
-
-	set(libs_path ${prefix}/${ANDROID_NATIVE_API_LEVEL})
-	list(APPEND CMAKE_LIBRARY_PATH ${libs_path})
-	set(CMAKE_FIND_USE_CMAKE_PATH TRUE)
-endif()
-
-if(EZ_TARGET_ANDROID OR EZ_TARGET_WINDOWS)
-	set(REQUIRES_LIBPTHREAD "")
-endif()
-
-if(EZ_TARGET_DARWIN)
-	set(REQUIRES_LIBDL "")
-endif()
-
-set(EXTRA_SEARCH_PATHS "")
-set(C_LIBRARY_NAMES "")
-
-if(EZ_TARGET_LINUX)
-	list(APPEND C_LIBRARY_NAMES
-		# glibc
-		libc.so.6
-		# uClibc
-		libc.so.0
-		# fallback
-		libc.so
-	)
-elseif(EZ_TARGET_FREEBSD)
-	list(APPEND C_LIBRARY_NAMES
-		libc.so.7
-	)
-elseif(EZ_TARGET_DARWIN)
-	list(APPEND C_LIBRARY_NAMES
-		libsystem_kernel.dylib
-	)
-	list(APPEND EXTRA_SEARCH_PATHS "/usr/lib/system")
-elseif(EZ_TARGET_WINDOWS)
-	list(APPEND C_LIBRARY_NAMES
-		kernel32
-	)
-	if(NOT CMAKE_CROSSCOMPILING)
-		list(APPEND EXTRA_SEARCH_PATHS "$ENV{SystemRoot}\\System32")
-	endif()
-endif()
-
-find_library(C_LIBRARY
-	NAMES ${C_LIBRARY_NAMES}
-	PATHS ${EXTRA_SEARCH_PATHS}
-	REQUIRED
-)
-get_filename_component(C_LIBRARY_NAME "${C_LIBRARY}" NAME)
-
-set(DL_LIBRARY_NAMES "")
-if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD)
-	list(APPEND DL_LIBRARY_NAMES
-		# glibc
-		libdl.so.2
-		# uClibc
-		libdl.so.0
-		# fallback
-		libdl.so
-	)
-elseif(EZ_TARGET_WINDOWS)
-	list(APPEND DL_LIBRARY_NAMES
-		# implements LoadLibraryA
-		kernel32
-	)
-endif()
-
-if(NOT ${REQUIRES_LIBDL} STREQUAL "")
-	find_library(DL_LIBRARY
-		NAMES ${DL_LIBRARY_NAMES}
-		PATHS ${EXTRA_SEARCH_PATHS}
-		${REQUIRES_LIBDL}
-	)
-	get_filename_component(DL_LIBRARY_NAME "${DL_LIBRARY}" NAME)
-elseif(EZ_TARGET_DARWIN)
-	# NOTE: this can be a fake library
-	# it mignt not exist and is intercepted by dyld
-	# Darwin physically exposed libdl through dyld
-	# however, target processes have a virtual mapping called
-	# libdyld.dylib which seems to be a remapped dyld, containing the actual symbols
-	set(DL_LIBRARY_NAME "libdl.dylib")
-else()
-	message(FATAL_ERROR "Unsupported platform")
-endif()
-
-find_library(PTHREAD_LIBRARY
-	PATHS ${EXTRA_SEARCH_PATHS}
-	NAMES
-		# darwin
-		libsystem_pthread
-		# uClibc
-		libpthread.so.0
-		# fallback
-		libpthread.so
-	${REQUIRES_LIBPTHREAD}
-)
-
-if(EZ_TARGET_ANDROID)
-	# these platforms implement pthreads in libc
-	set(PTHREAD_LIBRARY_NAME ${C_LIBRARY_NAME})
-elseif(EZ_TARGET_DARWIN)
-	# libpthread is also a fake library provided by /usr/lib/system/libsystem_pthread.dylib
-	set(PTHREAD_LIBRARY_NAME "libpthread.dylib")
-elseif(EZ_TARGET_WINDOWS)
-	# this is actually kernel32.dll
-	set(PTHREAD_LIBRARY_NAME ${DL_LIBRARY_NAME})
-else()
-	get_filename_component(PTHREAD_LIBRARY_NAME "${PTHREAD_LIBRARY}" NAME)
-endif()
-
-if(EZ_ARCH_ARM)
-	if(USE_ARM_THUMB)
-		add_definitions(-mthumb)
-	else()
-		add_definitions(-marm)
-	endif()
-endif()
-
-if(EZ_TARGET_DARWIN)
-	# we need full names on Darwin
-	set(C_LIBRARY_NAME ${C_LIBRARY})
-endif()
 
 macro(find_uclibc)
 	find_library(DYN_LINKER
@@ -427,8 +226,8 @@ elseif(EZ_LIBC STREQUAL "uclibc")
 		set(UCLIBC_OLD TRUE)
 	endif()
 elseif(EZ_LIBC STREQUAL "bionic")
-	set(DYN_LINKER_NAME "/system/bin/linker")
 	if(EZ_LIBC_VARIANT STREQUAL "android-2")
+	message(FATAL_ERROR "${DYN_LINKER_NAME}")
 	elseif(EZ_LIBC_VARIANT STREQUAL "android-5")
 		# android 5+ requires -fPIE
 		set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -498,19 +297,118 @@ if(EZ_TARGET_WINDOWS)
 	set(PTHREAD_LIBRARY_NAME ${DL_LIBRARY_NAME})
 endif()
 
+
+set(EZ_ARCH_HEADER "")
+if(EZ_TARGET_LINUX)
+	if(EZ_ARCH_ARM64)
+		set(EZ_ARCH_HEADER arch/ezinject_aarch64.h)
+	elseif(EZ_ARCH_ARM)
+		set(EZ_ARCH_HEADER arch/ezinject_arm.h)
+	elseif(EZ_ARCH_I386)
+		set(EZ_ARCH_HEADER arch/ezinject_i386.h)
+	elseif(EZ_ARCH_AMD64)
+		set(EZ_ARCH_HEADER arch/ezinject_amd64.h)
+	elseif(EZ_ARCH_MIPS)
+		set(EZ_ARCH_HEADER arch/ezinject_mips.h)
+	endif()
+elseif(EZ_TARGET_FREEBSD)
+	if(EZ_ARCH_AMD64)
+		set(EZ_ARCH_HEADER arch/ezinject_freebsd_amd64.h)
+	elseif(EZ_ARCH_I386)
+		set(EZ_ARCH_HEADER arch/ezinject_freebsd_i386.h)
+	endif()
+elseif(EZ_TARGET_DARWIN)
+	if(EZ_ARCH_AMD64)
+		set(EZ_ARCH_HEADER arch/ezinject_darwin_amd64.h)
+	endif()
+elseif(EZ_TARGET_WINDOWS)
+	if(EZ_ARCH_AMD64)
+		set(EZ_ARCH_HEADER arch/ezinject_windows_amd64.h)
+	elseif(EZ_ARCH_I386)
+		set(EZ_ARCH_HEADER arch/ezinject_windows_i386.h)
+	endif()
+endif()
+
+if(EZ_ARCH_HEADER STREQUAL "")
+	message(FATAL_ERROR "Unsupported architecture")
+endif()
+
 configure_file(
 	config.h.in
 	${CMAKE_BINARY_DIR}/config.h
 )
 
-# we must make an object library to link at once
-# otherwise `crt_init` will be stripped
-# this is the safest way to support old compilers too
 add_library(ezinject_crt OBJECT
-	crt/crt.c
+	crt/crt.c crt/crt.h
 	crt/crt_user.c
-	ezinject_util.c
-	log.c
+	ezinject_util.c ezinject_util.h
+	log.c log.h
+)
+set(ezinject_crt_objects $<TARGET_OBJECTS:ezinject_crt>)
+install(FILES ${ezinject_crt_objects}
+		DESTINATION lib/ezinject/crt)
+
+set(EZINJECT_INCLUDE_DIRS
+	${CMAKE_SOURCE_DIR}
+	${CMAKE_BINARY_DIR}
+	${CMAKE_SOURCE_DIR}/crt/lh
+)
+set(ezinject_headers
+	dlfcn_compat.h
+	ezinject_arch.h
+	ezinject_common.h
+	ezinject_compat.h
+	ezinject_injcode.h
+	ezinject_module.h
+	ezinject_util.h
+	ezinject.h
+	log.h
+)
+
+target_include_directories(ezinject_crt
+	PUBLIC
+		$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}>
+		$<BUILD_INTERFACE:${CMAKE_BINARY_DIR}>
+		$<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/crt/lh>
+		$<INSTALL_INTERFACE:include/ezinject>
+)
+install(
+	FILES
+		${ezinject_headers}
+		${CMAKE_BINARY_DIR}/config.h
+	DESTINATION include/ezinject
+)
+
+set(all_headers ${ezinject_headers})
+
+if(EZ_TARGET_WINDOWS)
+	list(APPEND all_headers
+		os/windows/util.h
+		os/windows/InjLib/Struct.h)
+	install(
+		FILES
+			os/windows/InjLib/Struct.h
+		DESTINATION
+			include/ezinject/os/windows/InjLib
+	)
+	install(
+		FILES
+			os/windows/util.h
+		DESTINATION
+			include/ezinject/os/windows
+	)
+endif()
+
+
+
+install(
+	FILES ${EZ_ARCH_HEADER}
+	DESTINATION include/ezinject/arch
+)
+install(
+	FILES
+		crt/lh/interface/if_hook.h
+	DESTINATION include/ezinject/interface
 )
 
 if(EZ_TARGET_POSIX)
@@ -520,130 +418,98 @@ if(EZ_TARGET_POSIX)
 elseif(EZ_TARGET_WINDOWS)
 	target_sources(ezinject_crt PRIVATE
 		crt/crt_windows.c
-		os/windows/util.c
+		os/windows/util.c os/windows/util.h
 	)
 endif()
-
-function(add_ezinject_library target)
-	cmake_parse_arguments(LIB "USE_LH" "" "SOURCES" ${ARGN})
-
-	set(sources "${LIB_SOURCES}")
-
-	add_library(${target} SHARED ${sources})
-
-	if(NOT REQUIRES_LIBPTHREAD STREQUAL "")
-		target_link_libraries(${target} pthread)
-	endif()
-
-	target_link_libraries(${target} ezinject_crt)
-
-	if(LIB_USE_LH)
-		target_compile_definitions(${target} PRIVATE USE_LH)
-
-		# force a dependency on the hook library
-		# even if user code doesn't use it
-		if(USING_GNU_LD)
-			target_link_options(${target} PRIVATE
-				-Wl,--whole-archive
-					$<TARGET_FILE:lh_hook>
-				-Wl,--no-whole-archive
-			)
-		endif()
-
-		target_link_libraries(${target}
-			lh_ifcpu
-			lh_hook
-		)
-	endif()
-endfunction()
 
 set(_common_flags "")
 
 if(EZ_TARGET_DARWIN)
-	string(APPEND _common_flags " -Wl,-undefined,error")
+	add_link_options("LINKER:-undefined,error")
 else()
-	string(APPEND _common_flags " -Wl,--no-undefined")
+	add_link_options("LINKER:--no-undefined")
 endif()
 
 string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_flags})
 string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_flags})
 
 
-set(lib_sources
+set(ezinject_sources
 	ezinject_util.c
 )
-set(target_sources "")
 if(EZ_TARGET_POSIX)
-	list(APPEND lib_sources
+	list(APPEND ezinject_sources
 		os/posix/remote.c
 	)
-	list(APPEND target_sources
+	list(APPEND ezinject_sources
 		os/posix/inject.c
 	)
 	if(EZ_TARGET_LINUX)
-		list(APPEND lib_sources
-			os/linux/common.c
+		list(APPEND ezinject_sources
+			os/linux/common.c os/linux/common.h
 			os/linux/remote.c
 			os/linux/util.c
 		)
-		list(APPEND target_sources
+		list(APPEND ezinject_sources
 			os/linux/inject.c
 		)
 
 		# bionic
 		if(EZ_TARGET_ANDROID)
-			list(APPEND lib_sources
+			list(APPEND ezinject_sources
 				os/android/libc_bionic.c
-				elfparse.c
+				elfparse.c elfparse.h
 			)
 		# glibc
 		elseif(HAVE_LIBC_DLOPEN_MODE OR HAVE_LIBC_DL_OPEN)
-			list(APPEND lib_sources
+			list(APPEND ezinject_sources
 				os/linux/libc_glibc.c
 			)
 		# uClibc
 		elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
-			list(APPEND lib_sources
+			list(APPEND ezinject_sources
 				os/linux/libc_uclibc.c
 			)
 		# new glibc/generic
 		else()
-			list(APPEND lib_sources
+			list(APPEND ezinject_sources
 				os/linux/libc_generic.c
 			)
 		endif()
 	elseif(EZ_TARGET_FREEBSD)
-		list(APPEND lib_sources
+		list(APPEND ezinject_sources
 			os/freebsd/remote.c
 			os/freebsd/util.c
 			os/freebsd/libc_freebsd.c
 		)
-		list(APPEND target_sources
+		list(APPEND ezinject_sources
 			os/freebsd/inject.c
 		)
 	elseif(EZ_TARGET_DARWIN)
-		list(APPEND lib_sources
+		list(APPEND ezinject_sources
 			os/darwin/remote.c
 			os/darwin/util.c
 			os/darwin/libc_darwin.c
 		)
-		list(APPEND target_sources
+		list(APPEND ezinject_sources
 			os/darwin/inject.c
 		)
 	endif()
 elseif(EZ_TARGET_WINDOWS)
-	list(APPEND lib_sources
+	list(APPEND ezinject_sources
 		# InjLib
-		os/windows/InjLib/GetProcAddress.c
-		os/windows/InjLib/Inject.c
-		os/windows/InjLib/LenDis.c
-		os/windows/InjLib/Remote.c
+		os/windows/InjLib/GetProcAddress.c os/windows/InjLib/GetProcAddress.h
+		os/windows/InjLib/Inject.c os/windows/InjLib/Inject.h
+		os/windows/InjLib/LenDis.c os/windows/InjLib/LenDis.h
+		os/windows/InjLib/Remote.c os/windows/InjLib/Remote.h
 		#
 		os/windows/remote.c
-		os/windows/util.c
+		os/windows/util.c os/windows/util.h
 		os/windows/libc_windows.c
+
+		os/windows/InjLib/Struct.h
 	)
-	list(APPEND target_sources
+	list(APPEND ezinject_sources
 		os/posix/inject.c
 		os/windows/inject.c
 	)
@@ -652,50 +518,58 @@ endif()
 # TODO: cross platform
 if(EZ_TARGET_LINUX)
 	add_executable(ezpatch
-		elfparse.c
+		elfparse.c elfparse.h
 		ezpatch.c
-		log.c
-		ezinject_util.c
+		log.c log.h
+		ezinject_util.c ezinject_util.h
 		os/linux/util.c
 	)
 	target_link_libraries(ezpatch ${DL_LIBRARY_NAME})
+	target_include_directories(ezpatch PRIVATE
+		${CMAKE_BINARY_DIR}
+		${CMAKE_SOURCE_DIR}
+		${CMAKE_SOURCE_DIR}/include
+	)
+	install(
+		TARGETS ezpatch
+		EXPORT ${ezinject_target_export}
+	)
 endif()
 
-macro(ezinject_lib target_name mode)
-	add_library(${target_name} ${mode} ${lib_sources})
-	set_target_properties(${target_name} PROPERTIES OUTPUT_NAME ezinject)
-	target_link_libraries(${target_name} ${DL_LIBRARY_NAME})
+add_library(libezinject_static
+	log.c
+	${ezinject_sources}
+)
+target_include_directories(libezinject_static PUBLIC
+	${CMAKE_SOURCE_DIR}
+	${CMAKE_BINARY_DIR})
 
-	if(EZ_TARGET_FREEBSD)
-		target_link_libraries(${target_name} procstat)
-	endif()
-endmacro(ezinject_lib)
-
-ezinject_lib(libezinject_static STATIC)
-#ezinject_lib(libezinject_shared SHARED)
-#target_compile_definitions(libezinject_shared PUBLIC -DEZ_SHARED)
-
-set(ezinject_sources
+add_executable(ezinject
 	ezinject.c
 	ezinject_injcode.c
-	log.c
-	${target_sources}
+	${all_headers}
 )
-
-add_executable(ezinject ${ezinject_sources})
 target_link_libraries(ezinject libezinject_static)
+
+if(EZ_TARGET_FREEBSD)
+	target_link_libraries(ezinject procstat)
+endif()
 
 if(ENABLE_STATIC)
 	target_link_options(ezinject PRIVATE -static)
 endif()
+install(
+	TARGETS ezinject
+	EXPORT ${ezinject_target_export}
+)
 
 check_c_compiler_flag("-ffunction-sections" HAVE_CFLAG_FFUNCTION_SECTIONS)
 check_c_compiler_flag("-fdata-sections" HAVE_CFLAG_FDATA_SECTIONS)
 if(HAVE_CFLAG_FFUNCTION_SECTIONS)
-	string(APPEND CMAKE_C_FLAGS " -ffunction-sections")
+	add_compile_options(-ffunction-sections)
 endif()
 if(HAVE_CFLAG_FDATA_SECTIONS)
-	string(APPEND CMAKE_C_FLAGS " -fdata-sections")
+	add_compile_options(-fdata-sections)
 endif()
 
 check_c_compiler_flag("-mno-stack-arg-probe" HAVE_CFLAG_STACK_ARG_PROBE)
@@ -759,7 +633,7 @@ if(USE_FRIDA_GUM)
 		INTERFACE_LINK_LIBRARIES
 	)
 
-	add_link_options(-Wl,--gc-sections)
+	add_link_options("LINKER:--gc-sections")
 endif()
 
 add_subdirectory(samples)

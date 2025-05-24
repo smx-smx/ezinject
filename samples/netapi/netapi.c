@@ -28,16 +28,7 @@
 #include <pwd.h>
 #endif
 
-
-#include "dlfcn_compat.h"
-
-
-#include "log.h"
-
-#include "ezinject_common.h"
-#include "ezinject_util.h"
-#include "ezinject_injcode.h"
-#include "ezinject_compat.h"
+#include "ezinject_module.h"
 
 #undef MAX
 #undef MIN

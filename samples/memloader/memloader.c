@@ -5,8 +5,8 @@
 #include <sys/types.h>
 #include <dlfcn.h>
 #include <unistd.h>
-#include "ezinject_injcode.h"
-#include "log.h"
+
+#include "ezinject_module.h"
 
 extern void blob_start();
 extern void blob_end();

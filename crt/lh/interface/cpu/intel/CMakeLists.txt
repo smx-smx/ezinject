@@ -10,3 +10,7 @@ endif()
 add_library(libcpu_intel
 	${sources}
 )
+install(
+	TARGETS libcpu_intel
+	EXPORT ${ezinject_target_export}
+)

@@ -1,3 +1,22 @@
+if(OUT_OF_TREE)
+	cmake_minimum_required(VERSION 3.14)
+	project(ezinject_samples)
+
+	set(CMAKE_C_STANDARD 99)
+	set(CMAKE_CXX_STANDARD 11)
+
+	if(NOT DEFINED EZINJECT_PREFIX)
+		message(FATAL_ERROR "set EZINJECT_PREFIX to the ezinject installation prefix (e.g. /usr/local)")
+	endif()
+
+	list(INSERT CMAKE_PREFIX_PATH 0 "${EZINJECT_PREFIX}")
+	list(INSERT CMAKE_FIND_ROOT_PATH 0 "${EZINJECT_PREFIX}")
+	find_package(ezinject REQUIRED)
+else()
+	list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
+	include(ezinject)
+endif()
+
 add_subdirectory(dummy)
 add_subdirectory(pyloader)
 

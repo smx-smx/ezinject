@@ -1,13 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "config.h"
-#include "log.h"
-#include "interface/if_hook.h"
-
-#include "dlfcn_compat.h"
-#include "ezinject_util.h"
-#include "ezinject_injcode.h"
+#include "ezinject_module.h"
 
 #ifdef USE_LH
 typedef int(*testFunc_t)(int arg1, int arg2);

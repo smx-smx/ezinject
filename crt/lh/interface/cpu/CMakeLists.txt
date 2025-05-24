@@ -23,3 +23,8 @@ if(USE_CAPSTONE)
 	endif()
 	target_link_libraries(lh_ifcpu ${CAPSTONE_LIBRARIES})
 endif()
+
+install(
+	TARGETS lh_ifcpu
+	EXPORT ${ezinject_target_export}
+)

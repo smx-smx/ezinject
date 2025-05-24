@@ -5,11 +5,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-#include "config.h"
-#include "log.h"
-
-#include "ezinject_common.h"
-#include "ezinject_injcode.h"
+#include "ezinject_module.h"
 
 #include <sapi/embed/php_embed.h>
 
