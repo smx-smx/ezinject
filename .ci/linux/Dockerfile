@@ -1,6 +1,6 @@
 FROM gcc:10.3.0-buster
 
-RUN wget -O cmake.sh https://cmake.org/files/v3.14/cmake-3.14.0-Linux-x86_64.sh \
+RUN wget -O cmake.sh https://cmake.org/files/v3.20/cmake-3.20.6-linux-x86_64.sh \
 	&& sh cmake.sh --skip-license --exclude-subdir --prefix=/usr/local \
 	&& rm cmake.sh
 

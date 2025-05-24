@@ -1,6 +1,9 @@
+env:
+  EZSDK_SMOKE_TEST: 1
+
 linux_arm64_task:
   arm_container:
-    image: gcc:10.3.0-buster
+    dockerfile: .ci/linux_arm64/Dockerfile
 
   env:
     PATH: /usr/local/bin:${PATH}

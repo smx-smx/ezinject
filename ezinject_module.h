@@ -9,11 +9,18 @@
 #ifndef __EZINJECT_MODULE_H
 #define __EZINJECT_MODULE_H
 
+#include "config.h"
+#include "ezinject_compat.h"
+#include "ezinject_injcode.h"
 #include "dlfcn_compat.h"
 #include "log.h"
+
+#ifdef USE_LH
+#include "interface/if_hook.h"
+#endif
 
 extern int lib_loginit();
 extern int lib_preinit(struct injcode_user *user);
 extern int lib_main(int argc, char *argv[]);
-
+DLLEXPORT extern int crt_init(struct injcode_bearing *br);
 #endif

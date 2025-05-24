@@ -1,4 +1,5 @@
 add_library(module SHARED module.c)
+target_include_directories(module PRIVATE ${EZINJECT_INCLUDE_DIRS})
 
 macro(handle_asm_file file)
 	set_property(SOURCE "${file}" PROPERTY LANGUAGE C)
@@ -12,7 +13,6 @@ add_ezinject_library(memloader
 		memloader.c
 		memloader_blob.S
 )
-
 set(MODULE_FILE $<TARGET_FILE:module>)
 
 # if the module file changed, rebuild memloader.S

@@ -8,11 +8,9 @@
 #include <dlfcn.h>
 #include <unistd.h>
 
-#include "log.h"
-#include "util.h"
-#include "interface/if_hook.h"
-#include "ezinject_injcode.h"
+#include "ezinject_module.h"
 
+#include "util.h"
 #include "coreclr_delegates.h"
 #include "hostfxr.h"
 

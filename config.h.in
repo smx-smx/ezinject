@@ -1,3 +1,6 @@
+#ifndef __EZINJECT_CONFIG_H
+#define __EZINJECT_CONFIG_H
+
 #cmakedefine CMAKE_SIZEOF_VOID_P @CMAKE_SIZEOF_VOID_P@
 #cmakedefine DEBUG
 #cmakedefine EZ_ARCH_ARM
@@ -28,6 +31,7 @@
 #cmakedefine USE_CAPSTONE
 #cmakedefine USE_FRIDA_GUM
 #cmakedefine UCLIBC_OLD
+#cmakedefine EZ_ARCH_HEADER "@EZ_ARCH_HEADER@"
 #cmakedefine C_LIBRARY_NAME "@C_LIBRARY_NAME@"
 #cmakedefine DYN_LINKER_NAME "@DYN_LINKER_NAME@"
 #cmakedefine DL_LIBRARY_NAME "@DL_LIBRARY_NAME@"
@@ -47,4 +51,6 @@
 // since we want to support Windows 9X and older NTOS versions, we explicitly don't list it here
 #if (defined(EZ_TARGET_DARWIN))
 #define HAVE_REMOTING
+#endif
+
 #endif

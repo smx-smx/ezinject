@@ -115,8 +115,6 @@ static void crt_loginit(struct injcode_bearing *br){
 	log_init(&log_cfg);
 }
 
-DLLEXPORT extern int crt_init(struct injcode_bearing *br);
-
 DLLEXPORT int crt_init(struct injcode_bearing *br){
 	if(lib_loginit() != 0){
 		crt_loginit(br);
@@ -139,7 +137,6 @@ DLLEXPORT int crt_init(struct injcode_bearing *br){
 	}
 	return 0;
 }
-
 
 /**
  * User thread: runs on a new stack created by pthread_create
