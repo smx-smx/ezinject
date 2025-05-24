@@ -5,6 +5,9 @@ image:
   - Ubuntu2204
   - macos
 
+environment:
+  EZSDK_SMOKE_TEST: 1
+
 for:
   -
     matrix:
