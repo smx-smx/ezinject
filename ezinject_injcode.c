@@ -15,10 +15,6 @@
 #include <pthread.h>
 #include <sys/stat.h>
 
-#ifdef EZ_TARGET_LINUX
-#include <sys/syscall.h>
-#endif
-
 #include "config.h"
 
 #ifdef EZ_TARGET_POSIX
