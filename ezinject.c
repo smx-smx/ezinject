@@ -604,6 +604,8 @@ if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
 		GetFullPathNameA(ctx->module_logfile, sizeof(logPath), logPath, NULL);
 	}
 #endif
+} else {
+	strncpy(logPath, "", sizeof(logPath));
 }
 
 	PUSH_STRING(EZSTR_API_CRT_INIT, "crt_init");
