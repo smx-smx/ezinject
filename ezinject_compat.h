@@ -48,6 +48,7 @@
 #define __NR_kill SYS_kill
 #define __NR_mmap2 SYS_mmap
 #define __NR_munmap SYS_munmap
+#define __NR_open SYS_open
 #endif
 
 #if defined(EZ_TARGET_LINUX)
