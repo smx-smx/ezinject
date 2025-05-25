@@ -118,10 +118,12 @@ INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
 	return 0;
 }
 
-#ifdef __NR_openat
+#if defined(__NR_open)
+#define SYSCALL_OPEN(file, mode) __NR_open, (file), (mode)
+#elif defined( __NR_openat)
 #define SYSCALL_OPEN(file, mode) __NR_openat, AT_FDCWD, (file), (mode)
 #else
-#define SYSCALL_OPEN(file, mode) __NR_open, (file), (mode)
+#error "Unsupported platform"
 #endif
 
 INLINE intptr_t inj_loginit(struct injcode_ctx *ctx){
