@@ -592,6 +592,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 char logPath[PATH_MAX];
+if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
 #if defined(EZ_TARGET_POSIX)
 	if(!realpath(ctx->module_logfile, logPath)) {
 		ERR("realpath: %s", logPath);
@@ -603,6 +604,7 @@ char logPath[PATH_MAX];
 		GetFullPathNameA(ctx->module_logfile, sizeof(logPath), logPath, NULL);
 	}
 #endif
+}
 
 	PUSH_STRING(EZSTR_API_CRT_INIT, "crt_init");
 	PUSH_STRING(EZSTR_LOG_FILEPATH, logPath);
