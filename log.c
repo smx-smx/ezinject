@@ -26,7 +26,7 @@ void log_set_verbosity(int verbosity){
 }
 
 void log_fini(){
-    if(log.log_output && (!log.log_leave_open || log.log_output != stdout)){
+    if(log.log_output && (!log.log_leave_open && log.log_output != stdout)){
         fclose(log.log_output);
     }
 }
