@@ -212,7 +212,7 @@ intptr_t remote_call_setup(struct ezinj_ctx *ctx, struct call_req *call, regs_t 
 	memset(orig_ctx, 0x00, sizeof(*orig_ctx));
 
 	if(remote_getregs(ctx, orig_ctx) < 0){
-		PERROR("remote_getregs failed");
+		PERROR("remote_getregs failed (initial)");
 		return -1;
 	}
 	memcpy(new_ctx, orig_ctx, sizeof(*orig_ctx));
@@ -307,8 +307,10 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	DBG("[RET] = %"PRIdPTR, call->rcall.result);
 #endif
 
+#ifndef HAVE_REMOTING
+
 	if(remote_getregs(ctx, &new_ctx) < 0){
-		ERR("remote_getregs failed");
+		ERR("remote_getregs failed (restore)");
 		return -1;
 	}
 
@@ -328,7 +330,6 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		}
 	}
 
-#ifndef HAVE_REMOTING
 	if(remote_setregs(ctx, &orig_ctx)){
 		PERROR("remote_setregs failed");
 	}
