@@ -111,7 +111,7 @@ struct elf_resolve_hdr {
 #endif
 
 struct injcode_user {
-	uint8_t persist;
+	bool persist;
 };
 
 struct injcode_call;
@@ -219,7 +219,7 @@ struct injcode_bearing
 	ssize_t mapping_size;
 
 	int stbl_relocated;
-	int pl_debug;
+	bool pl_debug;
 	off_t stack_offset;
 	pthread_t user_tid;
 #ifdef EZ_TARGET_WINDOWS

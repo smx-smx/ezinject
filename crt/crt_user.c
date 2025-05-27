@@ -18,7 +18,7 @@ int crt_userinit(struct injcode_bearing *br){
 		return result;
 	}
 
-	log_set_leave_open(br->user.persist == 1);
+	log_set_leave_open(br->user.persist);
 	result = lib_main(br->argc, br->argv);
 	DBG("lib_main returned: %d", result);
 

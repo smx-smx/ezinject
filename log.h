@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
 #include <inttypes.h>
 #include "config.h"
 
@@ -25,7 +26,7 @@ enum verbosity_level {
 typedef struct {
     enum verbosity_level verbosity;
     FILE *log_output;
-    int log_leave_open;
+    bool log_leave_open;
 } log_config_t;
 
 void log_init(log_config_t *cfg);
@@ -36,7 +37,7 @@ void log_putchar(int ch);
 void log_logf(enum verbosity_level verbosity, const char *format, ...);
 enum verbosity_level log_get_verbosity();
 void log_set_verbosity(int verbosity);
-void log_set_leave_open(int leave_open);
+void log_set_leave_open(bool leave_open);
 
 
 #if __WORDSIZE == 64

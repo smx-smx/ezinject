@@ -246,7 +246,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
-	int wait = 0;
+	bool wait = false;
 	do {
 		#ifdef EZ_TARGET_WINDOWS
 		// hack
@@ -266,7 +266,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	#define SIGRTMIN 32
 		#define IS_IGNORED_SIG(x) ((x) == SIGCHLD || (x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
 
-		wait = 0;
+		wait = false;
 
 		int signal = WSTOPSIG(status);
 		DBG("signal: %d", signal);
@@ -276,10 +276,10 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		 * `pthread_create` and `pthread_join`
 		 * can work correctly
 		 */
-		if(call->syscall_mode == 0 && IS_IGNORED_SIG(signal)){
+		if(!call->syscall_mode && IS_IGNORED_SIG(signal)){
 			INFO("forwarding signal %d", signal);
 			remote_continue(ctx, signal);
-			wait = 1;
+			wait = true;
 		}
 	#endif
 	} while(wait);
@@ -844,7 +844,7 @@ int ezinject_main(
 	remote_sc_set(ctx, r_sc_elf);
 
 	// wait for a single syscall
-	ctx->syscall_mode = 1;
+	ctx->syscall_mode = true;
 
 	/* Verify that remote_call works correctly */
 	if(remote_sc_check(ctx) != 0){
@@ -912,7 +912,7 @@ int ezinject_main(
 		#endif
 
 		// switch to SIGSTOP wait mode
-		ctx->syscall_mode = 0;
+		ctx->syscall_mode = false;
 
 		/**
 		 * now that PL is available and mapped, we can use it
@@ -937,7 +937,7 @@ int ezinject_main(
 		PLAPI_SET(ctx, inj_fetchsym);
 		#undef PLAPI_SET
 
-		// when syscall_mode = 0, SC is skipped
+		// when syscall_mode = false, SC is skipped
 		INFO("target: calling payload at %p", pl->br_start);
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
 
@@ -949,7 +949,7 @@ int ezinject_main(
 		}
 
 		// restore syscall behavior (to call munmap, if needed by the target)
-		ctx->syscall_mode = 1;
+		ctx->syscall_mode = true;
 		ctx->pl_stack.remote = 0;
 		INFO("target: freeing payload memory");
 		remote_pl_free(ctx, remote_shm_ptr);

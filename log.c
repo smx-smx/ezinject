@@ -25,7 +25,7 @@ void log_set_verbosity(int verbosity){
     log.verbosity = verbosity;
 }
 
-void log_set_leave_open(int leave_open){
+void log_set_leave_open(bool leave_open){
     log.log_leave_open = leave_open;
 }
 

@@ -73,8 +73,8 @@ struct ezinj_ctx_plapi {
 };
 
 struct ezinj_ctx {
-	int pl_debug;
-	int syscall_mode;
+	bool pl_debug;
+	bool syscall_mode;
 	pid_t target;
 	uintptr_t r_xpage_base;
 	char *module_logfile;
@@ -187,7 +187,7 @@ struct call_req {
 
 	unsigned int argmask;
 	uintptr_t argv[CALL_MAX_ARGS];
-	int syscall_mode;
+	bool syscall_mode;
 
 	uintptr_t backup_addr;
 	uint8_t *backup_data;
