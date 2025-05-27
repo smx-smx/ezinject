@@ -36,6 +36,7 @@ void log_putchar(int ch);
 void log_logf(enum verbosity_level verbosity, const char *format, ...);
 enum verbosity_level log_get_verbosity();
 void log_set_verbosity(int verbosity);
+void log_set_leave_open(int leave_open);
 
 
 #if __WORDSIZE == 64
