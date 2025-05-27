@@ -89,9 +89,6 @@ struct ezinj_ctx {
 #ifdef EZ_TARGET_DARWIN
 	task_t task;
 	thread_t thread;
-	// $FIXME: this is kind of a hack, but we only do one allocation
-	// the better idea would be to add a `size` parameter to `remote_pl_free`
-	size_t last_alloc_size;
 #endif
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS) \
 || defined(EZ_TARGET_DARWIN)
