@@ -20,8 +20,8 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	}
 
 	ez_addr linker = {
-		.local  = (uintptr_t) get_base(getpid(), DYN_LINKER_NAME, NULL),
-		.remote = (uintptr_t) get_base(ctx->target, DYN_LINKER_NAME, NULL)
+		.local  = (uintptr_t) get_base(ctx, getpid(), DYN_LINKER_NAME, NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, DYN_LINKER_NAME, NULL)
 	};
 	DBGPTR(linker.local);
 	DBGPTR(linker.remote);

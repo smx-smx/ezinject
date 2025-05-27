@@ -22,7 +22,7 @@ static int chrome_remove_sandbox(struct ezinj_ctx *ctx){
 
 	ez_addr ntdll = {
 		.local = UPTR(h_ntdll),
-		.remote = (uintptr_t) get_base(ctx->target, "ntdll.dll", NULL)
+		.remote = (uintptr_t) get_base(ctx, ctx->target, "ntdll.dll", NULL)
 	};
 
 	ez_addr nt_map_viewsection = sym_addr(h_ntdll, "NtMapViewOfSection", ntdll);
@@ -53,7 +53,7 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 
 	ez_addr kernel32 = {
 		.local = UPTR(h_kernel32),
-		.remote = (uintptr_t) get_base(ctx->target, "kernel32.dll", NULL)
+		.remote = (uintptr_t) get_base(ctx, ctx->target, "kernel32.dll", NULL)
 	};
 	if(!kernel32.local || !kernel32.remote){
 		ERR("Failed to locate kernel32");

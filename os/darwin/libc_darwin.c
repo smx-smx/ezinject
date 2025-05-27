@@ -14,8 +14,8 @@
 
 static EZAPI _resolve_kernel(struct ezinj_ctx *ctx){
 	ez_addr kernel = {
-		.local = (uintptr_t) get_base(getpid(), "libsystem_kernel", NULL),
-		.remote = (uintptr_t) get_base(ctx->target, "libsystem_kernel", NULL)
+		.local = (uintptr_t) get_base(ctx, getpid(), "libsystem_kernel", NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, "libsystem_kernel", NULL)
 	};
 	DBGPTR(kernel.local);
 	DBGPTR(kernel.remote);
@@ -56,8 +56,8 @@ static EZAPI _resolve_kernel(struct ezinj_ctx *ctx){
 
 static EZAPI _resolve_pthread(struct ezinj_ctx *ctx){
 	ez_addr pthread = {
-		.local = (uintptr_t) get_base(getpid(), "libsystem_pthread", NULL),
-		.remote = (uintptr_t) get_base(ctx->target, "libsystem_pthread", NULL)
+		.local = (uintptr_t) get_base(ctx, getpid(), "libsystem_pthread", NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, "libsystem_pthread", NULL)
 	};
 	DBGPTR(pthread.local);
 	DBGPTR(pthread.remote);
@@ -106,8 +106,8 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	}
 
 	ez_addr linker = {
-		.local  = (uintptr_t) get_base(getpid(), DYN_LINKER_NAME, NULL),
-		.remote = (uintptr_t) get_base(ctx->target, DYN_LINKER_NAME, NULL)
+		.local  = (uintptr_t) get_base(ctx, getpid(), DYN_LINKER_NAME, NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, DYN_LINKER_NAME, NULL)
 	};
 	DBGPTR(linker.local);
 	DBGPTR(linker.remote);

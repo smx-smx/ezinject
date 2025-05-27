@@ -427,8 +427,8 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 	}
 
 	ez_addr libc = {
-		.local  = (uintptr_t) get_base(getpid(), LIBC_SEARCH, ignores),
-		.remote = (uintptr_t) get_base(ctx->target, LIBC_SEARCH, ignores)
+		.local  = (uintptr_t) get_base(ctx, getpid(), LIBC_SEARCH, ignores),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, LIBC_SEARCH, ignores)
 	};
 
 	DBGPTR(libc.remote);
@@ -455,8 +455,8 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		 **/
 
 		ez_addr libdl = {
-			.local = (uintptr_t)get_base(getpid(), "libdl", NULL),
-			.remote = (uintptr_t)get_base(ctx->target, "libdl", NULL)
+			.local = (uintptr_t)get_base(ctx, getpid(), "libdl", NULL),
+			.remote = (uintptr_t)get_base(ctx, ctx->target, "libdl", NULL)
 		};
 		ctx->libdl = libdl;
 
@@ -1031,18 +1031,18 @@ int main(int argc, char *argv[]){
 		return 1;
 	}
 
-	if(libc_init(&ctx) != 0){
-		ERR("libc_init() failed");
-		return 1;
-	}
-	ctx.r_xpage_base = (uintptr_t)get_base(ctx.target, NULL, NULL);
-
 	INFO("Attaching to %"PRIuMAX, (uintmax_t)ctx.target);
 
 	if(remote_attach(&ctx) < 0){
 		PERROR("remote_attach failed");
 		return 1;
 	}
+
+	if(libc_init(&ctx) != 0){
+		ERR("libc_init() failed");
+		return 1;
+	}
+	ctx.r_xpage_base = (uintptr_t)get_base(&ctx, ctx.target, NULL, NULL);
 
 	INFO("waiting for target to stop...");
 

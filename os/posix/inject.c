@@ -137,7 +137,7 @@ uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 #if defined(EZ_TARGET_DARWIN)
 		sc_base = remote_pl_alloc(ctx, size);
 #else
-		//sc_base = (uintptr_t)get_base(ctx->target, NULL, NULL);
+		//sc_base = (uintptr_t)get_base(ctx, ctx->target, NULL, NULL);
 		sc_base = ctx->r_xpage_base;
 #endif
 	} else if((flags & SC_ALLOC_MMAP) == SC_ALLOC_MMAP){

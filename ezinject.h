@@ -234,5 +234,5 @@ uintptr_t remote_sc_get_trap_stop();
 /** libc/util api **/
 EZAPI os_api_init(struct ezinj_ctx *ctx);
 EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx);
-void *get_base(pid_t pid, char *substr, char **ignores);
+void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores);
 #endif

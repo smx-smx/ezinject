@@ -302,7 +302,7 @@ static void *get_base_toolhelp(pid_t pid, char *substr, char **ignores){
 	return base;
 }
 
-void *get_base(pid_t pid, char *substr, char **ignores) {
+void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
 	OSVERSIONINFO osvi = {
 		.dwOSVersionInfoSize = sizeof(osvi)
 	};
