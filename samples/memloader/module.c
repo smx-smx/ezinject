@@ -1,7 +1,7 @@
 #include <stdio.h>
-#include "ezinject_injcode.h"
+#include "ezinject_module.h"
 
-int lib_loginit(){
+int lib_loginit(log_config_t *log_cfg){
 	return -1;
 }
 

@@ -102,15 +102,14 @@ void printenv() {
     }
 }
 
-int lib_loginit(){
+//#define USE_CUSTOM_LOG
+
+int lib_loginit(log_config_t *log_cfg){
 #ifdef USE_CUSTOM_LOG
 	char *tmpfile = tempnam(NULL, "libdummy-");
-	log_config_t cfg = {
-		.log_leave_open = 0,
-		.log_output = fopen(tmpfile, "w+"),
-		.verbosity = V_DBG
-	};
-	lib_log_init(&cfg);
+	log_cfg->log_leave_open = false;
+	log_cfg->log_output = fopen(tmpfile, "w+");
+	log_cfg->verbosity = V_DBG;
 	return 0;
 #else
 

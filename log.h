@@ -27,6 +27,8 @@ typedef struct {
     enum verbosity_level verbosity;
     FILE *log_output;
     bool log_leave_open;
+    bool buffered;
+    bool disposed;
 } log_config_t;
 
 void log_init(log_config_t *cfg);
@@ -38,6 +40,7 @@ void log_logf(enum verbosity_level verbosity, const char *format, ...);
 enum verbosity_level log_get_verbosity();
 void log_set_verbosity(int verbosity);
 void log_set_leave_open(bool leave_open);
+FILE *log_get_handle();
 
 
 #if __WORDSIZE == 64

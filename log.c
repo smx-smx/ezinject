@@ -14,7 +14,13 @@
 static log_config_t log;
 
 void log_init(log_config_t *cfg){
+    if(!log.disposed){
+        log_fini();
+    }
     log = *cfg;
+    if(!log.buffered && log.log_output){
+		setvbuf(log.log_output, NULL, _IONBF, 0);
+	}
 }
 
 enum verbosity_level log_get_verbosity(){
@@ -30,9 +36,12 @@ void log_set_leave_open(bool leave_open){
 }
 
 void log_fini(){
-    if(log.log_output && (!log.log_leave_open && log.log_output != stdout)){
+    if(log.disposed) return;
+    if(log.log_output && !log.log_leave_open && log.log_output != stdout){
+        INFO("closing log");
         fclose(log.log_output);
     }
+    log.disposed = true;
 }
 
 void log_puts(const char *str){
@@ -41,6 +50,7 @@ void log_puts(const char *str){
 }
 
 static inline void log_vprintf(const char *format, va_list ap){
+    if(!log.log_output) return;
     vfprintf(log.log_output, format, ap);
 }
 
@@ -64,4 +74,8 @@ void log_logf(enum verbosity_level verbosity, const char *format, ...){
 void log_putchar(int ch){
     if(!log.log_output) return;
     fputc(ch, log.log_output);
+}
+
+FILE *log_get_handle(){
+    return log.log_output;
 }

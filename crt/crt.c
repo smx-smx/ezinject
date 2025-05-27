@@ -100,7 +100,7 @@ static char *crt_get_log_filepath(struct injcode_bearing *br){
 	return NULL;
 }
 
-static void crt_loginit(struct injcode_bearing *br){
+static void crt_loginit(struct injcode_bearing *br, log_config_t *cfg_out){
 	FILE *log_handle = stdout;
 	char *log_file_path = crt_get_log_filepath(br);
 	if(log_file_path){
@@ -113,19 +113,29 @@ static void crt_loginit(struct injcode_bearing *br){
 	}
 	log_config_t log_cfg = {
 		.verbosity = V_DBG,
-		.log_leave_open = log_handle == stdout ? 1 : 0,
-		.log_output = log_handle
+		.log_leave_open = log_handle == stdout,
+		.log_output = log_handle,
+		.buffered = false
 	};
-	log_init(&log_cfg);
+	memcpy(cfg_out, &log_cfg, sizeof(log_cfg));
 }
 
 DLLEXPORT int crt_init(struct injcode_bearing *br){
-	if(lib_loginit() != 0){
-		crt_loginit(br);
-	}
+	log_config_t crt_log_cfg;
+	crt_loginit(br, &crt_log_cfg);
+	log_init(&crt_log_cfg);
 
 	INFO("library loaded!");
 
+	log_config_t log_cfg;
+	memcpy(&log_cfg, &crt_log_cfg, sizeof(crt_log_cfg));
+
+	INFO("calling lib_loginit");
+	if(lib_loginit(&log_cfg) == 0){
+		log_init(&log_cfg);
+	}
+
+	INFO("library loaded! (after lib_loginit)");
 	INFO("initializing");
 
 	// workaround for old uClibc (see http://lists.busybox.net/pipermail/uclibc/2009-October/043122.html)

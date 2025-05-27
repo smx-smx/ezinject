@@ -14,7 +14,7 @@
 #include "coreclr_delegates.h"
 #include "hostfxr.h"
 
-int lib_loginit(){
+int lib_loginit(log_config_t *log_cfg){
 	return -1;
 }
 

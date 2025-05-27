@@ -13,7 +13,7 @@ extern void blob_end();
 
 static struct injcode_user *gUser;
 
-int lib_loginit(){
+int lib_loginit(log_config_t *log_cfg){
 	return -1;
 }
 
