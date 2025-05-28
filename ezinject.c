@@ -594,6 +594,14 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 char logPath[PATH_MAX];
 if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
+	// make sure the log file exists before we call realpath on it
+	FILE *fh = fopen(ctx->module_logfile, "a");
+	if(!fh){
+		ERR("fopen \"%s\" failed", ctx->module_logfile);
+		return NULL;
+	}
+	fclose(fh);
+
 #if defined(EZ_TARGET_POSIX)
 	if(!realpath(ctx->module_logfile, logPath)) {
 		ERR("realpath: %s", logPath);
