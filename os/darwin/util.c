@@ -26,6 +26,7 @@ EZAPI os_api_init(struct ezinj_ctx *ctx){
 void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
 	UNUSED(ignores);
 
+	DBG("pid: %zu", pid);
 	mach_port_t task;
 	bool self;
 	if((self = pid == getpid())){
@@ -51,6 +52,7 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
 	if(self){
 		infos = (struct dyld_all_image_infos *)dyld_info.all_image_info_addr;
 	} else {
+		DBGPTR(dyld_info.all_image_info_addr);
 		memset(&_infos, 0x00, sizeof(_infos));
 		if(remote_read(ctx, &_infos, dyld_info.all_image_info_addr, sizeof(_infos)) != sizeof(_infos)){
 			ERR("remote_read failed for dyld_all_image_infos");
@@ -63,14 +65,15 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
 	size_t infoArraySize = sizeof(struct dyld_image_info) * infos->infoArrayCount;
 	struct dyld_image_info *image_array;
 	if(self){
-		image_array = infos->infoArray;
+		image_array = (struct dyld_image_info *)infos->infoArray;
 	} else {
 		image_array = calloc(infos->infoArrayCount, sizeof(struct dyld_image_info));
 	}
 	
 	void *res = NULL;
 	do {
-		if(!self && remote_read(ctx, image_array, (uintptr_t)infos->infoArray, infoArraySize) != infoArraySize){
+		DBGPTR(infos->infoArray);
+		if(!self && remote_read(ctx, image_array, (uintptr_t)infos->infoArray, infoArraySize) != (intptr_t)infoArraySize){
 			ERR("remote_read failed for infoArray");
 			break;
 		}
@@ -81,7 +84,7 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
 			char path_buffer[256] = {0};
 			bool found_term = false;
 
-			char *image_name = self ? image->imageFilePath : path_buffer;
+			const char *image_name = self ? image->imageFilePath : path_buffer;
 			if(!self){
 				for(int offset = 0; !found_term ;offset += chunk_size){
 					intptr_t nRead = 0;
