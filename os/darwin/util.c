@@ -27,7 +27,8 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
 	UNUSED(ignores);
 
 	mach_port_t task;
-	if(pid == getpid()){
+	bool self;
+	if((self = pid == getpid())){
 		task = mach_task_self();
 	} else if(pid == ctx->target) {
 		task = ctx->task;
@@ -45,56 +46,72 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
 	}
 
 	
-	struct dyld_all_image_infos infos;
-	memset(&infos, 0x00, sizeof(infos));
-
-	if(remote_read(ctx, &infos, dyld_info.all_image_info_addr, sizeof(infos)) != sizeof(infos)){
-		ERR("remote_read failed for dyld_all_image_infos");
-		return NULL;
+	struct dyld_all_image_infos _infos;
+	struct dyld_all_image_infos *infos;
+	if(self){
+		infos = (struct dyld_all_image_infos *)dyld_info.all_image_info_addr;
+	} else {
+		memset(&_infos, 0x00, sizeof(_infos));
+		if(remote_read(ctx, &_infos, dyld_info.all_image_info_addr, sizeof(_infos)) != sizeof(_infos)){
+			ERR("remote_read failed for dyld_all_image_infos");
+			return NULL;
+		}
+		infos = &_infos;
 	}
 
-	DBG("number of images: %u", infos.infoArrayCount);
-	size_t infoArraySize = sizeof(struct dyld_image_info) * infos.infoArrayCount;
-	struct dyld_image_info *image_array = calloc(infos.infoArrayCount, sizeof(struct dyld_image_info));;
+	DBG("number of images: %u", infos->infoArrayCount);
+	size_t infoArraySize = sizeof(struct dyld_image_info) * infos->infoArrayCount;
+	struct dyld_image_info *image_array;
+	if(self){
+		image_array = infos->infoArray;
+	} else {
+		image_array = calloc(infos->infoArrayCount, sizeof(struct dyld_image_info));
+	}
 	
 	void *res = NULL;
 	do {
-		if(remote_read(ctx, image_array, (uintptr_t)infos.infoArray, infoArraySize) != infoArraySize){
+		if(!self && remote_read(ctx, image_array, (uintptr_t)infos->infoArray, infoArraySize) != infoArraySize){
 			ERR("remote_read failed for infoArray");
 			break;
 		}
 
 		static const int chunk_size = 64;
-		for (uint32_t i = 0; i < infos.infoArrayCount; i++) {
-			struct dyld_image_info image = image_array[i];
+		for (uint32_t i = 0; i < infos->infoArrayCount; i++) {
+			struct dyld_image_info *image = &image_array[i];
 			char path_buffer[256] = {0};
 			bool found_term = false;
-			for(int offset = 0; !found_term ;offset += chunk_size){
-				intptr_t nRead = 0;
-				if((nRead=remote_read(ctx, &path_buffer[offset], (uintptr_t)image.imageFilePath + offset, chunk_size)) < 1){
-					path_buffer[offset + nRead] = '\0';
-					break;
-				} else {
-					for(int j=0; j<chunk_size; j++){
-						if(path_buffer[offset + j] == '\0'){
-							found_term = true;
-							break;
+
+			char *image_name = self ? image->imageFilePath : path_buffer;
+			if(!self){
+				for(int offset = 0; !found_term ;offset += chunk_size){
+					intptr_t nRead = 0;
+					if((nRead=remote_read(ctx, &path_buffer[offset], (uintptr_t)image->imageFilePath + offset, chunk_size)) < 1){
+						path_buffer[offset + nRead] = '\0';
+						break;
+					} else {
+						for(int j=0; j<chunk_size; j++){
+							if(path_buffer[offset + j] == '\0'){
+								found_term = true;
+								break;
+							}
 						}
 					}
 				}
-			}
-			if(!found_term){
-				ERR("remote_read failed for image.imageFilePath");
-				continue;
+				if(!found_term){
+					ERR("remote_read failed for image.imageFilePath");
+					continue;
+				}
 			}
 
-			if(substr == NULL || strstr(path_buffer, substr) != NULL){
-				res = (void *)image.imageLoadAddress;
+			if(substr == NULL || strstr(image_name, substr) != NULL){
+				res = (void *)image->imageLoadAddress;
 				break;
 			}
 		}
 	} while(0);
 	
-	free(image_array);
+	if(!self){
+		free(image_array);
+	}
 	return res;
 }
