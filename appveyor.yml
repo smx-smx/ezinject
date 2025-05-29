@@ -24,8 +24,8 @@ for:
     matrix:
       only:
         - image: macos
-    install:
-      - brew install capstone
+    #install:
+    #  - brew install capstone
     build_script:
       ./build.sh
     test_script:

@@ -15,8 +15,8 @@
 
 EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ez_addr ldso = {
-		.local = (uintptr_t)get_base(getpid(), "ld-uClibc", NULL),
-		.remote = (uintptr_t)get_base(ctx->target, "ld-uClibc", NULL)
+		.local = (uintptr_t)get_base(ctx, getpid(), "ld-uClibc", NULL),
+		.remote = (uintptr_t)get_base(ctx, ctx->target, "ld-uClibc", NULL)
 	};
 	if(!ldso.local || !ldso.remote){
 		ERR("Failed to get ldso base");

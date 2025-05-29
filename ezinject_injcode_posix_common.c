@@ -16,9 +16,9 @@ void PLAPI inj_puts(struct injcode_ctx *ctx, char *str){
 
 	int l;
 	for(l=0; str[l] != 0x00; l++);
-	br->libc_syscall(__NR_write, STDOUT_FILENO, str, l);
+	br->libc_syscall(__NR_write, ctx->log_handle, str, l);
 	char nl = '\n';
 
-	br->libc_syscall(__NR_write, STDOUT_FILENO, &nl, 1);
+	br->libc_syscall(__NR_write, ctx->log_handle, &nl, 1);
 #endif
 }

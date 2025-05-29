@@ -177,12 +177,16 @@ INLINE uint64_t str64(uint64_t x){
 #include "ezinject_injcode_windows.h"
 #endif
 
+#ifdef EZ_TARGET_WINDOWS
+typedef HANDLE log_handle_t;
+#else
+typedef int log_handle_t;
+#endif
+
 struct injcode_ctx {
 	struct injcode_bearing *br;
 
-#ifdef EZ_TARGET_WINDOWS
-	HANDLE output_handle;
-#endif
+	log_handle_t log_handle;
 
 	struct dl_api libdl;
 	struct thread_api libthread;
@@ -339,30 +343,34 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	intptr_t result = 0;
 	// entry
+	inj_loginit(ctx);
 	PCALL(ctx, inj_dchar, 'e');
 
 	#ifdef EZ_TARGET_DARWIN
-	int thread_is_parent = br->tid == 0;
-	if(thread_is_parent){
-		PCALL(ctx, inj_dchar, 't');
+	bool thread_is_parent = false;
+	if(br->pthread_create_from_mach_thread){
+		thread_is_parent = br->tid == 0;
+		if(thread_is_parent){
+			PCALL(ctx, inj_dchar, 't');
 
-		sc->mach_thread = br->mach_thread_self();
+			sc->mach_thread = br->mach_thread_self();
 
-		// sc->trampoline.fn_addr
-		if(br->pthread_create_from_mach_thread(&br->tid, NULL, (void * (*)(void *))injected_fn, sc) != 0){
-			PCALL(ctx, inj_dchar, '!');
-			result = INJ_ERR_DARWIN_THREAD;
+			// sc->trampoline.fn_addr
+			if(br->pthread_create_from_mach_thread(&br->tid, NULL, (void * (*)(void *))injected_fn, sc) != 0){
+				PCALL(ctx, inj_dchar, '!');
+				result = INJ_ERR_DARWIN_THREAD;
+				goto pl_exit;
+			}
 			goto pl_exit;
-		}
-		goto pl_exit;
-	} else {
-		// detach ourselves to free resources
-		// (the parent can't do it because it has no TLS)
-		br->pthread_detach(br->pthread_self());
+		} else {
+			// detach ourselves to free resources
+			// (the parent can't do it because it has no TLS)
+			br->pthread_detach(br->pthread_self());
 
-		// kill the parent thread
-		// (the parent can't do it because it has no TLS within `thread_terminate`)
-		br->thread_terminate(sc->mach_thread);
+			// kill the parent thread
+			// (the parent can't do it because it has no TLS within `thread_terminate`)
+			br->thread_terminate(sc->mach_thread);
+		}
 	}
 	#endif
 
@@ -453,6 +461,8 @@ pl_exit:
 	/*if(ctx->h_libthread != NULL){
 		ctx->libdl.dlclose(ctx->h_libthread);
 	}*/
+
+	inj_logfini(ctx);
 
 	#ifdef EZ_TARGET_DARWIN
 	if(thread_is_parent){

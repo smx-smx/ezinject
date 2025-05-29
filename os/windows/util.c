@@ -160,7 +160,7 @@ static uintptr_t _search_executable_region(HANDLE hProcess, LPVOID baseAddr){
 	return (found) ? UPTR(lpMem) : 0;
 }
 
-static void *get_base_winnt(pid_t pid, char *substr, char **ignores) {
+static void *get_base_winnt(pid_t pid, const char *substr, const char **ignores) {
 	HANDLE hProcess = INVALID_HANDLE_VALUE;
 
 
@@ -219,7 +219,7 @@ static void *get_base_winnt(pid_t pid, char *substr, char **ignores) {
 	return base;
 }
 
-static void *get_base_toolhelp(pid_t pid, char *substr, char **ignores){
+static void *get_base_toolhelp(pid_t pid, const char *substr, const char **ignores){
 	UNUSED(ignores);
 
 	HANDLE hProcess = INVALID_HANDLE_VALUE;
@@ -302,7 +302,7 @@ static void *get_base_toolhelp(pid_t pid, char *substr, char **ignores){
 	return base;
 }
 
-void *get_base(pid_t pid, char *substr, char **ignores) {
+void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char **ignores) {
 	OSVERSIONINFO osvi = {
 		.dwOSVersionInfoSize = sizeof(osvi)
 	};

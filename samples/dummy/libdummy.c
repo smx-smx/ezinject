@@ -3,6 +3,10 @@
 
 #include "ezinject_module.h"
 
+#ifdef EZ_TARGET_DARWIN
+#include <crt_externs.h>
+#endif
+
 #ifdef USE_LH
 typedef int(*testFunc_t)(int arg1, int arg2);
 
@@ -93,6 +97,8 @@ void printenv() {
 #elif defined(EZ_TARGET_FREEBSD)
 	// workaround https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=265008
 	char **environ = (char **)dlsym(RTLD_DEFAULT, "environ");
+#elif defined(EZ_TARGET_DARWIN)
+	env = *_NSGetEnviron();
 #else
     extern char ** environ;
     env = environ;
@@ -102,15 +108,14 @@ void printenv() {
     }
 }
 
-int lib_loginit(){
+//#define USE_CUSTOM_LOG
+
+int lib_loginit(log_config_t *log_cfg){
 #ifdef USE_CUSTOM_LOG
 	char *tmpfile = tempnam(NULL, "libdummy-");
-	log_config_t cfg = {
-		.log_leave_open = 0,
-		.log_output = fopen(tmpfile, "w+"),
-		.verbosity = V_DBG
-	};
-	lib_log_init(&cfg);
+	log_cfg->log_leave_open = false;
+	log_cfg->log_output = fopen(tmpfile, "w+");
+	log_cfg->verbosity = V_DBG;
 	return 0;
 #else
 

@@ -12,15 +12,20 @@
 #include "log.h"
 #include "ezinject_util.h"
 
+
+const char *libsystem_b_name = "libSystem.B.dylib";
+
 static EZAPI _resolve_kernel(struct ezinj_ctx *ctx){
+	const char *libkernel_name = libsystem_b_name;
+
 	ez_addr kernel = {
-		.local = (uintptr_t) get_base(getpid(), "libsystem_kernel", NULL),
-		.remote = (uintptr_t) get_base(ctx->target, "libsystem_kernel", NULL)
+		.local = (uintptr_t) get_base(ctx, getpid(), libkernel_name, NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, libkernel_name, NULL)
 	};
 	DBGPTR(kernel.local);
 	DBGPTR(kernel.remote);
 	if(!kernel.local || !kernel.remote){
-		ERR("Cannot find libsystem_kernel");
+		ERR("Cannot find %s", libkernel_name);
 		return -1;
 	}
 	
@@ -55,14 +60,16 @@ static EZAPI _resolve_kernel(struct ezinj_ctx *ctx){
 }
 
 static EZAPI _resolve_pthread(struct ezinj_ctx *ctx){
+	const char *libpthread_name = libsystem_b_name;
+
 	ez_addr pthread = {
-		.local = (uintptr_t) get_base(getpid(), "libsystem_pthread", NULL),
-		.remote = (uintptr_t) get_base(ctx->target, "libsystem_pthread", NULL)
+		.local = (uintptr_t) get_base(ctx, getpid(), libpthread_name, NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, libpthread_name, NULL)
 	};
 	DBGPTR(pthread.local);
 	DBGPTR(pthread.remote);
 	if(!pthread.local || !pthread.remote){
-		ERR("Cannot find libsystem_pthread");
+		ERR("Cannot find %s", libpthread_name);
 		return -1;
 	}
 
@@ -80,13 +87,14 @@ static EZAPI _resolve_pthread(struct ezinj_ctx *ctx){
 
 	if(!pthread_create.local || !pthread_create.remote
 	|| !pthread_join.local || !pthread_join.remote
-	|| !pthread_create_from_mach_thread.local || !pthread_create_from_mach_thread.remote
 	|| !pthread_detach.local || !pthread_detach.remote
 	|| !pthread_self.local || !pthread_self.remote){
 		ERR("Cannot resolve pthread symbols");
 		dlclose(h_self);
 		return -1;
 	}
+
+	ctx->libpthread_name = libpthread_name;
 
 	ctx->pthread_create = pthread_create;
 	ctx->pthread_join = pthread_join;
@@ -105,14 +113,16 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 		return -1;
 	}
 
+	const char *dynlinker_name = libsystem_b_name;
+
 	ez_addr linker = {
-		.local  = (uintptr_t) get_base(getpid(), DYN_LINKER_NAME, NULL),
-		.remote = (uintptr_t) get_base(ctx->target, DYN_LINKER_NAME, NULL)
+		.local  = (uintptr_t) get_base(ctx, getpid(), dynlinker_name, NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, dynlinker_name, NULL)
 	};
 	DBGPTR(linker.local);
 	DBGPTR(linker.remote);
 	if(!linker.local || !linker.remote){
-		ERR("Cannot find linker " DYN_LINKER_NAME);
+		ERR("Cannot find linker %s", dynlinker_name);
 		return -1;
 	}
 

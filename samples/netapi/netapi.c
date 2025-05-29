@@ -574,7 +574,7 @@ void *start_server(void *arg){
 	return (void *)(uintptr_t)rc;
 }
 
-int lib_loginit(){
+int lib_loginit(log_config_t *log_cfg){
 	return -1;
 }
 

@@ -128,6 +128,7 @@ elseif(EZ_TARGET_FREEBSD)
 elseif(EZ_TARGET_DARWIN)
 	list(APPEND C_LIBRARY_NAMES
 		libsystem_kernel.dylib
+		libSystem.B.dylib
 	)
 	list(APPEND EXTRA_SEARCH_PATHS "/usr/lib/system")
 elseif(EZ_TARGET_WINDOWS)
@@ -145,6 +146,11 @@ find_library(C_LIBRARY
 	REQUIRED
 )
 get_filename_component(C_LIBRARY_NAME "${C_LIBRARY}" NAME)
+if(EZ_TARGET_DARWIN)
+	if(C_LIBRARY_NAME STREQUAL "libSystem.B.dylib")
+		set(REQUIRES_LIBPTHREAD "")
+	endif()
+endif()
 
 set(DL_LIBRARY_NAMES "")
 if(EZ_TARGET_LINUX OR EZ_TARGET_FREEBSD)

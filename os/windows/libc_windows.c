@@ -22,7 +22,7 @@ static int chrome_remove_sandbox(struct ezinj_ctx *ctx){
 
 	ez_addr ntdll = {
 		.local = UPTR(h_ntdll),
-		.remote = (uintptr_t) get_base(ctx->target, "ntdll.dll", NULL)
+		.remote = (uintptr_t) get_base(ctx, ctx->target, "ntdll.dll", NULL)
 	};
 
 	ez_addr nt_map_viewsection = sym_addr(h_ntdll, "NtMapViewOfSection", ntdll);
@@ -53,7 +53,7 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 
 	ez_addr kernel32 = {
 		.local = UPTR(h_kernel32),
-		.remote = (uintptr_t) get_base(ctx->target, "kernel32.dll", NULL)
+		.remote = (uintptr_t) get_base(ctx, ctx->target, "kernel32.dll", NULL)
 	};
 	if(!kernel32.local || !kernel32.remote){
 		ERR("Failed to locate kernel32");
@@ -70,8 +70,12 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ctx->suspend_thread = suspend_thread;
 	ctx->get_current_thread = get_current_thread;
 
+	ez_addr create_file = sym_addr(h_kernel32, "CreateFileA", kernel32);
 	ez_addr write_file = sym_addr(h_kernel32, "WriteFile", kernel32);
+	ez_addr close_handle = sym_addr(h_kernel32, "CloseHandle", kernel32);
+	ctx->create_file = create_file;
 	ctx->write_file = write_file;
+	ctx->close_handle = close_handle;
 
 	DBGADDR(virtual_alloc);
 	DBGADDR(virtual_free);

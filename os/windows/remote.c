@@ -440,3 +440,11 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 EZAPI remote_sc_check(struct ezinj_ctx *ctx){
 	return 0;
 }
+
+bool remote_use_remoting(struct ezinj_ctx *ctx){
+	return false;
+}
+
+EZAPI remote_start_thread(struct ezinj_ctx *ctx, regs_t *regs){
+	return -1;
+}

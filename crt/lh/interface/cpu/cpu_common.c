@@ -18,6 +18,7 @@
 #include "interface/if_cpu.h"
 
 #include "ezinject_common.h"
+#include "ezinject_compat.h"
 #include "config.h"
 
 #ifdef EZ_TARGET_POSIX

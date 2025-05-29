@@ -212,7 +212,7 @@ intptr_t remote_call_setup(struct ezinj_ctx *ctx, struct call_req *call, regs_t 
 	memset(orig_ctx, 0x00, sizeof(*orig_ctx));
 
 	if(remote_getregs(ctx, orig_ctx) < 0){
-		PERROR("remote_getregs failed");
+		PERROR("remote_getregs failed (initial)");
 		return -1;
 	}
 	memcpy(new_ctx, orig_ctx, sizeof(*orig_ctx));
@@ -221,7 +221,13 @@ intptr_t remote_call_setup(struct ezinj_ctx *ctx, struct call_req *call, regs_t 
 		ERR("setregs_syscall failed");
 		return -1;
 	}
-	if(remote_setregs(ctx, new_ctx) < 0){
+
+	if(remote_use_remoting(ctx)){
+		if(remote_start_thread(ctx, new_ctx) < 0){
+			PERROR("remote_setregs failed");
+			return -1;
+		}
+	} else if(remote_setregs(ctx, new_ctx) < 0){
 		PERROR("remote_setregs failed");
 		return -1;
 	}
@@ -246,7 +252,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		return -1;
 	}
 
-	int wait = 0;
+	bool wait = false;
 	do {
 		#ifdef EZ_TARGET_WINDOWS
 		// hack
@@ -266,7 +272,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	#define SIGRTMIN 32
 		#define IS_IGNORED_SIG(x) ((x) == SIGCHLD || (x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
 
-		wait = 0;
+		wait = false;
 
 		int signal = WSTOPSIG(status);
 		DBG("signal: %d", signal);
@@ -276,10 +282,10 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		 * `pthread_create` and `pthread_join`
 		 * can work correctly
 		 */
-		if(call->syscall_mode == 0 && IS_IGNORED_SIG(signal)){
+		if(!call->syscall_mode && IS_IGNORED_SIG(signal)){
 			INFO("forwarding signal %d", signal);
 			remote_continue(ctx, signal);
-			wait = 1;
+			wait = true;
 		}
 	#endif
 	} while(wait);
@@ -307,39 +313,39 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	DBG("[RET] = %"PRIdPTR, call->rcall.result);
 #endif
 
-	if(remote_getregs(ctx, &new_ctx) < 0){
-		ERR("remote_getregs failed");
-		return -1;
-	}
-
-	/**
-	  * the payload is expected to use its own stack
-	  * so we don't restore stack in that case
-	  * because the stack could be unmapped
-	  */
-	if(call->syscall_mode){
-		DBG("restoring stack data");
-		if(remote_write(ctx,
-			call->backup_addr,
-			call->backup_data,
-			call->backup_size
-		) != call->backup_size){
-			ERR("failed to restore saved stack data");
+	if(!remote_use_remoting(ctx)){
+		if(remote_getregs(ctx, &new_ctx) < 0){
+			ERR("remote_getregs failed (restore)");
+			return -1;
 		}
-	}
 
-#ifndef HAVE_REMOTING
-	if(remote_setregs(ctx, &orig_ctx)){
-		PERROR("remote_setregs failed");
-	}
+		/**
+		 * the payload is expected to use its own stack
+		 * so we don't restore stack in that case
+		 * because the stack could be unmapped
+		 */
+		if(call->syscall_mode){
+			DBG("restoring stack data");
+			if(remote_write(ctx,
+				call->backup_addr,
+				call->backup_data,
+				call->backup_size
+			) != call->backup_size){
+				ERR("failed to restore saved stack data");
+			}
+		}
 
-#ifdef DEBUG
-	DBG("SP: %p", (void *)((uintptr_t)REG(new_ctx, REG_SP)));
-	DBG("PC: %p => %p",
-		(void *)call->insn_addr,
-		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
-#endif
-#endif
+		if(remote_setregs(ctx, &orig_ctx)){
+			PERROR("remote_setregs failed");
+		}
+
+		#ifdef DEBUG
+		DBG("SP: %p", (void *)((uintptr_t)REG(new_ctx, REG_SP)));
+		DBG("PC: %p => %p",
+			(void *)call->insn_addr,
+			(void *)((uintptr_t)REG(new_ctx, REG_PC)));
+		#endif
+	}
 
 	return call->rcall.result;
 }
@@ -397,7 +403,7 @@ struct ezinj_str ezstr_new(enum ezinj_str_id id, char *str, size_t *pSize){
  * @param ctx
  */
 static int libc_init_default(struct ezinj_ctx *ctx){
-	char *ignores[] = {"ld-", NULL};
+	const char *ignores[] = {"ld-", NULL};
 
 	/**
 	 * $FIXME: this code does not belong here.
@@ -426,8 +432,8 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 	}
 
 	ez_addr libc = {
-		.local  = (uintptr_t) get_base(getpid(), LIBC_SEARCH, ignores),
-		.remote = (uintptr_t) get_base(ctx->target, LIBC_SEARCH, ignores)
+		.local  = (uintptr_t) get_base(ctx, getpid(), LIBC_SEARCH, ignores),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, LIBC_SEARCH, ignores)
 	};
 
 	DBGPTR(libc.remote);
@@ -454,8 +460,8 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		 **/
 
 		ez_addr libdl = {
-			.local = (uintptr_t)get_base(getpid(), "libdl", NULL),
-			.remote = (uintptr_t)get_base(ctx->target, "libdl", NULL)
+			.local = (uintptr_t)get_base(ctx, getpid(), "libdl", NULL),
+			.remote = (uintptr_t)get_base(ctx, ctx->target, "libdl", NULL)
 		};
 		ctx->libdl = libdl;
 
@@ -572,9 +578,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 	// libdl.so name (without path)
-	PUSH_STRING(EZSTR_API_LIBDL, DL_LIBRARY_NAME);
+	PUSH_STRING(EZSTR_API_LIBDL, ctx->libdl_name);
 	// libpthread.so name (without path)
-	PUSH_STRING(EZSTR_API_LIBPTHREAD, PTHREAD_LIBRARY_NAME);
+	PUSH_STRING(EZSTR_API_LIBPTHREAD, ctx->libpthread_name);
 
 #if defined(EZ_TARGET_POSIX)
 	PUSH_STRING(EZSTR_API_DLERROR, "dlerror");
@@ -591,8 +597,33 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	PUSH_STRING(EZSTR_API_GET_EXIT_CODE_THREAD, "GetExitCodeThread");
 #endif
 
+char logPath[PATH_MAX];
+if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
+	// make sure the log file exists before we call realpath on it
+	FILE *fh = fopen(ctx->module_logfile, "a");
+	if(!fh){
+		ERR("fopen \"%s\" failed", ctx->module_logfile);
+		return NULL;
+	}
+	fclose(fh);
+
+#if defined(EZ_TARGET_POSIX)
+	if(!realpath(ctx->module_logfile, logPath)) {
+		ERR("realpath: %s", logPath);
+		PERROR("realpath");
+		return NULL;
+	}
+#elif defined(EZ_TARGET_WINDOWS)
+	{
+		GetFullPathNameA(ctx->module_logfile, sizeof(logPath), logPath, NULL);
+	}
+#endif
+} else {
+	strncpy(logPath, "", sizeof(logPath));
+}
+
 	PUSH_STRING(EZSTR_API_CRT_INIT, "crt_init");
-	PUSH_STRING(EZSTR_LOG_FILEPATH, ctx->module_logfile);
+	PUSH_STRING(EZSTR_LOG_FILEPATH, logPath);
 
 	// argv0
 	PUSH_STRING(EZSTR_ARGV0, libName);
@@ -645,7 +676,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 #ifdef EZ_TARGET_WINDOWS
+	br->CreateFileA = (void *)ctx->create_file.remote;
 	br->WriteFile = (void *)ctx->write_file.remote;
+	br->CloseHandle = (void *)ctx->close_handle.remote;
 	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
 	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
 	br->kernel32_base = ctx->libdl.remote;
@@ -825,7 +858,7 @@ int ezinject_main(
 	remote_sc_set(ctx, r_sc_elf);
 
 	// wait for a single syscall
-	ctx->syscall_mode = 1;
+	ctx->syscall_mode = true;
 
 	/* Verify that remote_call works correctly */
 	if(remote_sc_check(ctx) != 0){
@@ -893,7 +926,7 @@ int ezinject_main(
 		#endif
 
 		// switch to SIGSTOP wait mode
-		ctx->syscall_mode = 0;
+		ctx->syscall_mode = false;
 
 		/**
 		 * now that PL is available and mapped, we can use it
@@ -918,7 +951,7 @@ int ezinject_main(
 		PLAPI_SET(ctx, inj_fetchsym);
 		#undef PLAPI_SET
 
-		// when syscall_mode = 0, SC is skipped
+		// when syscall_mode = false, SC is skipped
 		INFO("target: calling payload at %p", pl->br_start);
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
 
@@ -930,7 +963,7 @@ int ezinject_main(
 		}
 
 		// restore syscall behavior (to call munmap, if needed by the target)
-		ctx->syscall_mode = 1;
+		ctx->syscall_mode = true;
 		ctx->pl_stack.remote = 0;
 		INFO("target: freeing payload memory");
 		remote_pl_free(ctx, remote_shm_ptr);
@@ -1006,16 +1039,13 @@ int main(int argc, char *argv[]){
 	ctx.target = strtoul(argPid, NULL, 10);
 	ctx.module_logfile = (char *)module_logfile;
 
+	ctx.libdl_name = DL_LIBRARY_NAME;
+	ctx.libpthread_name = PTHREAD_LIBRARY_NAME;
+
 	if(os_api_init(&ctx) != 0){
 		ERR("os_api_init() failed");
 		return 1;
 	}
-
-	if(libc_init(&ctx) != 0){
-		ERR("libc_init() failed");
-		return 1;
-	}
-	ctx.r_xpage_base = (uintptr_t)get_base(ctx.target, NULL, NULL);
 
 	INFO("Attaching to %"PRIuMAX, (uintmax_t)ctx.target);
 
@@ -1023,6 +1053,12 @@ int main(int argc, char *argv[]){
 		PERROR("remote_attach failed");
 		return 1;
 	}
+
+	if(libc_init(&ctx) != 0){
+		ERR("libc_init() failed");
+		return 1;
+	}
+	ctx.r_xpage_base = (uintptr_t)get_base(&ctx, ctx.target, NULL, NULL);
 
 	INFO("waiting for target to stop...");
 

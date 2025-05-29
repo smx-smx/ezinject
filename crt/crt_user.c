@@ -15,10 +15,11 @@ int crt_userinit(struct injcode_bearing *br){
 	result = lib_preinit(&br->user);
 	if(result != 0){
 		ERR("lib_preinit returned nonzero status %d, aborting...", result);
-	} else {
-		result = lib_main(br->argc, br->argv);
+		return result;
 	}
 
+	log_set_leave_open(br->user.persist);
+	result = lib_main(br->argc, br->argv);
 	DBG("lib_main returned: %d", result);
 
 	return result;
