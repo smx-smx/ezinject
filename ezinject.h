@@ -78,6 +78,8 @@ struct ezinj_ctx {
 	pid_t target;
 	uintptr_t r_xpage_base;
 	char *module_logfile;
+	const char *ldso_name;
+	const char *libc_name;
 	const char *libdl_name;
 	const char *libpthread_name;
 #ifdef EZ_TARGET_WINDOWS

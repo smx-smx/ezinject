@@ -55,7 +55,7 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char 
 		if(ignores != NULL){
 			bool skip = false;
 
-			char **listPtr = ignores;
+			const char **listPtr = ignores;
 			while(*listPtr != NULL){
 				if(strstr(path, *(listPtr++))){
 					// found a match in the ignores list, skip this entry

@@ -92,8 +92,8 @@ static void _init_stdout(){
 #endif
 #endif
 
-static char *crt_get_log_filepath(struct injcode_bearing *br){
-	char *log_path = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
+static const char *crt_get_log_filepath(struct injcode_bearing *br){
+	const char *log_path = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
 	if(strlen(log_path) > 0){
 		return log_path;
 	}
@@ -102,7 +102,7 @@ static char *crt_get_log_filepath(struct injcode_bearing *br){
 
 static void crt_loginit(struct injcode_bearing *br, log_config_t *cfg_out){
 	FILE *log_handle = stdout;
-	char *log_file_path = crt_get_log_filepath(br);
+	const char *log_file_path = crt_get_log_filepath(br);
 	if(log_file_path){
 		FILE *new_log_handle = fopen(log_file_path, "a");
 		if(new_log_handle){
@@ -163,7 +163,7 @@ WINAPI void *crt_user_entry(void *arg) {
 
 	struct ezinj_str *stbl = &BR_STRTBL(br)[EZSTR_ARGV0];
 	for(int i=0; i<br->argc; i++, stbl++){
-		*(dynPtr++) = stbl->str;
+		*(dynPtr++) = (char *)stbl->str;
 	}
 
 #ifdef DEBUG

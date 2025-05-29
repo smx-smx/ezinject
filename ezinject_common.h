@@ -68,10 +68,10 @@ enum ezinj_str_id {
 
 struct ezinj_str {
 	unsigned int id;
-	char *str;
+	const char *str;
 };
 
-#define BR_STRTBL(br) ((struct ezinj_str *)((char *)br + sizeof(*br) + (sizeof(char *) * br->argc)))
+#define BR_STRTBL(br) ((struct ezinj_str *)((const char *)br + sizeof(*br) + (sizeof(char *) * br->argc)))
 #define STR_DATA(entry) ((entry)->str)
 
 

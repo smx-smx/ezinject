@@ -23,9 +23,9 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 		return 1;
 	}
 
-	void *h_ldso = dlopen(DYN_LINKER_NAME, RTLD_LAZY);
+	void *h_ldso = dlopen(ctx->ldso_name, RTLD_LAZY);
 	if(!h_ldso){
-		ERR("dlopen("DYN_LINKER_NAME") failed: %s", dlerror());
+		ERR("dlopen(%s) failed: %s", ctx->ldso_name, dlerror());
 		return 1;
 	}
 
@@ -47,9 +47,9 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 
 	ctx->libc_dlopen = libc_dlopen;
 
-	void *h_libc = dlopen(C_LIBRARY_NAME, RTLD_LAZY);
+	void *h_libc = dlopen(ctx->libc_name, RTLD_LAZY);
 	if(!h_libc){
-		ERR("dlopen("C_LIBRARY_NAME") failed: %s", dlerror());
+		ERR("dlopen(%s) failed: %s", ctx->libc_name, dlerror());
 		return 1;
 	}
 

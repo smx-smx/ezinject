@@ -135,7 +135,7 @@ struct injcode_ctx;
 
 struct injcode_plapi {
 	void *(*inj_memset)(struct injcode_ctx *ctx, void *s, int c, size_t n);
-	void (*inj_puts)(struct injcode_ctx *ctx, char *str);
+	void (*inj_puts)(struct injcode_ctx *ctx, const char *str);
 	void (*inj_dchar)(struct injcode_ctx *ctx, char ch);
 	void (*inj_dbgptr)(struct injcode_ctx *ctx, void *ptr);
 	intptr_t (*inj_fetchsym)(struct injcode_ctx *ctx, enum ezinj_str_id str_id, void *handle, void **sym);
