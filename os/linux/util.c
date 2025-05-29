@@ -15,7 +15,7 @@ EZAPI os_api_init(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
+void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char **ignores) {
 	char line[256];
 	char path[128];
 	void *base;

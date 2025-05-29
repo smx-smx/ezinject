@@ -61,3 +61,11 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 	ptrace(PT_IO, ctx->target, (caddr_t)&iov, 0);
 	return iov.piod_len;
 }
+
+bool remote_is_remoting(struct ezinj_ctx *ctx){
+	return false;
+}
+
+EZAPI remote_start_thread(struct ezinj_ctx *ctx, regs_t *regs){
+	return -1;
+}

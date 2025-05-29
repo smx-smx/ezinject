@@ -81,4 +81,11 @@
 #define WINAPI
 #endif
 
+#ifdef EZ_TARGET_DARWIN
+#include <sys/mman.h>
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+#endif
+
 #endif

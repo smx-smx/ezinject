@@ -9,6 +9,7 @@
 #include <pthread.h>
 
 #include "ezinject.h"
+#include "ezinject_compat.h"
 #include "crt.h"
 #include "log.h"
 

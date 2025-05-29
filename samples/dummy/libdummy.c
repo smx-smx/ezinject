@@ -3,6 +3,10 @@
 
 #include "ezinject_module.h"
 
+#ifdef EZ_TARGET_DARWIN
+#include <crt_externs.h>
+#endif
+
 #ifdef USE_LH
 typedef int(*testFunc_t)(int arg1, int arg2);
 
@@ -93,6 +97,8 @@ void printenv() {
 #elif defined(EZ_TARGET_FREEBSD)
 	// workaround https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=265008
 	char **environ = (char **)dlsym(RTLD_DEFAULT, "environ");
+#elif defined(EZ_TARGET_DARWIN)
+	env = *_NSGetEnviron();
 #else
     extern char ** environ;
     env = environ;

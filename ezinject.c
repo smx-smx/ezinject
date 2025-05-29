@@ -221,7 +221,13 @@ intptr_t remote_call_setup(struct ezinj_ctx *ctx, struct call_req *call, regs_t 
 		ERR("setregs_syscall failed");
 		return -1;
 	}
-	if(remote_setregs(ctx, new_ctx) < 0){
+
+	if(remote_is_remoting(ctx)){
+		if(remote_start_thread(ctx, new_ctx) < 0){
+			PERROR("remote_setregs failed");
+			return -1;
+		}
+	} else if(remote_setregs(ctx, new_ctx) < 0){
 		PERROR("remote_setregs failed");
 		return -1;
 	}
@@ -307,40 +313,39 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	DBG("[RET] = %"PRIdPTR, call->rcall.result);
 #endif
 
-#ifndef HAVE_REMOTING
-
-	if(remote_getregs(ctx, &new_ctx) < 0){
-		ERR("remote_getregs failed (restore)");
-		return -1;
-	}
-
-	/**
-	  * the payload is expected to use its own stack
-	  * so we don't restore stack in that case
-	  * because the stack could be unmapped
-	  */
-	if(call->syscall_mode){
-		DBG("restoring stack data");
-		if(remote_write(ctx,
-			call->backup_addr,
-			call->backup_data,
-			call->backup_size
-		) != call->backup_size){
-			ERR("failed to restore saved stack data");
+	if(!remote_is_remoting(ctx)){
+		if(remote_getregs(ctx, &new_ctx) < 0){
+			ERR("remote_getregs failed (restore)");
+			return -1;
 		}
-	}
 
-	if(remote_setregs(ctx, &orig_ctx)){
-		PERROR("remote_setregs failed");
-	}
+		/**
+		 * the payload is expected to use its own stack
+		 * so we don't restore stack in that case
+		 * because the stack could be unmapped
+		 */
+		if(call->syscall_mode){
+			DBG("restoring stack data");
+			if(remote_write(ctx,
+				call->backup_addr,
+				call->backup_data,
+				call->backup_size
+			) != call->backup_size){
+				ERR("failed to restore saved stack data");
+			}
+		}
 
-#ifdef DEBUG
-	DBG("SP: %p", (void *)((uintptr_t)REG(new_ctx, REG_SP)));
-	DBG("PC: %p => %p",
-		(void *)call->insn_addr,
-		(void *)((uintptr_t)REG(new_ctx, REG_PC)));
-#endif
-#endif
+		if(remote_setregs(ctx, &orig_ctx)){
+			PERROR("remote_setregs failed");
+		}
+
+		#ifdef DEBUG
+		DBG("SP: %p", (void *)((uintptr_t)REG(new_ctx, REG_SP)));
+		DBG("PC: %p => %p",
+			(void *)call->insn_addr,
+			(void *)((uintptr_t)REG(new_ctx, REG_PC)));
+		#endif
+	}
 
 	return call->rcall.result;
 }
@@ -573,9 +578,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 	// libdl.so name (without path)
-	PUSH_STRING(EZSTR_API_LIBDL, DL_LIBRARY_NAME);
+	PUSH_STRING(EZSTR_API_LIBDL, ctx->libdl_name);
 	// libpthread.so name (without path)
-	PUSH_STRING(EZSTR_API_LIBPTHREAD, PTHREAD_LIBRARY_NAME);
+	PUSH_STRING(EZSTR_API_LIBPTHREAD, ctx->libpthread_name);
 
 #if defined(EZ_TARGET_POSIX)
 	PUSH_STRING(EZSTR_API_DLERROR, "dlerror");
@@ -1033,6 +1038,9 @@ int main(int argc, char *argv[]){
 	const char *argPid = argv[optind++];
 	ctx.target = strtoul(argPid, NULL, 10);
 	ctx.module_logfile = (char *)module_logfile;
+
+	ctx.libdl_name = DL_LIBRARY_NAME;
+	ctx.libpthread_name = PTHREAD_LIBRARY_NAME;
 
 	if(os_api_init(&ctx) != 0){
 		ERR("os_api_init() failed");

@@ -347,27 +347,30 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	PCALL(ctx, inj_dchar, 'e');
 
 	#ifdef EZ_TARGET_DARWIN
-	int thread_is_parent = br->tid == 0;
-	if(thread_is_parent){
-		PCALL(ctx, inj_dchar, 't');
+	bool thread_is_parent = false;
+	if(br->pthread_create_from_mach_thread){
+		thread_is_parent = br->tid == 0;
+		if(thread_is_parent){
+			PCALL(ctx, inj_dchar, 't');
 
-		sc->mach_thread = br->mach_thread_self();
+			sc->mach_thread = br->mach_thread_self();
 
-		// sc->trampoline.fn_addr
-		if(br->pthread_create_from_mach_thread(&br->tid, NULL, (void * (*)(void *))injected_fn, sc) != 0){
-			PCALL(ctx, inj_dchar, '!');
-			result = INJ_ERR_DARWIN_THREAD;
+			// sc->trampoline.fn_addr
+			if(br->pthread_create_from_mach_thread(&br->tid, NULL, (void * (*)(void *))injected_fn, sc) != 0){
+				PCALL(ctx, inj_dchar, '!');
+				result = INJ_ERR_DARWIN_THREAD;
+				goto pl_exit;
+			}
 			goto pl_exit;
-		}
-		goto pl_exit;
-	} else {
-		// detach ourselves to free resources
-		// (the parent can't do it because it has no TLS)
-		br->pthread_detach(br->pthread_self());
+		} else {
+			// detach ourselves to free resources
+			// (the parent can't do it because it has no TLS)
+			br->pthread_detach(br->pthread_self());
 
-		// kill the parent thread
-		// (the parent can't do it because it has no TLS within `thread_terminate`)
-		br->thread_terminate(sc->mach_thread);
+			// kill the parent thread
+			// (the parent can't do it because it has no TLS within `thread_terminate`)
+			br->thread_terminate(sc->mach_thread);
+		}
 	}
 	#endif
 

@@ -23,7 +23,7 @@ EZAPI os_api_init(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
+void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char **ignores) {
 	UNUSED(ignores);
 
 	DBG("pid: %zu", pid);
@@ -106,6 +106,7 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores) {
 				}
 			}
 
+			DBG("image %u: %s", i, image_name);
 			if(substr == NULL || strstr(image_name, substr) != NULL){
 				res = (void *)image->imageLoadAddress;
 				break;

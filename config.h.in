@@ -46,11 +46,4 @@
 #define HAVE_SHELLCODE
 #endif
 
-// platforms that can allocate memory and thread in remote processes
-// NOTE: this includes some versions of Windows (officially Windows XP+).
-// since we want to support Windows 9X and older NTOS versions, we explicitly don't list it here
-#if (defined(EZ_TARGET_DARWIN))
-#define HAVE_REMOTING
-#endif
-
 #endif

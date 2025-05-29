@@ -78,6 +78,8 @@ struct ezinj_ctx {
 	pid_t target;
 	uintptr_t r_xpage_base;
 	char *module_logfile;
+	char *libdl_name;
+	char *libpthread_name;
 #ifdef EZ_TARGET_WINDOWS
 	int wait_call_seq;
 	DEBUG_EVENT ev;
@@ -214,6 +216,8 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs);
 EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal);
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size);
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
+bool remote_is_remoting(struct ezinj_ctx *ctx);
+EZAPI remote_start_thread(struct ezinj_ctx *ctx, regs_t *regs);
 
 /** injection api **/
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size);
@@ -234,5 +238,5 @@ uintptr_t remote_sc_get_trap_stop();
 /** libc/util api **/
 EZAPI os_api_init(struct ezinj_ctx *ctx);
 EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx);
-void *get_base(struct ezinj_ctx *ctx, pid_t pid, char *substr, char **ignores);
+void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char **ignores);
 #endif
