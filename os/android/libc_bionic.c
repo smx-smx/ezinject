@@ -100,7 +100,7 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	DBGPTR(linker.local);
 	DBGPTR(linker.remote);
 	if(!linker.local || !linker.remote){
-		ERR("Cannot find linker %s" ctx->ldso_name);
+		ERR("Cannot find linker %s", ctx->ldso_name);
 		return -1;
 	}
 
