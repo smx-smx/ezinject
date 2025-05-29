@@ -441,7 +441,7 @@ EZAPI remote_sc_check(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-bool remote_is_remoting(struct ezinj_ctx *ctx){
+bool remote_use_remoting(struct ezinj_ctx *ctx){
 	return false;
 }
 

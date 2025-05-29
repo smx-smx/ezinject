@@ -80,7 +80,7 @@ EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
 
 
 EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
-	if(remote_is_remoting(ctx)){
+	if(remote_use_remoting(ctx)){
 		return -1;
 	}
 
@@ -152,7 +152,7 @@ EZAPI remote_sc_check(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-bool remote_is_remoting(struct ezinj_ctx *ctx){
+bool remote_use_remoting(struct ezinj_ctx *ctx){
 	return ctx->pthread_create_from_mach_thread.local != 0;
 }
 

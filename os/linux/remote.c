@@ -84,7 +84,7 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 	return written;
 }
 
-bool remote_is_remoting(struct ezinj_ctx *ctx){
+bool remote_use_remoting(struct ezinj_ctx *ctx){
 	return false;
 }
 

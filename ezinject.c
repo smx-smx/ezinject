@@ -222,7 +222,7 @@ intptr_t remote_call_setup(struct ezinj_ctx *ctx, struct call_req *call, regs_t 
 		return -1;
 	}
 
-	if(remote_is_remoting(ctx)){
+	if(remote_use_remoting(ctx)){
 		if(remote_start_thread(ctx, new_ctx) < 0){
 			PERROR("remote_setregs failed");
 			return -1;
@@ -313,7 +313,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 	DBG("[RET] = %"PRIdPTR, call->rcall.result);
 #endif
 
-	if(!remote_is_remoting(ctx)){
+	if(!remote_use_remoting(ctx)){
 		if(remote_getregs(ctx, &new_ctx) < 0){
 			ERR("remote_getregs failed (restore)");
 			return -1;

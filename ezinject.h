@@ -216,7 +216,7 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs);
 EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal);
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size);
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size);
-bool remote_is_remoting(struct ezinj_ctx *ctx);
+bool remote_use_remoting(struct ezinj_ctx *ctx);
 EZAPI remote_start_thread(struct ezinj_ctx *ctx, regs_t *regs);
 
 /** injection api **/
