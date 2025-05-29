@@ -25,7 +25,9 @@
 typedef intptr_t nint;
 typedef uintptr_t nuint;
 
+#ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
 
 #define ALIGN(x, y) VPTR((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y))
 #define WORDALIGN(x) ALIGN(x, sizeof(void *))
