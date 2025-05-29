@@ -78,8 +78,8 @@ struct ezinj_ctx {
 	pid_t target;
 	uintptr_t r_xpage_base;
 	char *module_logfile;
-	char *libdl_name;
-	char *libpthread_name;
+	const char *libdl_name;
+	const char *libpthread_name;
 #ifdef EZ_TARGET_WINDOWS
 	int wait_call_seq;
 	DEBUG_EVENT ev;

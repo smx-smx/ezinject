@@ -15,14 +15,8 @@
 
 const char *libsystem_b_name = "libSystem.B.dylib";
 
-static bool dynlinker_is_monolithic(struct ezinj_ctx *ctx){
-	return get_base(ctx, getpid(), libsystem_b_name, NULL) != 0;
-}
-
 static EZAPI _resolve_kernel(struct ezinj_ctx *ctx){
-	const char *libkernel_name = dynlinker_is_monolithic(ctx)
-		? libsystem_b_name
-		: "libsystem_kernel";
+	const char *libkernel_name = libsystem_b_name;
 
 	ez_addr kernel = {
 		.local = (uintptr_t) get_base(ctx, getpid(), libkernel_name, NULL),
@@ -66,9 +60,7 @@ static EZAPI _resolve_kernel(struct ezinj_ctx *ctx){
 }
 
 static EZAPI _resolve_pthread(struct ezinj_ctx *ctx){
-	const char *libpthread_name = dynlinker_is_monolithic(ctx)
-		? libsystem_b_name
-		: "libsystem_pthread";
+	const char *libpthread_name = libsystem_b_name;
 
 	ez_addr pthread = {
 		.local = (uintptr_t) get_base(ctx, getpid(), libpthread_name, NULL),
@@ -121,9 +113,7 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 		return -1;
 	}
 
-	const char *dynlinker_name = dynlinker_is_monolithic(ctx)
-		? libsystem_b_name
-		: "libdyld.dylib";
+	const char *dynlinker_name = libsystem_b_name;
 
 	ez_addr linker = {
 		.local  = (uintptr_t) get_base(ctx, getpid(), dynlinker_name, NULL),
