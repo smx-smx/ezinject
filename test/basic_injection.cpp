@@ -105,7 +105,7 @@ int run_on_return1(void *state, void *arg){
 	UNUSED(arg);
 
 	struct test_state *ctx = (struct test_state *)state;
-	char *cmd = asprintf_ex("%s %" PRIdMAX " %s 1 2 3 4 5 6", ctx->ezinject, (intmax_t)ctx->pid, ctx->library);
+	char *cmd = asprintf_ex("\"%s\" %" PRIdMAX " \"%s\" 1 2 3 4 5 6", ctx->ezinject, (intmax_t)ctx->pid, ctx->library);
 	printf("[+] running ezinject: %s\n", cmd);
 	ctx->ezinjectRunner = std::thread([=](){
 		system(cmd);
@@ -116,7 +116,9 @@ int run_on_return1(void *state, void *arg){
 }
 
 int run(struct test_state *ctx){
-	FILE *hTarget = popen(ctx->target, "r");
+	char *cmd = asprintf_ex("\"%s\"", ctx->target);
+	FILE *hTarget = popen(cmd, "r");
+	free(cmd);
 	if(!hTarget){
 		return -1;
 	}
