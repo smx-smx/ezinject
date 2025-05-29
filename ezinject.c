@@ -403,7 +403,7 @@ struct ezinj_str ezstr_new(enum ezinj_str_id id, char *str, size_t *pSize){
  * @param ctx
  */
 static int libc_init_default(struct ezinj_ctx *ctx){
-	char *ignores[] = {"ld-", NULL};
+	const char *ignores[] = {"ld-", NULL};
 
 	/**
 	 * $FIXME: this code does not belong here.
