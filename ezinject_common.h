@@ -30,8 +30,11 @@ typedef uintptr_t nuint;
 #endif
 
 #define ALIGN(x, y) VPTR((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y))
+#define ALIGN_DOWN(x, y) VPTR((UPTR(x) & ~ALIGNMSK(y)))
 #define WORDALIGN(x) ALIGN(x, sizeof(void *))
 #define PAGEALIGN(x)  ALIGN(x, getpagesize())
+#define PAGEALIGN_DOWN(x) ALIGN_DOWN(x, getpagesize())
+#define ROUND_UP(a, b) (((a) + (b) - 1) / (b))
 
 #define VPTR(x) ((void *)(x))
 #define UPTR(x) ((uintptr_t)(x))

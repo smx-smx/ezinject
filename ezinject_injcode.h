@@ -15,6 +15,7 @@
 #include <pthread.h>
 
 #include "config.h"
+#include "ezinject_compat.h"
 
 #ifdef EZ_TARGET_WINDOWS
 #include "os/windows/InjLib/Struct.h"
@@ -36,16 +37,6 @@
 
 #define EZAPI intptr_t
 
-#ifdef EZ_TARGET_DARWIN
-#define SECTION(X) __attribute__((section("__DATA,__" X)))
-#define SECTION_START(X) __asm("section$start$__DATA$__" X)
-#define SECTION_END(X) __asm("section$end$__DATA$__" X)
-#else
-#define SECTION(X) __attribute__((section(X)))
-#define SECTION_START(X)
-#define SECTION_END(X)
-#endif
-
 #define PLAPI SECTION("payload")
 #define SCAPI SECTION("syscall")
 
@@ -53,20 +44,6 @@
 
 // temporary stack size
 #define PL_STACK_SIZE 1024 * 1024 * 2
-
-#if defined(EZ_TARGET_DARWIN) || (defined(EZ_TARGET_WINDOWS) && defined(EZ_ARCH_I386))
-#define LABEL_PREFIX "_"
-#else
-#define LABEL_PREFIX
-#endif
-#define EMIT_LABEL(name) \
-	asm volatile( \
-		".globl "LABEL_PREFIX name"\n" \
-		LABEL_PREFIX name":\n" \
-	)
-
-
-#define INLINE static inline __attribute__((always_inline))
 
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 #include <elf.h>

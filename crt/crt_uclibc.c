@@ -37,7 +37,7 @@ void uclibc_fixup_pthread(){
 	}
 
 	// once we have initialized, overwrite the function with a return
-	void *ptrPage = PAGEALIGN(pfnInitializer);
+	void *ptrPage = PAGEALIGN_DOWN(pfnInitializer);
 	size_t pageSize = getpagesize();
 	if(mprotect(ptrPage, pageSize, PROT_READ | PROT_WRITE | PROT_EXEC) < 0){
 		PERROR("mprotect");
