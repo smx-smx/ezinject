@@ -41,15 +41,15 @@ struct inj_unload_call {
 #elif defined(EZ_TARGET_WINDOWS)
     HANDLE caller_thread;
     HANDLE cond;
-    BOOL WINAPI (*CloseHandle)(HANDLE hObject);
+    WINBOOL WINAPI (*CloseHandle)(HANDLE hObject);
     DWORD WINAPI (*WaitForSingleObject)(
         HANDLE hHandle,
         DWORD  dwMilliseconds
     );
     WINBOOL WINAPI (*FreeLibrary)(HMODULE hLibModule);
     VOID WINAPI (*ExitThread)(DWORD dwExitCode);
-    BOOL WINAPI (*SetEvent)(HANDLE hEvent);
-    BOOL WINAPI (*VirtualProtect)(
+    WINBOOL WINAPI (*SetEvent)(HANDLE hEvent);
+    WINBOOL WINAPI (*VirtualProtect)(
         LPVOID lpAddress,
         SIZE_T dwSize,
         DWORD  flNewProtect,

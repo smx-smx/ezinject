@@ -142,7 +142,7 @@ struct injcode_call {
         DWORD flAllocationType,
         DWORD flProtect
     );
-	BOOL WINAPI (*VirtualFree)(
+	WINBOOL WINAPI (*VirtualFree)(
 		LPVOID lpAddress,
 		SIZE_T dwSize,
 		DWORD dwFreeType
@@ -272,14 +272,14 @@ struct injcode_bearing
 		DWORD                 dwFlagsAndAttributes,
 		HANDLE                hTemplateFile
 	);
-	BOOL WINAPI (*WriteFile)(
+	WINBOOL WINAPI (*WriteFile)(
 		HANDLE       hFile,
 		LPCVOID      lpBuffer,
 		DWORD        nNumberOfBytesToWrite,
 		LPDWORD      lpNumberOfBytesWritten,
 		LPOVERLAPPED lpOverlapped
 	);
-	BOOL (*CloseHandle)(
+	WINBOOL (*CloseHandle)(
 		HANDLE hObject
 	);
 	NTSTATUS NTAPI (*LdrRegisterDllNotification)(
@@ -291,7 +291,7 @@ struct injcode_bearing
 	NTSTATUS NTAPI (*LdrUnregisterDllNotification)(
   		PVOID Cookie
 	);
-	BOOL WINAPI (*AllocConsole)(void);
+	WINBOOL WINAPI (*AllocConsole)(void);
 	uintptr_t ntdll_base;
 	uintptr_t kernel32_base;
 #endif
