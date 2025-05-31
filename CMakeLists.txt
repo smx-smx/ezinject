@@ -433,14 +433,13 @@ add_executable(ezinject)
 
 set(EZINJECT_TARGET ezinject)
 
-add_subdirectory(os)
-
 add_library(ezinject_util
 	ezinject_util.c ezinject_util.h)
 add_library(ezinject_log log.c)
 
 # TODO: cross platform
 if(EZ_TARGET_LINUX)
+	add_library(elfparse elfparse.c elfparse.h)
 	add_executable(ezpatch
 		elfparse.c elfparse.h
 		ezpatch.c
@@ -456,6 +455,8 @@ if(EZ_TARGET_LINUX)
 		EXPORT ${ezinject_target_export}
 	)
 endif()
+
+add_subdirectory(os)
 
 target_sources(ezinject PRIVATE 
 	ezinject.c
