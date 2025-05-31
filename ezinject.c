@@ -360,7 +360,10 @@ intptr_t remote_call(
 		.insn_addr = ctx->entry_insn.remote,
 		.stack_addr = ctx->pl_stack.remote,
 		.syscall_mode = ctx->syscall_mode,
-		.argmask = argmask
+		.argmask = argmask,
+		.backup_data = NULL,
+		.backup_size = 0,
+		.backup_addr = 0
 	};
 	DBG("=====================");
 
@@ -371,7 +374,11 @@ intptr_t remote_call(
 		call.argv[i] = (CALL_HAS_ARG(call, i)) ? va_arg(ap, uintptr_t) : 0;
 	}
 
-	return remote_call_common(ctx, &call);
+	intptr_t rc = remote_call_common(ctx, &call);
+	if(call.backup_addr){
+		free(call.backup_data);
+	}
+	return rc;
 }
 
 struct ezinj_str ezstr_new(enum ezinj_str_id id, const char *str, size_t *pSize){
@@ -534,6 +541,8 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	struct ezinj_strings strings = {
 		.dyn_str_size = 0,
 		.num_strings = EZSTR_MAX_DEFAULT,
+		.args = NULL,
+		.argsLim = 0
 	};
 
 	{
@@ -549,7 +558,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 	intptr_t rc = -1;
 #define PUSH_STRING(id, str) \
-	if((rc=push_string(&strings, id, str)) < 0) return NULL;
+	if((rc=push_string(&strings, id, str)) < 0) goto end;
 
 #ifdef EZ_TARGET_LINUX
 	off_t pl_filename_offset = strings.dyn_str_size;
@@ -635,20 +644,22 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	size_t dyn_entries_size = strings.num_strings * sizeof(struct ezinj_str);
 	size_t dyn_total_size = dyn_ptr_size + dyn_entries_size + strings.dyn_str_size;
 	size_t mapping_size = create_layout(ctx, dyn_total_size, &ctx->pl);
-
-	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
-	memset(br, 0x00, sizeof(*br));
-
-	if(!br){
-		free(strings.args);
-		PERROR("malloc");
+	if(mapping_size == 0){
+		ERR("create_layout failed");
 		return NULL;
 	}
+
+	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
+	if(!br){
+		PERROR("malloc");
+		goto end;
+	}
+
+	memset(br, 0x00, sizeof(*br));
 	br->mapping_size = mapping_size;
-
 	br->pl_debug = ctx->pl_debug;
-
 	br->libdl_handle = (void *)ctx->libdl.remote;
+
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	br->uclibc_sym_tables = (void *)ctx->uclibc_sym_tables.remote;
 	br->uclibc_dl_fixup = (void *)ctx->uclibc_dl_fixup.remote;
@@ -722,6 +733,8 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 		strtbl_off += str_sz;
 	}
 
+
+end:
 #ifdef EZ_TARGET_LINUX
 	free(pl_filename);
 #endif
@@ -735,7 +748,9 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 	// copy code
 	memcpy(ctx->pl.code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
-	free(strings.args);
+	if(strings.args){
+		free(strings.args);
+	}
 	return br;
 }
 
@@ -755,6 +770,10 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 	DBG("mapping_size=%zu", mapping_size);
 
 	void *mapped_mem = calloc(1, mapping_size);
+	if(!mapped_mem){
+		PERROR("calloc");
+		return 0;
+	}
 
 	ctx->mapped_mem.local = (uintptr_t)mapped_mem;
 
