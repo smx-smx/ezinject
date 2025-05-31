@@ -29,6 +29,7 @@
 #endif
 
 #include "ezinject_module.h"
+#include "log.h"
 
 #undef MAX
 #undef MIN

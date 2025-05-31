@@ -19,6 +19,7 @@
 
 #include "ezinject_module.h"
 #include "util.h"
+#include "log.h"
 
 #define DEBUG
 

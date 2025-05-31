@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "ezinject_module.h"
+#include "log.h"
 
 #ifdef EZ_TARGET_DARWIN
 #include <crt_externs.h>

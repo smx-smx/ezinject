@@ -7,6 +7,7 @@
 
 extern "C" {
 	#include "ezinject_module.h"
+	#include "log.h"
 }
 
 

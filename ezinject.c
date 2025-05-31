@@ -46,6 +46,8 @@
 #include "os/windows/util.h"
 #endif
 
+#include "log.h"
+
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
 ez_region region_pl_code = {

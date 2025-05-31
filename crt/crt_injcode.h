@@ -20,6 +20,7 @@ extern uint8_t __start_crtpayload SECTION_START("crtpayload");
 extern uint8_t __stop_crtpayload SECTION_END("crtpayload");
 
 #if defined(EZ_TARGET_POSIX)
+#include <pthread.h>
 #include <sys/mman.h>
 #elif defined(EZ_TARGET_WINDOWS)
 #include <windows.h>

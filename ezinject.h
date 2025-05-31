@@ -25,7 +25,6 @@
 #include <mach/mach.h>
 #endif
 
-#include "log.h"
 #include "ezinject_injcode.h"
 
 typedef struct {
