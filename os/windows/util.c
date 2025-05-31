@@ -316,3 +316,19 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char 
 		return get_base_toolhelp(pid, substr, ignores);
 	}
 }
+
+char *os_realpath(const char *path){
+	DWORD nChars = GetFullPathNameA(path, 0, NULL, NULL);
+	if(nChars == 0){
+		PERROR("GetFullPathNameA");
+		return NULL;
+	}
+	char *buffer = malloc(nChars + 1);
+	buffer[nChars] = '\0';
+	if(GetFullPathNameA(path, nChars, buffer, NULL) == 0){
+		PERROR("GetFullPathNameA");
+		free(buffer);
+		return NULL;
+	}
+	return buffer;
+}

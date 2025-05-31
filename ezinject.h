@@ -56,6 +56,13 @@ struct ezinj_pl {
 	uint8_t *stack_top;
 };
 
+struct ezinj_strings {
+	struct ezinj_str *args;
+	unsigned num_strings;
+	unsigned argsLim;
+	size_t dyn_str_size;
+};
+
 struct ezinj_ctx;
 
 #define PL_REMOTE(ctx, addr) (ctx->mapped_mem.remote + PTRDIFF(addr, ctx->mapped_mem.local))

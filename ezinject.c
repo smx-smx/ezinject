@@ -510,49 +510,49 @@ int libc_init(struct ezinj_ctx *ctx){
 }
 
 int push_string(
+	struct ezinj_strings *strings,
 	enum ezinj_str_id str_id,
-	struct ezinj_str **pArgs,
-	unsigned *num_strings, unsigned *capacity,
-	size_t *dyn_str_size,
 	const char *str
 ){
-	unsigned index = MAX(str_id, *num_strings);
-	if(index >= *capacity){
+	unsigned index = MAX(str_id, strings->num_strings);
+	if(index >= strings->argsLim){
 		// insert index + 128 new items
-		*capacity = index + 128;
-		*pArgs = realloc(*pArgs, sizeof(struct ezinj_str) * *capacity);
-		if(*pArgs == NULL){
+		strings->argsLim = index + 128;
+		strings->args = realloc(strings->args, sizeof(struct ezinj_str) * strings->argsLim);
+		if(strings->args == NULL){
 			PERROR("realloc");
 			return -1;
 		}
 	}
 	size_t str_size = 0;
-	(*pArgs)[str_id] = ezstr_new(str_id, str, &str_size);
-	*dyn_str_size += str_size;
+	strings->args[str_id] = ezstr_new(str_id, str, &str_size);
+	strings->dyn_str_size += str_size;
 	return 0;
 }
 
 struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *argv[]){
-	size_t dyn_ptr_size = argc * sizeof(char *);
-	size_t dyn_str_size = 0;
+	struct ezinj_strings strings = {
+		.dyn_str_size = 0,
+		.num_strings = EZSTR_MAX_DEFAULT,
+	};
 
-	unsigned argsLim = 128;
-	struct ezinj_str *args = calloc(argsLim, sizeof(struct ezinj_str));
-	if(!args){
-		PERROR("calloc");
-		return NULL;
+	{
+		unsigned argsLim = 128;
+		struct ezinj_str *args = calloc(argsLim, sizeof(struct ezinj_str));
+		if(!args){
+			PERROR("calloc");
+			return NULL;
+		}
+		strings.args = args;
+		strings.argsLim = argsLim;
 	}
 
-	unsigned num_strings = EZSTR_MAX_DEFAULT;
-
-#define PUSH_STRING(id, str) do { \
-	if(push_string(id, &args, &num_strings, &argsLim, &dyn_str_size, str) < 0) { \
-		return NULL; \
-	} \
-} while(0)
+	intptr_t rc = -1;
+#define PUSH_STRING(id, str) \
+	if((rc=push_string(&strings, id, str)) < 0) return NULL;
 
 #ifdef EZ_TARGET_LINUX
-	off_t pl_filename_offset = dyn_str_size;
+	off_t pl_filename_offset = strings.dyn_str_size;
 	/**
 	 * construct tempory payload filename
 	 * yes, we use tempnam as we don't know
@@ -568,18 +568,11 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 	// library to load
-	char libName[PATH_MAX];
-#if defined(EZ_TARGET_POSIX)
-	if(!realpath(argv[0], libName)) {
-		ERR("realpath: %s", libName);
-		PERROR("realpath");
+	char *libName = os_realpath(argv[0]);
+	if(!libName){
+		ERR("realpath(%s) failed", argv[0]);
 		return NULL;
 	}
-#elif defined(EZ_TARGET_WINDOWS)
-	{
-		GetFullPathNameA(argv[0], sizeof(libName), libName, NULL);
-	}
-#endif
 
 	// libdl.so name (without path)
 	PUSH_STRING(EZSTR_API_LIBDL, ctx->libdl_name);
@@ -601,30 +594,27 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	PUSH_STRING(EZSTR_API_GET_EXIT_CODE_THREAD, "GetExitCodeThread");
 #endif
 
-char logPath[PATH_MAX];
-if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
-	// make sure the log file exists before we call realpath on it
-	FILE *fh = fopen(ctx->module_logfile, "a");
-	if(!fh){
-		ERR("fopen \"%s\" failed", ctx->module_logfile);
-		return NULL;
-	}
-	fclose(fh);
+	char *logPath = NULL;
 
-#if defined(EZ_TARGET_POSIX)
-	if(!realpath(ctx->module_logfile, logPath)) {
-		ERR("realpath: %s", logPath);
-		PERROR("realpath");
-		return NULL;
+	if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
+		// make sure the log file exists before we call realpath on it
+		FILE *fh = fopen(ctx->module_logfile, "a");
+		if(!fh){
+			ERR("fopen \"%s\" failed", ctx->module_logfile);
+			return NULL;
+		}
+		fclose(fh);
+
+		char *logPath = os_realpath(ctx->module_logfile);
+		if(!logPath){
+			ERR("realpath(%s) failed", ctx->module_logfile);
+			return NULL;
+		}
+	
+		PUSH_STRING(EZSTR_LOG_FILEPATH, logPath);
+	} else {
+		PUSH_STRING(EZSTR_LOG_FILEPATH, "");
 	}
-#elif defined(EZ_TARGET_WINDOWS)
-	{
-		GetFullPathNameA(ctx->module_logfile, sizeof(logPath), logPath, NULL);
-	}
-#endif
-} else {
-	strncpy(logPath, "", sizeof(logPath));
-}
 
 	PUSH_STRING(EZSTR_API_CRT_INIT, "crt_init");
 	PUSH_STRING(EZSTR_LOG_FILEPATH, logPath);
@@ -635,21 +625,22 @@ if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
 	// user arguments
 	for(int i=1; i < argc; i++){
 		PUSH_STRING(EZSTR_ARGV0+i, argv[i]);
-		++num_strings;
+		++strings.num_strings;
 	}
 
 
 #undef PUSH_STRING
 
-	size_t dyn_entries_size = num_strings * sizeof(struct ezinj_str);
-	size_t dyn_total_size = dyn_ptr_size + dyn_entries_size + dyn_str_size;
+	size_t dyn_ptr_size = argc * sizeof(char *);
+	size_t dyn_entries_size = strings.num_strings * sizeof(struct ezinj_str);
+	size_t dyn_total_size = dyn_ptr_size + dyn_entries_size + strings.dyn_str_size;
 	size_t mapping_size = create_layout(ctx, dyn_total_size, &ctx->pl);
 
 	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
 	memset(br, 0x00, sizeof(*br));
 
 	if(!br){
-		free(args);
+		free(strings.args);
 		PERROR("malloc");
 		return NULL;
 	}
@@ -706,7 +697,7 @@ if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
 
 	br->argc = argc;
 	br->dyn_total_size = dyn_total_size;
-	br->num_strings = num_strings;
+	br->num_strings = strings.num_strings;
 #ifdef EZ_TARGET_LINUX
 	br->pl_filename_offset = pl_filename_offset;
 #endif
@@ -716,17 +707,17 @@ if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
 
 	struct ezinj_str *pEntries = (struct ezinj_str *)stringEntries;
 	size_t strtbl_off = 0;
-	for(unsigned i=0; i<num_strings; i++){
-		pEntries->id = args[i].id;
+	for(unsigned i=0; i<strings.num_strings; i++){
+		pEntries->id = strings.args[i].id;
 		// store the current string offset. it will rebased by injcode
 		pEntries->str = (char *)strtbl_off;
 		++pEntries;
 
-		if(!args[i].str){
+		if(!strings.args[i].str){
 			continue;
 		}
-		size_t str_sz = STRSZ(args[i].str);
-		memcpy(stringData, args[i].str, str_sz);
+		size_t str_sz = STRSZ(strings.args[i].str);
+		memcpy(stringData, strings.args[i].str, str_sz);
 		stringData += str_sz;
 		strtbl_off += str_sz;
 	}
@@ -735,9 +726,16 @@ if(ctx->module_logfile && strlen(ctx->module_logfile) > 0){
 	free(pl_filename);
 #endif
 
+	if(libName){
+		free(libName);
+	}
+	if(logPath){
+		free(logPath);
+	}
+
 	// copy code
 	memcpy(ctx->pl.code_start, region_pl_code.start, REGION_LENGTH(region_pl_code));
-	free(args);
+	free(strings.args);
 	return br;
 }
 
