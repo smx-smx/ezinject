@@ -467,10 +467,6 @@ target_link_libraries(ezinject
 	ezinject_log
 	ezinject_util)
 
-if(EZ_TARGET_FREEBSD)
-	target_link_libraries(ezinject procstat)
-endif()
-
 if(ENABLE_STATIC)
 	target_link_options(ezinject PRIVATE -static)
 endif()
