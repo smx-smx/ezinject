@@ -41,6 +41,6 @@ struct inj_unload_call {
 };
 
 void CPLAPI crt_inj_unload(struct inj_unload_call *call);
-void CPLAPI crt_inj_unload2(struct inj_unload_call *call);
+void CPLAPI crt_inj_unload2(struct inj_unload_call *call, struct inj_unload_call *parent);
 
 #endif

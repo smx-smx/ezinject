@@ -14,7 +14,15 @@
 #include <sys/mman.h>
 #include <dlfcn.h>
 
-void CPLAPI crt_inj_unload2(struct inj_unload_call *call){
+void CPLAPI crt_inj_unload2(struct inj_unload_call *call, struct inj_unload_call *parent){
+    // we must use the parent stack variables here
+	call->pthread_mutex_lock(&parent->mutex);
+	{
+		parent->relocated = true;
+		call->pthread_cond_signal(&parent->cond);
+	}
+	call->pthread_mutex_unlock(&parent->mutex);
+
     // wait for the caller thread to perform cleanup and exit
     call->pthread_join(call->caller_tid, NULL);
     call->dlclose(call->lib_handle);
@@ -31,14 +39,6 @@ void CPLAPI crt_inj_unload(struct inj_unload_call *call_req){
     uint8_t code[call->code_size];
     call->memcpy(code, call->code, call->code_size);
 
-    // we must use the parent stack variables here
-	call->pthread_mutex_lock(&call_req->mutex);
-	{
-		call_req->relocated = true;
-		call->pthread_cond_signal(&call_req->cond);
-	}
-	call->pthread_mutex_unlock(&call_req->mutex);
-
     void *codePageStart = ALIGN_DOWN(&code, call->pagesize);
 	void *codePageEnd = ALIGN(PTRADD(codePageStart, call->code_size), call->pagesize);
 	if(call->mprotect(codePageStart,
@@ -48,8 +48,8 @@ void CPLAPI crt_inj_unload(struct inj_unload_call *call_req){
         return;
     }
 
-    void (*stage2)(struct inj_unload_call *) = (void *)(&code[call->stage2_offset]);
+    void (*stage2)(struct inj_unload_call *, struct inj_unload_call *) = (void *)(&code[call->stage2_offset]);
     // should never return
-    stage2(call);
+    stage2(call, call_req);
 }
 
