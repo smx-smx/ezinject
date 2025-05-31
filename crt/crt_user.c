@@ -112,7 +112,7 @@ int lib_unload_prepare(){
 	}
 	pthread_mutex_unlock(&call->mutex);
 #elif defined(EZ_TARGET_WINDOWS)
-	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)pfnUnload, NULL, 0, NULL);
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)pfnUnload, call, 0, NULL);
 	WaitForSingleObject(call->cond, INFINITE);
 #endif
 
