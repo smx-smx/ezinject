@@ -12,8 +12,6 @@
 #include "crt_injcode.h"
 #include "ezinject.h"
 
-#include <sys/mman.h>
-
 #include <signal.h>
 #include <pthread.h>
 
@@ -34,9 +32,29 @@ int lib_unload_prepare(){
 	size_t code_size = REGION_LENGTH(region_crtpl_code);
     memcpy(code, region_crtpl_code.start, sizeof(code));
 
-	void *codePageStart = PAGEALIGN_DOWN(&code);
-	void *codePageEnd = PAGEALIGN(PTRADD(codePageStart, sizeof(code)));
+	size_t pagesize = 0;
+	#ifdef EZ_TARGET_WINDOWS
+	SYSTEM_INFO sysInfo;
+	GetSystemInfo(&sysInfo);
+	pagesize = sysInfo.dwPageSize;
+	#else
+	pagesize = getpagesize();
+	#endif
 
+	void *codePageStart = ALIGN_DOWN(&code, pagesize);
+	void *codePageEnd = ALIGN(PTRADD(codePageStart, sizeof(code)), pagesize);
+
+	#ifdef EZ_TARGET_WINDOWS
+	DWORD oldProtect;
+	if(!VirtualProtect(codePageStart,
+		PTRDIFF(codePageEnd, codePageStart),
+		PAGE_EXECUTE_READWRITE,
+		&oldProtect
+	)){
+		PERROR("VirtualProtect");
+		return -1;
+	}
+	#else
 	if(mprotect(codePageStart,
 		PTRDIFF(codePageEnd, codePageStart),
 		PROT_READ | PROT_WRITE | PROT_EXEC
@@ -44,25 +62,37 @@ int lib_unload_prepare(){
         PERROR("mprotect");
 		return -1;
     }
+	#endif
 
 	struct inj_unload_call *call = &unload_call;
 
 	call->lib_handle = crt_userlib_handle;
+	#ifdef EZ_TARGET_WINDOWS
+	call->FreeLibrary = &FreeLibrary;
+	call->ExitThread = &ExitThread;
+	call->SetEvent = &SetEvent;
+	call->VirtualProtect = &VirtualProtect;
+	call->WaitForSingleObject = &WaitForSingleObject;
+	call->CloseHandle = &CloseHandle;
+	call->caller_thread = OpenThread(SYNCHRONIZE, FALSE, GetCurrentThreadId());
+	call->cond = CreateEvent(NULL, TRUE, FALSE, NULL);
+	#else
 	call->dlclose = &dlclose;
 	call->pthread_exit = &pthread_exit;
 	call->pthread_mutex_lock = &pthread_mutex_lock;
 	call->pthread_mutex_unlock = &pthread_mutex_unlock;
 	call->pthread_cond_wait = &pthread_cond_wait;
+	call->pthread_cond_signal = &pthread_cond_signal;
 	call->pthread_join = &pthread_join;
 	call->mprotect = &mprotect;
+	call->caller_thread = pthread_self();
+	pthread_mutex_init(&call->mutex, NULL);
+	pthread_cond_init(&call->cond, NULL);
+	#endif
 	call->memcpy = &memcpy;
 	call->code = code;
 	call->code_size = code_size;
-	call->caller_tid = pthread_self();
-	call->pagesize = getpagesize();
-	call->pthread_cond_signal = &pthread_cond_signal;
-	pthread_mutex_init(&call->mutex, NULL);
-	pthread_cond_init(&call->cond, NULL);
+	call->pagesize = pagesize;
 
 	off_t stage2_offset = PTRDIFF(&crt_inj_unload2, region_crtpl_code.start);
 	call->stage2_offset = stage2_offset;
@@ -75,11 +105,16 @@ int lib_unload_prepare(){
 	pthread_create(&tid, NULL, (void*(*)(void *))pfnUnload, call);
 	pthread_detach(tid);
 
+#if defined(EZ_TARGET_POSIX)
 	pthread_mutex_lock(&call->mutex);
 	while(!call->relocated){
 		pthread_cond_wait(&call->cond, &call->mutex);
 	}
 	pthread_mutex_unlock(&call->mutex);
+#elif defined(EZ_TARGET_WINDOWS)
+	WaitForSingleObject(call->cond, INFINITE);
+#endif
+
     return 0;
 }
 

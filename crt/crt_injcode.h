@@ -19,21 +19,45 @@
 extern uint8_t __start_crtpayload SECTION_START("crtpayload");
 extern uint8_t __stop_crtpayload SECTION_END("crtpayload");
 
+#if defined(EZ_TARGET_POSIX)
+#include <sys/mman.h>
+#elif defined(EZ_TARGET_WINDOWS)
+#include <windows.h>
+#endif
 struct inj_unload_call {
+#if defined(EZ_TARGET_POSIX)
+    pthread_t caller_thread;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
-    bool relocated;
-    void *lib_handle;
     int (*dlclose)(void *handle);
     void (*pthread_exit)(void *retval);
-    void *(*memcpy)(void *destination, const void *source, size_t num);
     int (*pthread_mutex_lock)(pthread_mutex_t *mutex);
 	int (*pthread_mutex_unlock)(pthread_mutex_t *mutex);
     int (*pthread_cond_wait)(pthread_cond_t *restrict cond, pthread_mutex_t *restrict mutex);
     int (*pthread_join)(pthread_t thread, void **value_ptr);
     int (*pthread_cond_signal)(pthread_cond_t *cond);
     int (*mprotect)(void *addr, size_t size, int prot);
-    pthread_t caller_tid;
+#elif defined(EZ_TARGET_WINDOWS)
+    HANDLE caller_thread;
+    HANDLE cond;
+    BOOL (*CloseHandle)(HANDLE hObject);
+    DWORD (*WaitForSingleObject)(
+        HANDLE hHandle,
+        DWORD  dwMilliseconds
+    );
+    WINBOOL WINAPI (*FreeLibrary)(HMODULE hLibModule);
+    VOID WINAPI (*ExitThread)(DWORD dwExitCode);
+    BOOL (*SetEvent)(HANDLE hEvent);
+    BOOL (*VirtualProtect)(
+        LPVOID lpAddress,
+        SIZE_T dwSize,
+        DWORD  flNewProtect,
+        PDWORD lpflOldProtect
+    );
+#endif
+    void *(*memcpy)(void *destination, const void *source, size_t num);
+    bool relocated;
+    void *lib_handle;
     uint8_t *code;
     size_t code_size;
     off_t stage2_offset;
