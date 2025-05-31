@@ -101,17 +101,18 @@ int lib_unload_prepare(){
         code,
         PTRDIFF(&crt_inj_unload, region_crtpl_code.start)
     );
+#if defined(EZ_TARGET_POSIX)
 	pthread_t tid;
 	pthread_create(&tid, NULL, (void*(*)(void *))pfnUnload, call);
 	pthread_detach(tid);
 
-#if defined(EZ_TARGET_POSIX)
 	pthread_mutex_lock(&call->mutex);
 	while(!call->relocated){
 		pthread_cond_wait(&call->cond, &call->mutex);
 	}
 	pthread_mutex_unlock(&call->mutex);
 #elif defined(EZ_TARGET_WINDOWS)
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)pfnUnload, NULL, 0, NULL);
 	WaitForSingleObject(call->cond, INFINITE);
 #endif
 
