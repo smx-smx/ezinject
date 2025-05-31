@@ -15,6 +15,7 @@
 #include <pthread.h>
 
 #include "config.h"
+#include "ezinject_compat.h"
 
 #ifdef EZ_TARGET_WINDOWS
 #include "os/windows/InjLib/Struct.h"
@@ -36,16 +37,6 @@
 
 #define EZAPI intptr_t
 
-#ifdef EZ_TARGET_DARWIN
-#define SECTION(X) __attribute__((section("__DATA,__" X)))
-#define SECTION_START(X) __asm("section$start$__DATA$__" X)
-#define SECTION_END(X) __asm("section$end$__DATA$__" X)
-#else
-#define SECTION(X) __attribute__((section(X)))
-#define SECTION_START(X)
-#define SECTION_END(X)
-#endif
-
 #define PLAPI SECTION("payload")
 #define SCAPI SECTION("syscall")
 
@@ -53,20 +44,6 @@
 
 // temporary stack size
 #define PL_STACK_SIZE 1024 * 1024 * 2
-
-#if defined(EZ_TARGET_DARWIN) || (defined(EZ_TARGET_WINDOWS) && defined(EZ_ARCH_I386))
-#define LABEL_PREFIX "_"
-#else
-#define LABEL_PREFIX
-#endif
-#define EMIT_LABEL(name) \
-	asm volatile( \
-		".globl "LABEL_PREFIX name"\n" \
-		LABEL_PREFIX name":\n" \
-	)
-
-
-#define INLINE static inline __attribute__((always_inline))
 
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 #include <elf.h>
@@ -135,7 +112,7 @@ struct injcode_ctx;
 
 struct injcode_plapi {
 	void *(*inj_memset)(struct injcode_ctx *ctx, void *s, int c, size_t n);
-	void (*inj_puts)(struct injcode_ctx *ctx, char *str);
+	void (*inj_puts)(struct injcode_ctx *ctx, const char *str);
 	void (*inj_dchar)(struct injcode_ctx *ctx, char ch);
 	void (*inj_dbgptr)(struct injcode_ctx *ctx, void *ptr);
 	intptr_t (*inj_fetchsym)(struct injcode_ctx *ctx, enum ezinj_str_id str_id, void *handle, void **sym);
@@ -165,7 +142,7 @@ struct injcode_call {
         DWORD flAllocationType,
         DWORD flProtect
     );
-	BOOL WINAPI (*VirtualFree)(
+	WINBOOL WINAPI (*VirtualFree)(
 		LPVOID lpAddress,
 		SIZE_T dwSize,
 		DWORD dwFreeType
@@ -295,14 +272,14 @@ struct injcode_bearing
 		DWORD                 dwFlagsAndAttributes,
 		HANDLE                hTemplateFile
 	);
-	BOOL WINAPI (*WriteFile)(
+	WINBOOL WINAPI (*WriteFile)(
 		HANDLE       hFile,
 		LPCVOID      lpBuffer,
 		DWORD        nNumberOfBytesToWrite,
 		LPDWORD      lpNumberOfBytesWritten,
 		LPOVERLAPPED lpOverlapped
 	);
-	BOOL (*CloseHandle)(
+	WINBOOL (*CloseHandle)(
 		HANDLE hObject
 	);
 	NTSTATUS NTAPI (*LdrRegisterDllNotification)(
@@ -314,7 +291,7 @@ struct injcode_bearing
 	NTSTATUS NTAPI (*LdrUnregisterDllNotification)(
   		PVOID Cookie
 	);
-	BOOL WINAPI (*AllocConsole)(void);
+	WINBOOL WINAPI (*AllocConsole)(void);
 	uintptr_t ntdll_base;
 	uintptr_t kernel32_base;
 #endif

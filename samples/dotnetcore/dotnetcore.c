@@ -13,6 +13,7 @@
 #include "util.h"
 #include "coreclr_delegates.h"
 #include "hostfxr.h"
+#include "log.h"
 
 int lib_loginit(log_config_t *log_cfg){
 	return -1;

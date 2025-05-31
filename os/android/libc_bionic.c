@@ -23,19 +23,19 @@
 
 int resolve_libc_symbols_android10(struct ezinj_ctx *ctx){
 	ez_addr linker = {
-		.local  = (uintptr_t) get_base(ctx, getpid(), DYN_LINKER_NAME, NULL),
-		.remote = (uintptr_t) get_base(ctx, ctx->target, DYN_LINKER_NAME, NULL)
+		.local  = (uintptr_t) get_base(ctx, getpid(), ctx->ldso_name, NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, ctx->ldso_name, NULL)
 	};
 	DBGPTR(linker.local);
 	DBGPTR(linker.remote);
 	if(!linker.local || !linker.remote){
-		ERR("Cannot find linker " DYN_LINKER_NAME);
+		ERR("Cannot find linker %s", ctx->ldso_name);
 		return -1;
 	}
 
-	void *elfh_linker = elfparse_createhandle(DYN_LINKER_NAME);
+	void *elfh_linker = elfparse_createhandle(ctx->ldso_name);
 	if(elfh_linker == NULL){
-		ERR("Failed to open "DYN_LINKER_NAME);
+		ERR("Failed to open %s", ctx->ldso_name);
 		return -1;
 	}
 
@@ -87,20 +87,20 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	 * libdl.so is a fake library
 	 * calling dlsym() on it will give back functions inside the linker
 	 **/
-	void *libdl = dlopen(DL_LIBRARY_NAME, RTLD_LAZY);
+	void *libdl = dlopen(ctx->libdl_name, RTLD_LAZY);
 	if(!libdl){
-		ERR("dlopen("DL_LIBRARY_NAME") failed: %s", dlerror());
+		ERR("dlopen(%s) failed: %s", ctx->libdl_name, dlerror());
 		return 1;
 	}
 
 	ez_addr linker = {
-		.local  = (uintptr_t) get_base(ctx, getpid(), DYN_LINKER_NAME, NULL),
-		.remote = (uintptr_t) get_base(ctx, ctx->target, DYN_LINKER_NAME, NULL)
+		.local  = (uintptr_t) get_base(ctx, getpid(), ctx->ldso_name, NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, ctx->ldso_name, NULL)
 	};
 	DBGPTR(linker.local);
 	DBGPTR(linker.remote);
 	if(!linker.local || !linker.remote){
-		ERR("Cannot find linker " DYN_LINKER_NAME);
+		ERR("Cannot find linker %s", ctx->ldso_name);
 		return -1;
 	}
 

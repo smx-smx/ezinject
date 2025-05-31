@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include "ezinject_module.h"
+#include "log.h"
 
 #ifdef EZ_TARGET_DARWIN
 #include <crt_externs.h>
@@ -137,6 +138,20 @@ int lib_preinit(struct injcode_user *user){
 	return 0;
 }
 
+#include <signal.h>
+pthread_t tid;
+
+void *library_unload_worker(void *arg){
+	usleep(1000 * 1000 * 1);
+	if(lib_unload_prepare() != 0){
+		ERR("library unload failed");
+		return NULL;
+	}
+	// library is now scheduled to unload as soon as this thread terminates
+	// perform any cleanup action here
+	return NULL;
+}
+
 int lib_main(int argc, char *argv[]){
 	#ifdef EZ_TARGET_LINUX
 	char cmd[128];
@@ -152,6 +167,7 @@ int lib_main(int argc, char *argv[]){
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
+	pthread_create(&tid, NULL, library_unload_worker, NULL);
 
 	#ifdef USE_LH
 	installHooks();

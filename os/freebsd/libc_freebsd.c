@@ -15,18 +15,18 @@
 EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	void *h_self = dlopen(NULL, RTLD_LAZY);
 	if(!h_self){
-		ERR("dlopen("DYN_LINKER_NAME") failed: %s", dlerror());
+		ERR("dlopen(%s) failed: %s", ctx->ldso_name, dlerror());
 		return 1;
 	}
 
 	ez_addr linker = {
-		.local  = (uintptr_t) get_base(ctx, getpid(), DYN_LINKER_NAME, NULL),
-		.remote = (uintptr_t) get_base(ctx, ctx->target, DYN_LINKER_NAME, NULL)
+		.local  = (uintptr_t) get_base(ctx, getpid(), ctx->ldso_name, NULL),
+		.remote = (uintptr_t) get_base(ctx, ctx->target, ctx->ldso_name, NULL)
 	};
 	DBGPTR(linker.local);
 	DBGPTR(linker.remote);
 	if(!linker.local || !linker.remote){
-		ERR("Cannot find linker " DYN_LINKER_NAME);
+		ERR("Cannot find linker %s", ctx->ldso_name);
 		return -1;
 	}
 

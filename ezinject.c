@@ -46,6 +46,8 @@
 #include "os/windows/util.h"
 #endif
 
+#include "log.h"
+
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
 ez_region region_pl_code = {
@@ -372,7 +374,7 @@ intptr_t remote_call(
 	return remote_call_common(ctx, &call);
 }
 
-struct ezinj_str ezstr_new(enum ezinj_str_id id, char *str, size_t *pSize){
+struct ezinj_str ezstr_new(enum ezinj_str_id id, const char *str, size_t *pSize){
 	if(!str){
 		str = "";
 	}
@@ -390,12 +392,6 @@ struct ezinj_str ezstr_new(enum ezinj_str_id id, char *str, size_t *pSize){
 	*pSize = (size_t)WORDALIGN(STRSZ(str));
 	return bstr;
 }
-
-#ifdef EZ_TARGET_LINUX
-#define LIBC_SEARCH "libc"
-#else
-#define LIBC_SEARCH C_LIBRARY_NAME
-#endif
 
 /**
  * @brief default implementation of libc lookup
@@ -423,18 +419,26 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 	}
 #endif
 
-	INFO("Looking up " C_LIBRARY_NAME);
+	INFO("Looking up %s", ctx->libc_name);
 
-	void *h_libc = LIB_OPEN(C_LIBRARY_NAME);
+	void *h_libc = LIB_OPEN(ctx->libc_name);
 	if(!h_libc){
-		ERR("dlopen("C_LIBRARY_NAME") failed: %s", LIB_ERROR());
+		ERR("dlopen(%s) failed: %s", ctx->libc_name, LIB_ERROR());
 		return 1;
 	}
+
+	#ifdef EZ_TARGET_LINUX
+	#define LIBC_SEARCH "libc"
+	#else
+	#define LIBC_SEARCH ctx->libc_name
+	#endif
 
 	ez_addr libc = {
 		.local  = (uintptr_t) get_base(ctx, getpid(), LIBC_SEARCH, ignores),
 		.remote = (uintptr_t) get_base(ctx, ctx->target, LIBC_SEARCH, ignores)
 	};
+
+	#undef LIBC_SEARCH
 
 	DBGPTR(libc.remote);
 	DBGPTR(libc.local);
@@ -446,9 +450,9 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 	ctx->libc = libc;
 
 	{
-		void *h_libdl = LIB_OPEN(DL_LIBRARY_NAME);
+		void *h_libdl = LIB_OPEN(ctx->libdl_name);
 		if(!h_libdl){
-			ERR("dlopen("DL_LIBRARY_NAME") failed: %s", LIB_ERROR());
+			ERR("dlopen(%s) failed: %s", ctx->libdl_name, LIB_ERROR());
 			return 1;
 		}
 
@@ -510,7 +514,7 @@ int push_string(
 	struct ezinj_str **pArgs,
 	unsigned *num_strings, unsigned *capacity,
 	size_t *dyn_str_size,
-	char *str
+	const char *str
 ){
 	unsigned index = MAX(str_id, *num_strings);
 	if(index >= *capacity){
@@ -745,15 +749,7 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 
 	size_t stack_offset = br_size + code_size;
 	size_t mapping_size = stack_offset + PL_STACK_SIZE;
-	#ifdef EZ_TARGET_WINDOWS
-	{
-		SYSTEM_INFO sysInfo;
-		GetSystemInfo(&sysInfo);
-		mapping_size = (size_t)ALIGN(mapping_size, sysInfo.dwPageSize);
-	}
-	#else
-	mapping_size = (size_t)PAGEALIGN(mapping_size);
-	#endif
+	mapping_size = (size_t)ALIGN(mapping_size, ctx->pagesize);
 
 	DBG("br_size=%zu", br_size);
 	DBG("code_size=%zu", code_size);
@@ -1039,8 +1035,20 @@ int main(int argc, char *argv[]){
 	ctx.target = strtoul(argPid, NULL, 10);
 	ctx.module_logfile = (char *)module_logfile;
 
+	#ifdef DYN_LINKER_NAME
+	ctx.ldso_name = DYN_LINKER_NAME;
+	#endif
+	ctx.libc_name = C_LIBRARY_NAME;
 	ctx.libdl_name = DL_LIBRARY_NAME;
 	ctx.libpthread_name = PTHREAD_LIBRARY_NAME;
+
+	#ifdef EZ_TARGET_WINDOWS
+	SYSTEM_INFO sysInfo;
+	GetSystemInfo(&sysInfo);
+	ctx.pagesize = sysInfo.dwPageSize;
+	#else
+	ctx.pagesize = getpagesize();
+	#endif
 
 	if(os_api_init(&ctx) != 0){
 		ERR("os_api_init() failed");

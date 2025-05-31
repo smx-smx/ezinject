@@ -193,9 +193,9 @@ struct injcode_ctx {
 	struct injcode_plapi plapi;
 	struct ezinj_str *stbl;
 
-	char *libdl_name;
-	char *libpthread_name;
-	char *userlib_name;
+	const char *libdl_name;
+	const char *libpthread_name;
+	const char *userlib_name;
 
 	/** handle to the library providing dynamic linkage **/
 	void *h_libdl;
@@ -216,7 +216,7 @@ intptr_t PLAPI inj_fetchsym(
 	enum ezinj_str_id str_id,
 	void *handle, void **sym
 ){
-	char *sym_name = ctx->stbl[str_id].str;
+	const char *sym_name = ctx->stbl[str_id].str;
 #ifdef DEBUG
 	PCALL(ctx, inj_puts, sym_name);
 #endif
@@ -279,7 +279,7 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
 	int (*crt_init)(struct injcode_bearing *br);
-	char *sym_crt_init = BR_STRTBL(br)[EZSTR_API_CRT_INIT].str;
+	const char *sym_crt_init = BR_STRTBL(br)[EZSTR_API_CRT_INIT].str;
 
 	// fetch argv[0], the library absolute path
 	ctx->userlib_name = BR_STRTBL(br)[EZSTR_ARGV0].str;

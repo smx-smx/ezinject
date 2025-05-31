@@ -1,4 +1,6 @@
+# adds implicit build directives for pthreads linkage
 find_package (Threads)
+
 add_executable(test_basic_injection basic_injection.cpp)
 target_link_libraries(test_basic_injection ${CMAKE_THREAD_LIBS_INIT})
 

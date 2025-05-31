@@ -10,6 +10,7 @@
 #include "InjLib/Remote.h"
 #include "ezinject.h"
 #include "ezinject_injcode.h"
+#include "log.h"
 
 static EZAPI _grant_debug_privileges(){
 	HANDLE token = NULL;

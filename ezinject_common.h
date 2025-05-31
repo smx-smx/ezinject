@@ -25,11 +25,16 @@
 typedef intptr_t nint;
 typedef uintptr_t nuint;
 
+#ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
 
 #define ALIGN(x, y) VPTR((UPTR(x) + ALIGNMSK(y)) & ~ALIGNMSK(y))
+#define ALIGN_DOWN(x, y) VPTR((UPTR(x) & ~ALIGNMSK(y)))
 #define WORDALIGN(x) ALIGN(x, sizeof(void *))
 #define PAGEALIGN(x)  ALIGN(x, getpagesize())
+#define PAGEALIGN_DOWN(x) ALIGN_DOWN(x, getpagesize())
+#define ROUND_UP(a, b) (((a) + (b) - 1) / (b))
 
 #define VPTR(x) ((void *)(x))
 #define UPTR(x) ((uintptr_t)(x))
@@ -68,10 +73,10 @@ enum ezinj_str_id {
 
 struct ezinj_str {
 	unsigned int id;
-	char *str;
+	const char *str;
 };
 
-#define BR_STRTBL(br) ((struct ezinj_str *)((char *)br + sizeof(*br) + (sizeof(char *) * br->argc)))
+#define BR_STRTBL(br) ((struct ezinj_str *)((const char *)br + sizeof(*br) + (sizeof(char *) * br->argc)))
 #define STR_DATA(entry) ((entry)->str)
 
 

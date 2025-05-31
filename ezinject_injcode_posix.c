@@ -128,7 +128,7 @@ INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
 
 INLINE intptr_t inj_loginit(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
-	char *log_filename = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
+	const char *log_filename = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
 
 	int log_handle = STDOUT_FILENO;
 

@@ -74,7 +74,7 @@ INLINE intptr_t inj_thread_wait(
 
 INLINE void *_inj_get_kernel32(struct injcode_bearing *br){
 	// kernel32.dll
-	char *libdl_name = BR_STRTBL(br)[EZSTR_API_LIBDL].str;
+	const char *libdl_name = BR_STRTBL(br)[EZSTR_API_LIBDL].str;
 
 	// kernel32.dll length in utf16
 	const int NAME_LENGTH = 24;
@@ -161,7 +161,7 @@ INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
 
 INLINE intptr_t inj_loginit(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
-	char *log_filename = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
+	const char *log_filename = BR_STRTBL(br)[EZSTR_LOG_FILEPATH].str;
 
 	HANDLE log_handle = (HANDLE)STD_OUTPUT_HANDLE;
 
@@ -189,4 +189,5 @@ INLINE intptr_t inj_logfini(struct injcode_ctx *ctx){
 	if(ctx->log_handle != (HANDLE)STD_OUTPUT_HANDLE){
 		ctx->br->CloseHandle(ctx->log_handle);
 	}
+	return 0;
 }

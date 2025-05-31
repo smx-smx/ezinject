@@ -24,6 +24,7 @@
 
 #include "ezinject_util.h"
 #include "elfparse.h"
+#include "log.h"
 
 void apply_patch(pid_t target, void *target_addr, void *patch, size_t patchlen)
 {
