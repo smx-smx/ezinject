@@ -12,6 +12,10 @@
 
 #include "ezinject.h"
 
+#ifdef memcpy
+#undef memcpy
+#endif
+
 void CPLAPI crt_inj_unload2(struct inj_unload_call *call, struct inj_unload_call *parent){
     // wait for the caller thread to perform cleanup and exit
 #ifdef EZ_TARGET_WINDOWS
