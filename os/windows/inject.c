@@ -8,6 +8,7 @@
  */
 #include "ezinject.h"
 #include "win32_syscalls.h"
+#include "log.h"
 
 uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 	return (uintptr_t)CHECK(RSCALL4(ctx, __NR_mmap,

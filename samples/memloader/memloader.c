@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "ezinject_module.h"
+#include "log.h"
 
 extern void blob_start();
 extern void blob_end();

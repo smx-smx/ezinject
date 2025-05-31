@@ -6,6 +6,7 @@
 #include <pthread.h>
 
 #include "ezinject_module.h"
+#include "log.h"
 
 #include <sapi/embed/php_embed.h>
 

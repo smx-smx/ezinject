@@ -19,6 +19,7 @@
 
 #include "config.h"
 #include "ezinject_util.h"
+#include "log.h"
 
 #if defined(EZ_TARGET_LINUX)
 #define ElfAddr ElfW(Addr)

@@ -88,4 +88,27 @@
 #endif
 #endif
 
+#ifdef EZ_TARGET_DARWIN
+#define SECTION(X) __attribute__((section("__DATA,__" X)))
+#define SECTION_START(X) __asm("section$start$__DATA$__" X)
+#define SECTION_END(X) __asm("section$end$__DATA$__" X)
+#else
+#define SECTION(X) __attribute__((section(X)))
+#define SECTION_START(X)
+#define SECTION_END(X)
+#endif
+
+#if defined(EZ_TARGET_DARWIN) || (defined(EZ_TARGET_WINDOWS) && defined(EZ_ARCH_I386))
+#define LABEL_PREFIX "_"
+#else
+#define LABEL_PREFIX
+#endif
+#define EMIT_LABEL(name) \
+	asm volatile( \
+		".globl "LABEL_PREFIX name"\n" \
+		LABEL_PREFIX name":\n" \
+	)
+
+#define INLINE static inline __attribute__((always_inline))
+
 #endif

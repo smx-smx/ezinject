@@ -189,4 +189,5 @@ INLINE intptr_t inj_logfini(struct injcode_ctx *ctx){
 	if(ctx->log_handle != (HANDLE)STD_OUTPUT_HANDLE){
 		ctx->br->CloseHandle(ctx->log_handle);
 	}
+	return 0;
 }

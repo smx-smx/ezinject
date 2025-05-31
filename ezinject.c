@@ -46,6 +46,8 @@
 #include "os/windows/util.h"
 #endif
 
+#include "log.h"
+
 static struct ezinj_ctx ctx; // only to be used for sigint handler
 
 ez_region region_pl_code = {
@@ -747,15 +749,7 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 
 	size_t stack_offset = br_size + code_size;
 	size_t mapping_size = stack_offset + PL_STACK_SIZE;
-	#ifdef EZ_TARGET_WINDOWS
-	{
-		SYSTEM_INFO sysInfo;
-		GetSystemInfo(&sysInfo);
-		mapping_size = (size_t)ALIGN(mapping_size, sysInfo.dwPageSize);
-	}
-	#else
-	mapping_size = (size_t)PAGEALIGN(mapping_size);
-	#endif
+	mapping_size = (size_t)ALIGN(mapping_size, ctx->pagesize);
 
 	DBG("br_size=%zu", br_size);
 	DBG("code_size=%zu", code_size);
@@ -1047,6 +1041,14 @@ int main(int argc, char *argv[]){
 	ctx.libc_name = C_LIBRARY_NAME;
 	ctx.libdl_name = DL_LIBRARY_NAME;
 	ctx.libpthread_name = PTHREAD_LIBRARY_NAME;
+
+	#ifdef EZ_TARGET_WINDOWS
+	SYSTEM_INFO sysInfo;
+	GetSystemInfo(&sysInfo);
+	ctx.pagesize = sysInfo.dwPageSize;
+	#else
+	ctx.pagesize = getpagesize();
+	#endif
 
 	if(os_api_init(&ctx) != 0){
 		ERR("os_api_init() failed");

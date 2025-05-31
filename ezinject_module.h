@@ -22,5 +22,6 @@
 extern int lib_loginit(log_config_t *log_cfg);
 extern int lib_preinit(struct injcode_user *user);
 extern int lib_main(int argc, char *argv[]);
+extern int lib_unload_prepare();
 DLLEXPORT extern int crt_init(struct injcode_bearing *br);
 #endif

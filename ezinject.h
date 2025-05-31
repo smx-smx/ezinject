@@ -25,7 +25,6 @@
 #include <mach/mach.h>
 #endif
 
-#include "log.h"
 #include "ezinject_injcode.h"
 
 typedef struct {
@@ -82,6 +81,7 @@ struct ezinj_ctx {
 	const char *libc_name;
 	const char *libdl_name;
 	const char *libpthread_name;
+	size_t pagesize;
 #ifdef EZ_TARGET_WINDOWS
 	int wait_call_seq;
 	DEBUG_EVENT ev;

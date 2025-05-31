@@ -342,6 +342,7 @@ configure_file(
 add_library(ezinject_crt OBJECT
 	crt/crt.c crt/crt.h
 	crt/crt_user.c
+	crt/crt_injcode.c
 	ezinject_util.c ezinject_util.h
 	log.c log.h
 )
@@ -594,7 +595,12 @@ endif()
 # -fomit-frame-pointer: don't save stack frames
 # -ffreestanding: don't assume libc functions exist
 # -fno-stack-check,-mno-stack-arg-probe: don't emit ___chkstk_ms calls
-set_source_files_properties(ezinject_injcode.c PROPERTIES COMPILE_FLAGS "${injcode_cflags}")
+set_source_files_properties(
+	ezinject_injcode.c
+	crt/crt_injcode.c
+	PROPERTIES COMPILE_FLAGS "${injcode_cflags}")
+
+
 if(EZ_TARGET_POSIX)
 	target_link_libraries(ezinject dl)
 endif()

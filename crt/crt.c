@@ -65,6 +65,8 @@
 
 #include "crt.h"
 
+void *crt_userlib_handle;
+
 extern int crt_userinit(struct injcode_bearing *br);
 WINAPI void* crt_user_entry(void *arg);
 
@@ -157,6 +159,8 @@ DLLEXPORT int crt_init(struct injcode_bearing *br){
  **/
 WINAPI void *crt_user_entry(void *arg) {
 	struct injcode_bearing *br = arg;
+
+	crt_userlib_handle = br->userlib;
 
 	// prepare argv
 	char **dynPtr = &br->argv[0];
