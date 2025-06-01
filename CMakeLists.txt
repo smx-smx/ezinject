@@ -326,6 +326,8 @@ if(EZ_TARGET_LINUX)
 		set(EZ_ARCH_HEADER arch/ezinject_amd64.h)
 	elseif(EZ_ARCH_MIPS)
 		set(EZ_ARCH_HEADER arch/ezinject_mips.h)
+	elseif(EZ_ARCH_PPC64)
+		set(EZ_ARCH_HEADER arch/ezinject_ppc64.h)
 	endif()
 elseif(EZ_TARGET_FREEBSD)
 	if(EZ_ARCH_AMD64)
@@ -475,15 +477,24 @@ install(
 	EXPORT ${ezinject_target_export}
 )
 
-set(injcode_cflags "-Os -fno-stack-check -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
+set(injcode_cflags "")
+if(EZ_ARCH_PPC64)
+	# required to skip generation of _savegpr0_* _restgpr0_*
+	# see: https://reviews.llvm.org/D79977
+	string(APPEND injcode_cflags "-O2")
+else()
+	string(APPEND injcode_cflags "-Os")
+endif()
+
+string(APPEND injcode_cflags " -fno-stack-check -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 if(HAVE_CFLAG_NO_JUMP_TABLES)
-	set(injcode_cflags "${injcode_cflags} -fno-jump-tables")
+	string(APPEND injcode_cflags " -fno-jump-tables")
 endif()
 if(HAVE_CFLAG_NO_STACK_PROTECTOR)
-	set(injcode_cflags "${injcode_cflags} -fno-stack-protector")
+	string(APPEND injcode_cflags " -fno-stack-protector")
 endif()
 if(HAVE_CFLAG_STACK_ARG_PROBE)
-	set(injcode_cflags "${injcode_cflags} -mno-stack-arg-probe")
+	string(APPEND injcode_cflags " -mno-stack-arg-probe")
 endif()
 
 # -fno-stack-protector: remove stack cookie checks

@@ -790,7 +790,7 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 
 	/** align stack **/
 
-	#if defined(EZ_ARCH_AMD64) || defined(EZ_ARCH_ARM64)
+	#if defined(EZ_ARCH_AMD64) || defined(EZ_ARCH_ARM64) || defined(EZ_ARCH_PPC64)
 	// x64 requires a 16 bytes aligned stack for movaps
 	// force stack to snap to the lowest 16 bytes, or it will crash on x64
 	layout->stack_top = (uint8_t *)((uintptr_t)layout->stack_top & ~ALIGNMSK(16));
@@ -965,7 +965,12 @@ int ezinject_main(
 		#undef PLAPI_SET
 
 		// when syscall_mode = false, SC is skipped
-		INFO("target: calling payload at %p", pl->br_start);
+		INFO("target: call chain");
+		INFO("- trampoline_entry: %p", (void *)ctx->entry_insn.remote);
+		// note: transition from trampoline -> branch may go through the wrapper,
+		// when HAVE_SYSCALLS
+		INFO("- branch_target:    %p", (void *)ctx->branch_target.remote);
+		INFO("- injcode_bearing:  %p", PL_REMOTE(ctx, pl->br_start));
 		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
 
 		/**

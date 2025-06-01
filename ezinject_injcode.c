@@ -138,6 +138,18 @@ void PLAPI trampoline(){
 	register volatile struct injcode_call *args = NULL;
 	register uintptr_t (*target)(volatile struct injcode_call *) = NULL;
 	POP_PARAMS(args, target);
+	/**
+	 * reserve space for:
+	 * - back chain
+	 * - CR save
+	 * - reserved 
+	 * - LR save
+	 * - TOC pointer
+	 * there are different ABIs here.
+	 * the older PPC ABI uses 48 bytes, while the ELFv2 ABI uses 32 bytes
+	 * just use the worst case size to support both.
+	 */
+	ADJUST_STACK(-48);
 	target(args);
 
 	asm volatile(JMP_INSN " .");
@@ -334,12 +346,9 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		}
 	}
 
-	#if 0
 	if(br->pl_debug){
 		asm volatile(JMP_INSN " .");
 	}
-	#endif
-
 
 	intptr_t result = 0;
 	// entry
