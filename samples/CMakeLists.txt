@@ -1,6 +1,7 @@
 if(OUT_OF_TREE)
 	cmake_minimum_required(VERSION 3.14)
-	project(ezinject_samples)
+	project(ezinject_samples C ASM)
+	enable_language(CXX OPTIONAL)
 
 	set(CMAKE_C_STANDARD 99)
 	set(CMAKE_CXX_STANDARD 11)
