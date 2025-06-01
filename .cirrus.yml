@@ -114,6 +114,14 @@ linux_glibc_armv4_task:
     - ./build.sh targets/ttgo-arm-linux.cmake
         -DEZ_LIBC=glibc-old
 
+linux_powerpc64le_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  script:
+    - ./build.sh targets/ppc64le.cmake
+        -DEZ_LIBC=glibc-old
+
 freebsd_x64_task:
   freebsd_instance:
     image_family: freebsd-14-2

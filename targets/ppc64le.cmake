@@ -1,8 +1,8 @@
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR powerpc64le)
 
-set(CMAKE_C_COMPILER "powerpc64le-linux-gnu-gcc-14")
-set(CMAKE_CXX_COMPILER "powerpc64le-linux-gnu-g++-14")
+set(CMAKE_C_COMPILER "powerpc64le-linux-gnu-gcc-12")
+set(CMAKE_CXX_COMPILER "powerpc64le-linux-gnu-g++-12")
 set(CMAKE_AR "powerpc64le-linux-gnu-ar")
 set(CMAKE_RANLIB "powerpc64le-linux-gnu-ranlib")
 
