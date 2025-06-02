@@ -5,7 +5,9 @@ RUN wget -O cmake.sh https://cmake.org/files/v3.20/cmake-3.20.6-linux-x86_64.sh 
 	&& rm cmake.sh
 
 RUN apt-get update \
-	&& apt-get install -y libcapstone-dev gcc-12-powerpc64le-linux-gnu \
+	&& apt-get install -y libcapstone-dev \
+		gcc-12-powerpc64le-linux-gnu \
+		gcc-12-riscv64-linux-gnu \
 	&& apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

@@ -56,6 +56,7 @@ check_symbol_exists("__amd64__" "" EZ_ARCH_AMD64)
 check_symbol_exists("__mips__" "" EZ_ARCH_MIPS)
 check_symbol_exists("__ANDROID__" "" EZ_TARGET_ANDROID)
 check_symbol_exists("__powerpc64__" "" EZ_ARCH_PPC64)
+check_symbol_exists("__riscv" "" EZ_ARCH_RISCV)
 check_symbol_exists("_GNU_SOURCE" "" HAVE_GNU_SOURCE)
 
 macro(check_symbol_withlibs symbol files libs result)
