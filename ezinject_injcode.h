@@ -16,6 +16,13 @@
 
 #include "config.h"
 #include "ezinject_compat.h"
+#include "ezinject_arch.h"
+
+#ifdef EZ_ARCH_HPPA
+#define CALL_FPTR(x, ...) (((typeof(x.fptr))((x).self))(__VA_ARGS__))
+#else
+#define CALL_FPTR(x, ...) x.fptr(__VA_ARGS__)
+#endif
 
 #ifdef EZ_TARGET_WINDOWS
 #include "os/windows/InjLib/Struct.h"
@@ -93,8 +100,12 @@ struct injcode_user {
 
 struct injcode_call;
 struct injcode_sc_wrapper {
-	// pointer to the actual function to call
-	intptr_t (*target)(volatile struct injcode_call *args);
+	struct {
+		// pointer to the actual function to call
+		intptr_t (*fptr)(volatile struct injcode_call *args);
+		void *got;
+		void *self;
+	} target;
 };
 
 /**
@@ -103,19 +114,46 @@ struct injcode_sc_wrapper {
  * and will be POP'd by the trampoline
  **/
 struct injcode_trampoline {
-	uintptr_t fn_arg;
+	// first element consumed by GROW-DOWN SP
 	uintptr_t fn_addr;
+#ifdef EZ_ARCH_HPPA
+	uintptr_t fn_got;
+	// points to fn_addr
+	uintptr_t fn_self;
+#endif
+	uintptr_t fn_arg;
+	// first element consumed by GROW-UP SP
 };
 
 struct injcode_bearing;
 struct injcode_ctx;
 
 struct injcode_plapi {
-	void *(*inj_memset)(struct injcode_ctx *ctx, void *s, int c, size_t n);
-	void (*inj_puts)(struct injcode_ctx *ctx, const char *str);
-	void (*inj_dchar)(struct injcode_ctx *ctx, char ch);
-	void (*inj_dbgptr)(struct injcode_ctx *ctx, void *ptr);
-	intptr_t (*inj_fetchsym)(struct injcode_ctx *ctx, enum ezinj_str_id str_id, void *handle, void **sym);
+	struct {
+		void *(*fptr)(struct injcode_ctx *ctx, void *s, int c, size_t n);
+		void *got;
+		void *self;
+	} inj_memset;
+	struct {
+		void (*fptr)(struct injcode_ctx *ctx, const char *str);
+		void *got;
+		void *self;
+	} inj_puts;
+	struct {
+		void (*fptr)(struct injcode_ctx *ctx, char ch);
+		void *got;
+		void *self;
+	} inj_dchar;
+	struct {
+		void (*fptr)(struct injcode_ctx *ctx, void *ptr);
+		void *got;
+		void *self;
+	} inj_dbgptr;
+	struct {
+		intptr_t (*fptr)(struct injcode_ctx *ctx, enum ezinj_str_id str_id, void *handle, void **sym);
+		void *got;
+		void *self;
+	} inj_fetchsym;
 };
 
 #define EZST1 0x455A5331 // signaled
@@ -126,14 +164,31 @@ struct injcode_plapi {
  * within the target process
  **/
 struct injcode_call {
+
 #ifdef EZ_TARGET_POSIX
-	long (*libc_syscall)(long number, ...);
+	struct {
+		long (*fptr)(long number, ...);
+		void *got;
+		void *self;
+	} libc_syscall;
 #endif
 #ifdef EZ_TARGET_LINUX
-	void *(*libc_mmap)(void *addr, size_t length, int prot, int flags,
+	struct {
+		void *(*fptr)(void *addr, size_t length, int prot, int flags,
                   int fd, off_t offset);
-	int (*libc_open)(const char *pathname, int flags, ...);
-	ssize_t (*libc_read)(int fd, void *buf, size_t count);
+		void *got;
+		void *self;
+	} libc_mmap;
+	struct {
+		int (*fptr)(const char *pathname, int flags, ...);
+		void *got;
+		void *self;
+	} libc_open;
+	struct {
+		ssize_t (*fptr)(int fd, void *buf, size_t count);
+		void *got;
+		void *self;
+	} libc_read;
 #endif
 #ifdef EZ_TARGET_WINDOWS
 	LPVOID WINAPI (*VirtualAlloc)(
@@ -228,6 +283,7 @@ struct injcode_bearing
 	mach_port_t  (*task_self_trap)(void);
 #endif
 
+// uclibc
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
 		void *tpnt, char *full_libname, int trace_loaded_objects);
@@ -241,11 +297,17 @@ struct injcode_bearing
 	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
 	#endif
 	struct elf_resolve_hdr **uclibc_loaded_modules;
+// glibc
 #elif defined(HAVE_LIBDL_IN_LIBC) \
 || defined(HAVE_LIBC_DLOPEN_MODE) \
 || defined(EZ_TARGET_ANDROID) \
 || defined(EZ_TARGET_DARWIN)
-	void *(*libc_dlopen)(const char *name, int mode);
+	struct {
+		void *(*fptr)(const char *name, int mode);
+		void *got;
+		void *self;
+	} libc_dlopen;
+// old glibc
 #elif defined(HAVE_LIBC_DL_OPEN)
 	void *(*libc_dlopen)(const char *name, int mode, void *caller);
 #elif defined(EZ_TARGET_WINDOWS)
@@ -300,7 +362,13 @@ struct injcode_bearing
 	off_t dlsym_offset;
 	// libdl base address, if already loaded
 	void *libdl_handle;
-	long (*libc_syscall)(long number, ...);
+	void *libc_got;
+	void *libdl_got;
+	struct {
+		long (*fptr)(long number, ...);
+		void *got;
+		void *self;
+	} libc_syscall;
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
 	uint8_t loaded_signal;

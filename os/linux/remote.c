@@ -40,7 +40,7 @@ EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 }
 
 EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
-#if defined(PTRACE_GETREGSET) && defined(NT_PRSTATUS)
+#if defined(PTRACE_GETREGSET) && defined(NT_PRSTATUS) && !defined(NO_REGSET)
 	struct iovec iovec = {
 		.iov_base = regs,
 		.iov_len = sizeof(*regs)

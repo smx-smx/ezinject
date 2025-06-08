@@ -13,18 +13,54 @@
 #include <pthread.h>
 
 struct dl_api {
-	void *(*dlopen)(const char *filename, int flag);
-	void *(*dlsym)(void *handle, const char *symbol);
-	int (*dlclose)(void *handle);
-	char *(*dlerror)(void);
+	struct {
+		void *(*fptr)(const char *filename, int flag);
+		void *got;
+		void *self;
+	} dlopen;
+	struct {
+		void *(*fptr)(void *handle, const char *symbol);
+		void *got;
+		void *self;
+	} dlsym;
+	struct {
+		int (*fptr)(void *handle);
+		void *got;
+		void *self;
+	} dlclose;
+	struct {
+		char *(*fptr)(void);
+		void *got;
+		void *self;
+	} dlerror;
 };
 
 struct thread_api {
-	int (*pthread_mutex_init)(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
-	int (*pthread_mutex_lock)(pthread_mutex_t *mutex);
-	int (*pthread_mutex_unlock)(pthread_mutex_t *mutex);
-	int (*pthread_cond_init)(pthread_cond_t *cond, const pthread_condattr_t *attr);
-	int (*pthread_cond_wait)(pthread_cond_t *restrict cond, pthread_mutex_t *restrict mutex);
+	struct {
+		int (*fptr)(pthread_mutex_t *mutex, const pthread_mutexattr_t *attr);
+		void *got;
+		void *self;
+	} pthread_mutex_init;
+	struct {
+		int (*fptr)(pthread_mutex_t *mutex);
+		void *got;
+		void *self;
+	} pthread_mutex_lock;
+	struct {
+		int (*fptr)(pthread_mutex_t *mutex);
+		void *got;
+		void *self;
+	} pthread_mutex_unlock;
+	struct {
+		int (*fptr)(pthread_cond_t *cond, const pthread_condattr_t *attr);
+		void *got;
+		void *self;
+	} pthread_cond_init;
+	struct {
+		int (*fptr)(pthread_cond_t *restrict cond, pthread_mutex_t *restrict mutex);
+		void *got;
+		void *self;
+	} pthread_cond_wait;
 };
 
 #endif

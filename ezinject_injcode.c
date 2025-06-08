@@ -51,7 +51,8 @@ void SCAPI injected_sc_trap(void){
 	asm volatile("nop\n");
 	asm volatile("nop\n");
 	EMIT_LABEL("injected_sc_trap_stop");
-	asm volatile(JMP_INSN " .");
+	EMIT_LOOP();
+	asm volatile(".word 0xdeadbeef");
 }
 
 #ifdef EZ_TARGET_LINUX
@@ -60,7 +61,8 @@ void SCAPI injected_sc_trap(void){
  * We must use the libc's mmap(3) instead, which handles them properly
  **/
 intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc){
-	return (intptr_t)sc->libc_mmap(
+	//EMIT_LOOP();
+	return (intptr_t)CALL_FPTR(sc->libc_mmap, 
 		(void *)sc->argv[1], (size_t)sc->argv[2],
 		(int)sc->argv[3], (int)sc->argv[4],
 		(int)sc->argv[5], (off_t)sc->argv[6]
@@ -69,30 +71,33 @@ intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc){
 
 intptr_t SCAPI injected_open(volatile struct injcode_call *sc){
 #if defined(__NR_open)
-	return (intptr_t)sc->libc_open((const char *)sc->argv[1], (int)sc->argv[2]);
+	return (intptr_t)CALL_FPTR(sc->libc_open,
+		(const char *)sc->argv[1], (int)sc->argv[2]);
 #elif defined(__NR_openat)
-	return (intptr_t)sc->libc_open((const char *)sc->argv[2], (int)sc->argv[3]);
+	return (intptr_t)CALL_FPTR(sc->libc_open,
+		(const char *)sc->argv[2], (int)sc->argv[3]);
 #else
 #error "Unsupported build flags"
 #endif
 }
 
 intptr_t SCAPI injected_read(volatile struct injcode_call *sc){
-	return (intptr_t)sc->libc_read((int)sc->argv[1], (void *)sc->argv[2], (size_t)sc->argv[3]);
+	return (intptr_t)CALL_FPTR(sc->libc_read,
+		(int)sc->argv[1], (void *)sc->argv[2], (size_t)sc->argv[3]);
 }
 #endif
 
 #if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
 INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
-	sc->libc_syscall(__NR_kill,
-		sc->libc_syscall(__NR_getpid),
+	CALL_FPTR(sc->libc_syscall, __NR_kill,
+		CALL_FPTR(sc->libc_syscall, __NR_getpid),
 		SIGTRAP
 	);
 }
 #elif defined(EZ_TARGET_WINDOWS)
 INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
 	sc->ezstate = EZST1;
-	asm volatile(JMP_INSN " .");
+	EMIT_LOOP();
 }
 #endif
 
@@ -104,9 +109,9 @@ INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
  * than the one setting the result.
  **/
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
-	args->result = args->wrapper.target(args);
+	args->result = CALL_FPTR(args->wrapper.target, args);
 	injected_sc_stop(args);
-	asm volatile(JMP_INSN " .");
+	EMIT_LOOP();
 }
 #endif
 
@@ -132,27 +137,16 @@ void PLAPI trampoline(){
 	EMIT_LABEL("trampoline_entry");
 
 	#ifdef PL_EARLYDEBUG
-	asm volatile(JMP_INSN " .");
+	EMIT_LOOP();
 	#endif
 
 	register volatile struct injcode_call *args = NULL;
 	register uintptr_t (*target)(volatile struct injcode_call *) = NULL;
 	POP_PARAMS(args, target);
-	/**
-	 * reserve space for:
-	 * - back chain
-	 * - CR save
-	 * - reserved 
-	 * - LR save
-	 * - TOC pointer
-	 * there are different ABIs here.
-	 * the older PPC ABI uses 48 bytes, while the ELFv2 ABI uses 32 bytes
-	 * just use the worst case size to support both.
-	 */
-	ADJUST_STACK(-48);
+	ADJUST_STACK();
 	target(args);
 
-	asm volatile(JMP_INSN " .");
+	EMIT_LOOP();
 	EMIT_LABEL("trampoline_exit");
 }
 
@@ -180,7 +174,7 @@ INLINE uint64_t str64(uint64_t x){
 	#endif
 }
 
-#define PCALL(ctx, fn, ...) ctx->plapi.fn(ctx, __VA_ARGS__)
+#define PCALL(ctx, fn, ...) CALL_FPTR(ctx->plapi.fn, ctx, __VA_ARGS__)
 #include "ezinject_injcode_common.c"
 
 #if defined(EZ_TARGET_POSIX)
@@ -204,6 +198,12 @@ struct injcode_ctx {
 	struct thread_api libthread;
 	struct injcode_plapi plapi;
 	struct ezinj_str *stbl;
+
+	struct {
+		int (*fptr)(struct injcode_bearing *br);
+		void *got;
+		void *self;
+	} crt_init;
 
 	const char *libdl_name;
 	const char *libpthread_name;
@@ -233,7 +233,14 @@ intptr_t PLAPI inj_fetchsym(
 	PCALL(ctx, inj_puts, sym_name);
 #endif
 	inj_cacheflush(ctx->br, &sym_name, (void *)(UPTR(&sym_name) + sizeof(sym_name)));
-	*sym = ctx->libdl.dlsym(handle, sym_name);
+	void *res = CALL_FPTR(ctx->libdl.dlsym, 
+		handle, sym_name);
+#ifdef EZ_ARCH_HPPA
+		sym[0] = *(void **)PTRADD(res, -2);
+		sym[1] = *(void **)PTRADD(res, 2);
+#else
+		*sym = res;
+#endif
 	if(*sym == NULL){
 		PCALL(ctx, inj_dchar, '!');
 		PCALL(ctx, inj_dchar, 's');
@@ -281,16 +288,22 @@ INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 			return -1;
 		}
 	}
-	libdl->dlopen = (void *)PTRADD(libdl_handle, br->dlopen_offset);
-	libdl->dlclose = (void *)PTRADD(libdl_handle, br->dlclose_offset);
-	libdl->dlsym = (void *)PTRADD(libdl_handle, br->dlsym_offset);
+	libdl->dlopen.fptr = (void *)PTRADD(libdl_handle, br->dlopen_offset);
+	libdl->dlclose.fptr = (void *)PTRADD(libdl_handle, br->dlclose_offset);
+	libdl->dlsym.fptr = (void *)PTRADD(libdl_handle, br->dlsym_offset);
+
+	libdl->dlopen.got = libdl->dlclose.got =  libdl->dlsym.got
+		= br->libdl_got ? br->libdl_got : br->libc_got;
+	
+	libdl->dlopen.self = VPTR(PTRADD(ctx, offsetof(struct injcode_ctx, libdl.dlopen)));
+	libdl->dlclose.self = VPTR(PTRADD(ctx, offsetof(struct injcode_ctx, libdl.dlclose)));
+	libdl->dlsym.self = VPTR(PTRADD(ctx, offsetof(struct injcode_ctx, libdl.dlsym)));
 	return 0;
 }
 
 INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
-	int (*crt_init)(struct injcode_bearing *br);
 	const char *sym_crt_init = BR_STRTBL(br)[EZSTR_API_CRT_INIT].str;
 
 	// fetch argv[0], the library absolute path
@@ -303,19 +316,28 @@ INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	if(br->userlib == NULL){
 		return -1;
 	}
-	crt_init = ctx->libdl.dlsym(br->userlib, sym_crt_init);
-	PCALL(ctx, inj_dbgptr, crt_init);
-	if(crt_init == NULL){
+
+	ctx->crt_init.self = VPTR(PTRADD(ctx, offsetof(struct injcode_ctx, crt_init)));
+
+	intptr_t res = PCALL(ctx, inj_fetchsym, EZSTR_API_CRT_INIT,
+		br->userlib, (void **)&ctx->crt_init);
+	if(res != 0){
 		return -2;
 	}
-	if(crt_init(br) != 0){
+	if(CALL_FPTR(ctx->crt_init, br) != 0){
 		return -3;
 	}
+
 	return 0;
 }
 
 INLINE void inj_plapi_init(struct injcode_call *sc, struct injcode_ctx *ctx){
-	#define PCOPY(x) ctx->plapi.x = sc->plapi.x
+	#define PCOPY(x) do { \
+		ctx->plapi.x.fptr = sc->plapi.x.fptr; \
+		ctx->plapi.x.got = sc->plapi.x.got; \
+		ctx->plapi.x.self = VPTR(PTRADD(ctx, offsetof(struct injcode_ctx, plapi.x))); \
+	} while(0)
+	
 	PCOPY(inj_memset);
 	PCOPY(inj_puts);
 	PCOPY(inj_dchar);
@@ -329,7 +351,8 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;
 
-	sc->plapi.inj_memset(NULL, ctx, 0x00, sizeof(*ctx));
+	CALL_FPTR(sc->plapi.inj_memset,
+		NULL, ctx, 0x00, sizeof(*ctx));
 	inj_plapi_init(sc, ctx);
 
 	ctx->br = br;
@@ -346,8 +369,12 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		}
 	}
 
+	// set function descriptors
+	br->libc_syscall.self = VPTR(PTRADD(br, offsetof(struct injcode_bearing, libc_syscall)));
+	br->libc_dlopen.self = VPTR(PTRADD(br, offsetof(struct injcode_bearing, libc_dlopen)));
+
 	if(br->pl_debug){
-		asm volatile(JMP_INSN " .");
+		EMIT_LOOP();
 	}
 
 	intptr_t result = 0;
@@ -391,7 +418,6 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		result = INJ_ERR_LIBDL;
 		goto pl_exit;
 	}
-
 	// acquire libpthread
 	PCALL(ctx, inj_dchar, 'p');
 
@@ -401,7 +427,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		PCALL(ctx, inj_dchar, '!');
 		PCALL(ctx, inj_dchar, '1');
 		char *errstr = NULL;
-		if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
+		if(ctx->libdl.dlerror.fptr && (errstr=CALL_FPTR(ctx->libdl.dlerror)) != NULL){
 			PCALL(ctx, inj_puts, errstr);
 		}
 		result = INJ_ERR_LIBPTHREAD;
@@ -412,7 +438,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	if(inj_api_init(ctx) != 0){
 		PCALL(ctx, inj_dchar, '!');
 		PCALL(ctx, inj_dchar, '2');
-		ctx->libdl.dlclose(ctx->h_libthread);
+		CALL_FPTR(ctx->libdl.dlclose, ctx->h_libthread);
 		result = INJ_ERR_API;
 		goto pl_exit;
 	}
@@ -427,9 +453,9 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	PCALL(ctx, inj_dchar, 'd');
 	if(inj_load_library(ctx) != 0){
 		PCALL(ctx, inj_dchar, '!');
-		ctx->libdl.dlclose(ctx->h_libthread);
+		CALL_FPTR(ctx->libdl.dlclose, ctx->h_libthread);
 		char *errstr = NULL;
-		if(ctx->libdl.dlerror && (errstr=ctx->libdl.dlerror()) != NULL){
+		if(ctx->libdl.dlerror.fptr && (errstr=CALL_FPTR(ctx->libdl.dlerror)) != NULL){
 			PCALL(ctx, inj_puts, errstr);
 		} else {
 			PCALL(ctx, inj_dchar, '?');
@@ -444,7 +470,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 	// exit status from lib_main
 	if(inj_thread_wait(ctx, &result) != 0){
 		PCALL(ctx, inj_dchar, '!');
-		ctx->libdl.dlclose(ctx->h_libthread);
+		CALL_FPTR(ctx->libdl.dlclose, ctx->h_libthread);
 		result = INJ_ERR_WAIT;
 		goto pl_exit;
 	}
@@ -456,7 +482,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		 * NOTE: some C libraries might cause a segfault during this call
 		 * the segfault will be trapped by ezinject, so (hopefully) the process can continue
 		 **/
-		ctx->libdl.dlclose(br->userlib);
+		CALL_FPTR(ctx->libdl.dlclose, br->userlib);
 	}
 
 	result = 0;
@@ -476,7 +502,7 @@ pl_exit:
 	#ifdef EZ_TARGET_DARWIN
 	if(thread_is_parent){
 		// it looks we can't kill a thread created from `thread_create_running`, so we do hacks
-		asm volatile(JMP_INSN " .");
+		EMIT_LOOP();
 		//return 0;
 	} else {
 		sc->result = result;
@@ -490,7 +516,7 @@ pl_exit:
 	PL_RETURN(sc, result);
 	#endif
 
-	asm volatile(JMP_INSN " .");
+	EMIT_LOOP();
 
 	// should never be reached
 	return 0;

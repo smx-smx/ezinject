@@ -13,7 +13,11 @@
 #include EZ_ARCH_HEADER
 
 #ifndef ADJUST_STACK
-#define ADJUST_STACK(offset)
+#define ADJUST_STACK()
 #endif
+
+#define EMIT_LOOP() asm volatile(\
+    JMP_INSN " .\n" \
+    "nop") // delay slot
 
 #endif

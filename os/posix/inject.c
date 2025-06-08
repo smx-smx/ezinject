@@ -77,30 +77,27 @@ static off_t trap_offset_stop;
 static off_t sc_fn_offset;
 #endif
 
-static void *code_data(void *code){
-#if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
-	return (void *)(UPTR(code) & ~1);
-#else
-	return code;
-#endif
-}
-
 /**
  * setup static shellcode invariants (offsets)
  **/
 static void _remote_sc_setup_offsets(){
 #ifdef EZ_TARGET_POSIX
-	sc_fn_offset = PTRDIFF(&injected_sc6, region_sc_code.start);
+	sc_fn_offset = PTRDIFF(
+		code_data(&injected_sc6, CODE_DATA_DEREF), region_sc_code.start);
 #endif
 
 #ifdef HAVE_SYSCALLS
-	sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
+	sc_wrapper_offset = PTRDIFF(
+		code_data(&injected_sc_wrapper, CODE_DATA_DEREF), region_sc_code.start);
 #endif
 
 #ifdef EZ_TARGET_LINUX
-	sc_mmap_offset = PTRDIFF(&injected_mmap, region_sc_code.start);
-	sc_open_offset = PTRDIFF(&injected_open, region_sc_code.start);
-	sc_read_offset = PTRDIFF(&injected_read, region_sc_code.start);
+	sc_mmap_offset = PTRDIFF(
+		code_data(&injected_mmap, CODE_DATA_DEREF), region_sc_code.start);
+	sc_open_offset = PTRDIFF(
+		code_data(&injected_open, CODE_DATA_DEREF), region_sc_code.start);
+	sc_read_offset = PTRDIFF(
+		code_data(&injected_read, CODE_DATA_DEREF), region_sc_code.start);
 #endif
 
 #ifdef EZ_TARGET_WINDOWS
@@ -108,16 +105,22 @@ static void _remote_sc_setup_offsets(){
 	sc_virtualfree_offset = PTRDIFF(&injected_virtual_free, region_sc_code.start);
 #endif
 
-	trap_offset_start = PTRDIFF(&injected_sc_trap_start, region_sc_code.start);
-	trap_offset_stop = PTRDIFF(&injected_sc_trap_stop, region_sc_code.start);
+	trap_offset_start = PTRDIFF(
+		code_data(&injected_sc_trap_start, CODE_DATA_DEREF), region_sc_code.start);
+	trap_offset_stop = PTRDIFF(
+		code_data(&injected_sc_trap_stop, CODE_DATA_DEREF), region_sc_code.start);
 
 	// always at the beginning of the shellcode
 	trampoline_offset = 0;
 	trampoline_size = (size_t)WORDALIGN(
-		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline))
+		PTRDIFF(
+			code_data(&trampoline_exit, CODE_DATA_BYTES),
+			code_data(&trampoline, CODE_DATA_BYTES))
 	);
 
-	trampoline_entry_label = PTRDIFF(code_data(&trampoline_entry), code_data(&trampoline));
+	trampoline_entry_label = PTRDIFF(
+		code_data(&trampoline_entry, CODE_DATA_BYTES),
+		code_data(&trampoline, CODE_DATA_BYTES));
 
 	// shellcode section after the trampoline
 	sc_offset = trampoline_offset + trampoline_size;
@@ -173,7 +176,9 @@ uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
  * Get the address of the call wrapper
  **/
 uintptr_t get_wrapper_address(struct ezinj_ctx *ctx){
-	uintptr_t sc_wrapper_offset = PTRDIFF(&injected_sc_wrapper, region_sc_code.start);
+	uintptr_t sc_wrapper_offset = PTRDIFF(
+		code_data(&injected_sc_wrapper, CODE_DATA_DEREF),
+		region_sc_code.start);
 	return r_current_sc_base + sc_wrapper_offset;
 }
 #endif
@@ -211,8 +216,10 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *out_sc_base){
 	// copy trampoline function
 	memcpy(
 		payload + trampoline_offset,
-		code_data(&trampoline),
-		PTRDIFF(code_data(&trampoline_exit), code_data(&trampoline))
+		code_data(&trampoline, CODE_DATA_BYTES),
+		PTRDIFF(
+			code_data(&trampoline_exit, CODE_DATA_BYTES),
+			code_data(&trampoline, CODE_DATA_BYTES))
 	);
 	// copy syscall trampolines
 	memcpy(
@@ -307,8 +314,8 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 	if(call->argc > 0){
 		switch(call->argv[0]){
 			case __NR_mmap2:
-				DBGPTR(call->libc_mmap);
-				if(call->libc_mmap != NULL){
+				DBGPTR(call->libc_mmap.fptr);
+				if(call->libc_mmap.fptr != NULL){
 					return r_current_sc_base + sc_mmap_offset;
 				}
 				break;
@@ -317,14 +324,14 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 			#elif defined(__NR_openat)
 			case __NR_openat:
 			#endif
-				DBGPTR(call->libc_open);
-				if(call->libc_open != NULL){
+				DBGPTR(call->libc_open.fptr);
+				if(call->libc_open.fptr != NULL){
 					return r_current_sc_base + sc_open_offset;
 				}
 				break;
 			case __NR_read:
-				DBGPTR(call->libc_read);
-				if(call->libc_read != NULL){
+				DBGPTR(call->libc_read.fptr);
+				if(call->libc_read.fptr != NULL){
 					return r_current_sc_base + sc_read_offset;
 				}
 				break;
@@ -382,8 +389,8 @@ EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
 	UNUSED(ctx);
 
 	// tell the wrapper which syscall trampoline to call
-	call->wrapper.target = (void *)_get_wrapper_target(call);
-	DBGPTR(call->wrapper.target);
+	call->wrapper.target.fptr = (void *)_get_wrapper_target(call);
+	DBGPTR(call->wrapper.target.fptr);
 
 	// tell the trampoline to call injected_sc_wrapper
 	call->trampoline.fn_addr = r_current_sc_base + sc_wrapper_offset;

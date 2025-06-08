@@ -61,6 +61,23 @@ uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 
 size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout);
 
+int __get_stack_growth_direction(int *parent){
+	int local;
+	if(parent < &local) return 1;
+	return -1;
+}
+
+static int __stack_growth_direction = 0;
+
+int get_stack_growth_direction(){
+	if(__stack_growth_direction != 0){
+		return __stack_growth_direction;
+	}
+	int local;
+	__stack_growth_direction = __get_stack_growth_direction(&local);
+	return __stack_growth_direction;
+}
+
 /**
  * Prepares the target process for a call invocation with syscall convention
  * NOTE: this function can be used to call anything, not just system calls
@@ -75,6 +92,9 @@ intptr_t setregs_syscall(
 	regs_t *new_ctx,
 	struct call_req *call
 ){
+	int stack_dir = get_stack_growth_direction();
+	INFO("stack_dir: %d", stack_dir);
+
 	REG(*new_ctx, REG_PC) = call->insn_addr;
 
 	// this will be passed on the stack
@@ -87,7 +107,12 @@ intptr_t setregs_syscall(
 		target_sp = REG(*orig_ctx, REG_SP);
 	}
 	// allocate remote call on the stack
-	uintptr_t r_call_args = target_sp - sizeof(*rcall);
+	uintptr_t r_call_args = target_sp;
+	if(stack_dir < 0){
+		// allocate stack data for rcall (see diagram below)
+		// this is also used as the remote memcpy base
+		r_call_args -= sizeof(*rcall);
+	} 
 
 	rcall->argc = 0;
 	rcall->result = 0;
@@ -95,16 +120,28 @@ intptr_t setregs_syscall(
 	memcpy(&rcall->argv, &call->argv, sizeof(call->argv));
 
 #ifdef EZ_TARGET_POSIX
-	rcall->libc_syscall = (void *)ctx->libc_syscall.remote;
+	rcall->libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
+	rcall->libc_syscall.got = (void *)ctx->libc_got.remote;
+	rcall->libc_syscall.self = (void *)r_call_args + offsetof(struct injcode_call, libc_syscall);
 #endif
 #ifdef EZ_TARGET_LINUX
 	if(ctx->force_mmap_syscall){
-		rcall->libc_mmap = NULL;
+		rcall->libc_mmap.fptr = NULL;
 	} else {
-		rcall->libc_mmap = (void *)ctx->libc_mmap.remote;
+		rcall->libc_mmap.fptr = (void *)ctx->libc_mmap.remote;
 	}
-	rcall->libc_open = (void *)ctx->libc_open.remote;
-	rcall->libc_read = (void *)ctx->libc_read.remote;
+
+	rcall->libc_mmap.got = (void *)ctx->libc_got.remote;
+	rcall->libc_mmap.self = (void *)r_call_args + offsetof(struct injcode_call, libc_mmap);
+
+	rcall->libc_open.fptr = (void *)ctx->libc_open.remote;
+	rcall->libc_open.got = (void *)ctx->libc_got.remote;
+	rcall->libc_open.self = (void *)r_call_args + offsetof(struct injcode_call, libc_open);
+
+
+	rcall->libc_read.fptr = (void *)ctx->libc_read.remote;
+	rcall->libc_read.got = (void *)ctx->libc_got.remote;
+	rcall->libc_read.self = (void *)r_call_args + offsetof(struct injcode_call, libc_read);
 #endif
 #ifdef EZ_TARGET_WINDOWS
 	rcall->VirtualAlloc = (void *)ctx->virtual_alloc.remote;
@@ -113,7 +150,12 @@ intptr_t setregs_syscall(
 	rcall->GetCurrentThread = (void *)ctx->get_current_thread.remote;
 #endif
 
-#define PLAPI_USE(fn) rcall->plapi.fn = (void *)ctx->plapi.fn;
+#define PLAPI_USE(fn) do { \
+	rcall->plapi.fn.fptr = (void *)ctx->plapi.fn; \
+	rcall->plapi.fn.got = 0; \
+	rcall->plapi.fn.self = (void *)r_call_args + offsetof(struct injcode_call, plapi.fn); \
+} while(0)
+
 	PLAPI_USE(inj_memset);
 	PLAPI_USE(inj_puts);
 	PLAPI_USE(inj_dchar);
@@ -140,6 +182,11 @@ intptr_t setregs_syscall(
 	 * trampoline -> wrapper -> syscall
 	 **/
 	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
+#ifdef EZ_ARCH_HPPA
+	rcall->trampoline.fn_self = r_call_args + offsetof(struct injcode_call, trampoline.fn_addr);
+	rcall->wrapper.target.self = (void *)(r_call_args + offsetof(struct injcode_call, wrapper));
+#endif
+	DBGPTR(rcall->trampoline.fn_addr);
 	if(call->syscall_mode){
 		/**
 		 * set the branch target
@@ -151,7 +198,7 @@ intptr_t setregs_syscall(
 		}
 	} else {
 		// call the user supplied target through the wrapper
-		rcall->wrapper.target = (intptr_t (*)(volatile struct injcode_call *))ctx->branch_target.remote;
+		rcall->wrapper.target.fptr = (intptr_t (*)(volatile struct injcode_call *))ctx->branch_target.remote;
 	}
 	#else
 	// call the user supplied target through the trampoline
@@ -190,9 +237,38 @@ intptr_t setregs_syscall(
 	call->backup_data = saved_stack;
 	call->backup_size = backupSize;
 
-	// update stack pointer
-	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
-
+	if(stack_dir < 0){
+		/**
+		 * if the stack grows down, we must decrement by the amount of data we want 
+		 * to consume.
+		 * refer to the following diagram (with dummy sample address)
+		 * 
+		 * 0x0 -------- <-- r_call_args (memcpy base)
+		 * 0x1 | call |
+		 * 0x2 |----- | <-- wanted SP (decrement)
+		 * 0x3 | para |
+		 * 0x4 -------- <-- SP Top / New Sp Top
+		 */
+		REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
+	} else {
+		/**
+		 * if the stack grows up, we must increment by the amount of data copied.
+		 * this is because the stack grows up, so further calls performed
+		 * within the payload will overwrite the injcode_call on the stack
+		 * refer to the following diagram (with dummy sample address)
+		 * 
+		 *              <-- SP Top
+		 * 0x0 -------- <-- r_call_args (memcpy base)
+		 * 0x1 | call |
+		 * 0x2 |----- | <-- New SP Top
+		 * 0x3 | para |
+		 * 0x4 -------- <-- wanted SP (increment)
+		 * 
+		 * POP *decrements* the stack towards New SP Top
+		 */
+		REG(*new_ctx, REG_SP) = target_sp + sizeof(*rcall);
+	}
+	
 #ifdef DEBUG
 	DBGPTR((void *)REG(*new_ctx, REG_SP));
 #endif
@@ -260,6 +336,12 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 		// hack
 		ctx->r_ezstate_addr = RCALL_FIELD_ADDR(&call->rcall, ezstate);
 		#endif
+
+		if(ctx->bail){
+			// hard exit for debugging purposes
+			// (debugging crashes in target)
+			exit(0);
+		}
 
 		intptr_t status = remote_wait(ctx, 0);
 		if(status < 0){
@@ -491,20 +573,32 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		LIB_CLOSE(h_libdl);
 	}
 
-	#define USE_LIBC_SYM(name) do { \
-	ctx->libc_##name = sym_addr(h_libc, #name, ctx->libc); \
-	DBGPTR(ctx->libc_##name.local); \
-	DBGPTR(ctx->libc_##name.remote); \
-} while(0)
+	uintptr_t libc_got = UPTR(code_data(&syscall, CODE_DATA_DPTR));
 
-	USE_LIBC_SYM(syscall);
-#undef USE_LIBC_SYM
+	ctx->libc_syscall = sym_addr(h_libc, "syscall", ctx->libc);
+	ctx->libc_got = (ez_addr){
+		.local = libc_got,
+		.remote = EZ_REMOTE(ctx->libc, libc_got)
+	};
+	DBGPTR(ctx->libc_syscall.local);
+	DBGPTR(ctx->libc_syscall.remote);
 
 	LIB_CLOSE(h_libc);
 	return 0;
 }
 
+void invoke_plt_resolvers(){
+#ifdef EZ_TARGET_POSIX
+	int fd = open("/tmp/invalid_file_path", 0);
+	if(fd >= 0) close(fd);
+	mmap(0, 0, 0, 0, -1, 0);
+	syscall(__NR_getpid);
+#endif
+}
+
 int libc_init(struct ezinj_ctx *ctx){
+	invoke_plt_resolvers();
+
 	if(libc_init_default(ctx) != 0){
 		return 1;
 	}
@@ -694,14 +788,19 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->dlclose_offset = ctx->dlclose_offset;
 	br->dlsym_offset = ctx->dlsym_offset;
 
-#define USE_LIBC_SYM(name) do { \
-	br->libc_##name = (void *)ctx->libc_##name.remote; \
-	DBGPTR(br->libc_##name); \
-} while(0)
-
 #ifdef EZ_TARGET_POSIX
-	USE_LIBC_SYM(dlopen);
-	USE_LIBC_SYM(syscall);
+	br->libc_dlopen.fptr = (void *)ctx->libc_dlopen.remote;
+	br->libc_dlopen.got = (void *)ctx->libdl_got.remote;
+
+	br->libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
+	br->libc_syscall.got = (void *)ctx->libc_got.remote;
+
+	DBGPTR(br->libc_dlopen.fptr);
+	DBGPTR(br->libc_dlopen.got);
+	DBGPTR(br->libc_syscall.fptr);
+
+	br->libc_got = (void *)ctx->libc_got.remote;
+	br->libdl_got = (void *)ctx->libdl_got.remote;
 #endif
 
 #undef USE_LIBC_SYM
@@ -787,6 +886,9 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 
 	// stack is located at the end of the memory map
 	layout->stack_top = (uint8_t *)ctx->mapped_mem.local + mapping_size;
+	if(get_stack_growth_direction() == 1){
+		layout->stack_top -= PL_STACK_SIZE;
+	}
 
 	/** align stack **/
 
@@ -900,6 +1002,7 @@ int ezinject_main(
 			#else
 			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
 			#endif
+			break;
 		}
 		INFO("target: payload base: %p", (void *)remote_shm_ptr);
 
@@ -951,12 +1054,12 @@ int ezinject_main(
 		ctx->pl_stack.remote = (uintptr_t)PL_REMOTE(ctx, target_sp);
 
 		// use trampoline on PL
-		ctx->entry_insn.remote = PL_REMOTE_CODE(ctx, &trampoline_entry);
+		ctx->entry_insn.remote = PL_REMOTE_CODE(ctx, code_data(&trampoline_entry, CODE_DATA_DEREF));
 		// tell the trampoline to call the main injcode
-		ctx->branch_target.remote = PL_REMOTE_CODE(ctx, &injected_fn);
+		ctx->branch_target.remote = PL_REMOTE_CODE(ctx, code_data(&injected_fn, CODE_DATA_DEREF));
 
 		// init plapi
-		#define PLAPI_SET(ctx, fn) ctx->plapi.fn = PL_REMOTE_CODE(ctx, &fn)
+		#define PLAPI_SET(ctx, fn) ctx->plapi.fn = PL_REMOTE_CODE(ctx, code_data(&fn, CODE_DATA_DEREF))
 		PLAPI_SET(ctx, inj_memset);
 		PLAPI_SET(ctx, inj_puts);
 		PLAPI_SET(ctx, inj_dchar);

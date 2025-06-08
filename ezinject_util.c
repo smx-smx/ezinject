@@ -9,9 +9,33 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #include "dlfcn_compat.h"
 #include "ezinject.h"
+#include "ezinject_util.h"
+
+void *code_data(void *code, enum code_data_transform type){
+#if defined(EZ_ARCH_ARM) && defined(USE_ARM_THUMB)
+	if(type == CODE_DATA_BYTES){
+		return (void *)(UPTR(code) & ~1);
+	}
+#elif defined(EZ_ARCH_HPPA)
+	if(type == CODE_DATA_BYTES || type == CODE_DATA_DEREF || type == CODE_DATA_DPTR){
+		uintptr_t r22 = (uintptr_t)code;
+		if ((uintptr_t)r22 & 2) {
+			printf("%p -> ", code);
+			if(type == CODE_DATA_DPTR){
+				code = *(void **)(r22 + 2);
+			} else {
+				code = *(void **)(r22 - 2);
+			}
+			printf("%p\n", code);
+		}
+	}
+#endif
+	return code;
+}
 
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib){
 	uintptr_t sym_addr = (uintptr_t)LIB_GETSYM(handle, sym_name);

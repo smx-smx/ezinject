@@ -22,11 +22,22 @@
 	: "=r"(var));
 
 #define POP_PARAMS(out_br, out_func) \
-	EMIT_POP(out_br); \
-	EMIT_POP(out_func)
+	EMIT_POP(out_func); \
+	EMIT_POP(out_br)
 
-#define ADJUST_STACK(offset) \
-	asm volatile("stdu 1, %0(1)" :: "i"(offset) : "memory");
+/**
+ * reserve space for:
+ * - back chain
+ * - CR save
+ * - reserved 
+ * - LR save
+ * - TOC pointer
+ * there are different ABIs here.
+ * the older PPC ABI uses 48 bytes, while the ELFv2 ABI uses 32 bytes
+ * just use the worst case size to support both.
+ */
+#define ADJUST_STACK() \
+	asm volatile("stdu 1, -48(1)");
 
 #define JMP_INSN "b"
 

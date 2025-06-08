@@ -9,6 +9,7 @@
 #cmakedefine EZ_ARCH_AMD64
 #cmakedefine EZ_ARCH_MIPS
 #cmakedefine EZ_ARCH_PPC64
+#cmakedefine EZ_ARCH_HPPA
 #cmakedefine EZ_TARGET_LINUX
 #cmakedefine EZ_TARGET_FREEBSD
 #cmakedefine EZ_TARGET_POSIX

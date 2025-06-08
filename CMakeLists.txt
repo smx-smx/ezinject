@@ -330,6 +330,8 @@ if(EZ_TARGET_LINUX)
 		set(EZ_ARCH_HEADER arch/ezinject_ppc64.h)
 	elseif(EZ_ARCH_RISCV)
 		set(EZ_ARCH_HEADER arch/ezinject_riscv.h)
+	elseif(EZ_ARCH_HPPA)
+		set(EZ_ARCH_HEADER arch/ezinject_hppa.h)
 	endif()
 elseif(EZ_TARGET_FREEBSD)
 	if(EZ_ARCH_AMD64)
@@ -464,9 +466,18 @@ add_subdirectory(os)
 
 target_sources(ezinject PRIVATE 
 	ezinject.c
-	ezinject_injcode.c
 	${ezinject_headers}
 )
+if(EZ_ARCH_HPPA)
+	target_sources(ezinject PRIVATE 
+		${CMAKE_BINARY_DIR}/ezinject_injcode_patched.s
+	)
+else()
+	target_sources(ezinject PRIVATE 
+		ezinject_injcode.c
+	)
+endif()
+
 target_link_libraries(ezinject
 	ezinject_log
 	ezinject_util)
@@ -480,9 +491,13 @@ install(
 )
 
 set(injcode_cflags "")
-if(EZ_ARCH_PPC64)
+if(EZ_ARCH_PPC64 OR EZ_ARCH_HPPA)
+	# for PPC:
 	# required to skip generation of _savegpr0_* _restgpr0_*
 	# see: https://reviews.llvm.org/D79977
+	#
+	# for HPPA
+	# we want the inline version of $$dyncall
 	string(APPEND injcode_cflags "-O2")
 else()
 	string(APPEND injcode_cflags "-Os")
@@ -498,6 +513,9 @@ endif()
 if(HAVE_CFLAG_STACK_ARG_PROBE)
 	string(APPEND injcode_cflags " -mno-stack-arg-probe")
 endif()
+if(EZ_ARCH_HPPA)
+	string(APPEND injcode_cflags " -mfast-indirect-calls")
+endif()
 
 # -fno-stack-protector: remove stack cookie checks
 # -fno-pic: remove calls to __x86_get_pc_thunk_ax
@@ -509,6 +527,36 @@ set_source_files_properties(
 	ezinject_injcode.c
 	crt/crt_injcode.c
 	PROPERTIES COMPILE_FLAGS "${injcode_cflags}")
+
+if(EZ_ARCH_HPPA)
+	separate_arguments(injcode_args UNIX_COMMAND "${injcode_cflags}")
+	add_custom_command(
+		OUTPUT ${CMAKE_BINARY_DIR}/ezinject_injcode.s
+		COMMAND ${CMAKE_C_COMPILER}
+			-I${CMAKE_BINARY_DIR} 
+			-I${CMAKE_SOURCE_DIR}
+			${injcode_args} -S
+			${CMAKE_SOURCE_DIR}/ezinject_injcode.c
+			-o ${CMAKE_BINARY_DIR}/ezinject_injcode.s
+		DEPENDS ${CMAKE_SOURCE_DIR}/ezinject_injcode.c
+	)
+	add_custom_target(ezinject_injcode_asm
+		DEPENDS ${CMAKE_BINARY_DIR}/ezinject_injcode.s
+	)
+	add_custom_command(
+		OUTPUT ${CMAKE_BINARY_DIR}/ezinject_injcode_patched.s
+		COMMAND php ${CMAKE_SOURCE_DIR}/hppa_patch_calls.php
+			${CMAKE_BINARY_DIR}/ezinject_injcode.s
+			${CMAKE_BINARY_DIR}/ezinject_injcode_patched.s
+		DEPENDS
+			${CMAKE_SOURCE_DIR}/hppa_patch_calls.php
+			${CMAKE_BINARY_DIR}/ezinject_injcode.s
+	)
+	add_custom_target(patch_ezinject_injcode_asm
+		DEPENDS ${CMAKE_BINARY_DIR}/ezinject_injcode_patched.s
+	)
+	add_dependencies(ezinject patch_ezinject_injcode_asm)
+endif()
 
 if(EZ_TARGET_POSIX)
 	target_link_libraries(ezinject dl)

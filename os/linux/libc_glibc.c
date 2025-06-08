@@ -6,10 +6,12 @@
  *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
+#include <link.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <dlfcn.h>
-#include <link.h>
 
+#include "ezinject_util.h"
 #include "ezinject.h"
 #include "log.h"
 #include "common.h"
@@ -35,17 +37,13 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 		INFO("_dl_open not found, trying generic method");
 		if(!linux_resolve_libc_symbols_generic(ctx)){
 			// success
-			return 0;
+			break;
 		}
-		ERR("failed to resolve glibc symbols");
-		return 1;
-	} while(0);
 
-	if(!libc_dlopen.remote){
-		ERR("failed to resolve glibc internal dlopen");
+		ERR("failed to resolve glibc symbols");
 		dlclose(h_libc);
 		return 1;
-	}
+	} while(0);
 
 	ctx->libc_dlopen = libc_dlopen;
 
@@ -63,6 +61,28 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ez_addr libc_mmap = sym_addr(h_libc, "mmap", ctx->libc);
 	ez_addr libc_open = sym_addr(h_libc, "open", ctx->libc);
 	ez_addr libc_read = sym_addr(h_libc, "read", ctx->libc);
+
+	// we can use this for mmap,open,read
+	uintptr_t libc_got = UPTR(code_data(&syscall, CODE_DATA_DPTR));
+
+	/*uintptr_t libc_mmap_got = UPTR(code_data(&mmap, CODE_DATA_DPTR));
+	uintptr_t libc_read_got = UPTR(code_data(&read, CODE_DATA_DPTR));
+	uintptr_t libc_open_got = UPTR(code_data(&syscall, CODE_DATA_DPTR));*/
+
+	uintptr_t libc_mmap_got = libc_got;
+	uintptr_t libc_read_got = libc_got;
+	uintptr_t libc_open_got = libc_got;
+
+	ctx->libc_got = (ez_addr) {
+		.local = libc_got,
+		.remote = EZ_REMOTE(ctx->libc, libc_got)
+	};
+
+	uintptr_t libdl_got = UPTR(code_data(&dlopen, CODE_DATA_DPTR));
+	ctx->libdl_got = (ez_addr) {
+		.local = libdl_got,
+		.remote = EZ_REMOTE(ctx->libc, libdl_got)
+	};
 
 	ctx->libc_mmap = libc_mmap;
 	ctx->libc_open = libc_open;

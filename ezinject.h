@@ -81,6 +81,7 @@ struct ezinj_ctx_plapi {
 struct ezinj_ctx {
 	bool pl_debug;
 	bool syscall_mode;
+	bool bail;
 	pid_t target;
 	uintptr_t r_xpage_base;
 	char *module_logfile;
@@ -117,6 +118,8 @@ struct ezinj_ctx {
 	pfnCallHandler rcall_handler_post;
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
+	ez_addr libc_got;
+	ez_addr libdl_got;
 #ifdef EZ_TARGET_DARWIN
 	ez_addr pthread_create_from_mach_thread;
 	ez_addr pthread_create;

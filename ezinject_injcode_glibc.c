@@ -17,9 +17,11 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	const char *libdl_name = BR_STRTBL(br)[EZSTR_API_LIBDL].str;
 
 #if defined(HAVE_LIBC_DLOPEN_MODE)
-	struct link_map *libdl = (struct link_map *) br->libc_dlopen(libdl_name, RTLD_NOW | __RTLD_DLOPEN);
+	struct link_map *libdl = (struct link_map *) CALL_FPTR(br->libc_dlopen,
+		libdl_name, RTLD_NOW | __RTLD_DLOPEN);
 #elif defined(HAVE_LIBC_DL_OPEN)
-	struct link_map *libdl = (struct link_map *) br->libc_dlopen(libdl_name, RTLD_NOW | __RTLD_DLOPEN, NULL);
+	struct link_map *libdl = (struct link_map *) CALL_FPTR(br->libc_dlopen,
+		libdl_name, RTLD_NOW | __RTLD_DLOPEN, NULL);
 #else
 #error "Unsupported build flags"
 #endif
