@@ -8,9 +8,16 @@
  */
 #ifndef __EZINJECT_UTIL_H
 #define __EZINJECT_UTIL_H
+
+#include "config.h"
+
+#ifdef EZ_TARGET_ANDROID
+// workaround header dependency bug with Android NDK r14b
+// error: unknown type name '__va_list'
+#include <err.h>
+#endif
+
 #include <stdio.h>
-#include <stdint.h>
-#include <sys/types.h>
 
 #include "ezinject.h"
 
