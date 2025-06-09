@@ -87,33 +87,61 @@ intptr_t SCAPI injected_read(volatile struct injcode_call *sc){
 }
 #endif
 
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD)
-INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
+#if defined(EZ_TARGET_POSIX)
+INLINE void injected_sc_stop(struct injcode_call *sc){
 	CALL_FPTR(sc->libc_syscall, __NR_kill,
 		CALL_FPTR(sc->libc_syscall, __NR_getpid),
-		SIGTRAP
+		SIGSTOP
 	);
 }
 #elif defined(EZ_TARGET_WINDOWS)
-INLINE void SCAPI injected_sc_stop(volatile struct injcode_call *sc){
+INLINE void injected_sc_stop(struct injcode_call *sc){
 	sc->ezstate = EZST1;
 	EMIT_LOOP();
 }
 #endif
 
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
+INLINE void injected_pl_stop(struct injcode_bearing *br){
+	CALL_FPTR(br->libc_syscall, __NR_kill,
+		CALL_FPTR(br->libc_syscall, __NR_getpid),
+		SIGSTOP
+	);
+}
+
+INLINE void _injected_wrapper_impl(volatile struct injcode_call *sc){
+	if(sc->argv[0] == EZBR1){
+		/**
+		 * copy certain fields from `injcode_call` (from the top of the stack)
+		 * to `injcode_bearing` (which is located at the opposite size of memory)
+		 * this is required to
+		 * - allow `injected_fn` to access the entry call without overwriting it with its stack frame
+		 * - allow `injected_fn` to return to the wrapper safely (or `sc` will be corrupted upon return)
+		 */
+		struct injcode_bearing *br = (struct injcode_bearing *)(sc->argv[1]);
+		br->entry.wrapper = sc->wrapper;
+
+		sc->result = CALL_FPTR(sc->wrapper.target, sc);
+		injected_pl_stop(br);
+	} else {
+		sc->result = CALL_FPTR(sc->wrapper.target, sc);
+		injected_sc_stop(sc);
+	}
+	EMIT_LOOP();
+}
+
 /**
  * On ARM/Linux + glibc, making system calls and writing their results in the same function
  * seems to cause a very subtle stack corruption bug that ultimately causes dlopen/dlsym to segfault
  * to work around that, we use a wrapper so that the system call is executed in a different subroutine
  * than the one setting the result.
  **/
-void SCAPI injected_sc_wrapper(volatile struct injcode_call *args){
-	args->result = CALL_FPTR(args->wrapper.target, args);
-	injected_sc_stop(args);
-	EMIT_LOOP();
+void SCAPI injected_sc_wrapper(volatile struct injcode_call *sc){
+	_injected_wrapper_impl(sc);
 }
-#endif
+
+void PLAPI injected_pl_wrapper(volatile struct injcode_call *sc){
+	_injected_wrapper_impl(sc);
+}
 
 //#define PL_EARLYDEBUG
 
@@ -190,6 +218,7 @@ typedef int log_handle_t;
 #endif
 
 struct injcode_ctx {
+	uintptr_t magic; // EZCX1
 	struct injcode_bearing *br;
 
 	log_handle_t log_handle;
@@ -252,10 +281,6 @@ intptr_t PLAPI inj_fetchsym(
 
 #ifdef EZ_TARGET_POSIX
 #include "ezinject_injcode_posix.c"
-#endif
-
-#ifdef EZ_TARGET_DARWIN
-#include "ezinject_injcode_darwin.c"
 #endif
 
 #if defined(EZ_TARGET_LINUX) && !defined(EZ_TARGET_ANDROID) && !defined(HAVE_LIBDL_IN_LIBC)
@@ -346,15 +371,43 @@ INLINE void inj_plapi_init(struct injcode_call *sc, struct injcode_ctx *ctx){
 	#undef PCOPY
 }
 
-intptr_t PLAPI injected_fn(struct injcode_call *sc){
-	struct injcode_bearing *br = (struct injcode_bearing *)(sc->argv[0]);
+INLINE void inj_crash(){
+	uintptr_t *p = (uintptr_t *)0xDEAD;
+	*p = 0xDEAD;
+}
+
+intptr_t PLAPI injected_fn(void *arg){
 	struct injcode_ctx stack_ctx;
 	struct injcode_ctx *ctx = &stack_ctx;
+	struct injcode_bearing *br = NULL;
 
-	CALL_FPTR(sc->plapi.inj_memset,
-		NULL, ctx, 0x00, sizeof(*ctx));
-	
-	inj_plapi_init(sc, ctx);
+	uintptr_t magic = *(uintptr_t *)arg;
+	// if we were called from the wrapper
+	if(magic == EZSC1){
+		struct injcode_call *sc = (struct injcode_call *)arg;
+		if(sc->argv[0] != EZBR1){
+			inj_crash();
+			EMIT_LOOP();
+		}
+		br = (struct injcode_bearing *)(sc->argv[1]);
+
+		CALL_FPTR(sc->plapi.inj_memset,
+			NULL, ctx, 0x00, sizeof(*ctx));
+		
+		ctx->magic = EZCX1;
+		inj_plapi_init(sc, ctx);
+	}
+
+	// if we were called from pthread_create_from_mach_thread
+	else if(magic == EZCX1){
+		ctx = (struct injcode_ctx *)arg;
+		br = ctx->br;
+	}
+	// invalid invocation
+	else {
+		inj_crash();
+		EMIT_LOOP();
+	}
 
 	ctx->br = br;
 	ctx->stbl = BR_STRTBL(br);
@@ -392,24 +445,30 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		if(thread_is_parent){
 			PCALL(ctx, inj_dchar, 't');
 
-			sc->mach_thread = br->mach_thread_self();
+			br->mach_thread = br->mach_thread_self();
 
+			// spawn child thread with TLS
 			if(br->pthread_create_from_mach_thread(
-				&br->tid, NULL, (void * (*)(void *))sc->trampoline_copy.fn_addr, sc
+				&br->tid, NULL, (void * (*)(void *))br->entry.wrapper.target.fptr, ctx
 			) != 0){
 				PCALL(ctx, inj_dchar, '!');
 				result = INJ_ERR_DARWIN_THREAD;
 				goto pl_exit;
 			}
+			// trap parent thread
 			goto pl_exit_parent;
 		} else {
 			// detach ourselves to free resources
 			// (the parent can't do it because it has no TLS)
-			br->pthread_detach(br->pthread_self());
+			if(br->pthread_detach(br->pthread_self()) != 0){
+				PCALL(ctx, inj_dchar, '!');
+			}
 
 			// kill the parent thread
 			// (the parent can't do it because it has no TLS within `thread_terminate`)
-			br->thread_terminate(sc->mach_thread);
+			if(br->thread_terminate(br->mach_thread) != KERN_SUCCESS){
+				PCALL(ctx, inj_dchar, '!');
+			}
 		}
 	}
 	#endif
@@ -510,20 +569,12 @@ pl_exit:
 		EMIT_LOOP();
 		//return 0;
 	} else {
-		sc->result = result;
-		CALL_FPTR(br->libc_syscall, __NR_kill,
-			CALL_FPTR(br->libc_syscall, __NR_getpid),
-			SIGSTOP);
-		return 0;
+		injected_pl_stop(br);
 	}
-	#else
-	inj_logfini(ctx);
-	// return to ezinject
-	PL_RETURN(sc, result);
 	#endif
 
-	EMIT_LOOP();
+	// return to wrapper
+	return result;
 
-	// should never be reached
-	return 0;
+	EMIT_LOOP();
 }

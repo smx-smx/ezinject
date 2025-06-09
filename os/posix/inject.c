@@ -171,7 +171,6 @@ uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 	return sc_base;
 }
 
-#ifdef HAVE_SYSCALLS
 /**
  * Get the address of the call wrapper
  **/
@@ -181,7 +180,6 @@ uintptr_t get_wrapper_address(struct ezinj_ctx *ctx){
 		region_sc_code.start);
 	return r_current_sc_base + sc_wrapper_offset;
 }
-#endif
 
 uintptr_t remote_sc_get_trap_start(){
 	return r_current_sc_base + trap_offset_start;

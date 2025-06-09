@@ -157,6 +157,10 @@ struct injcode_plapi {
 };
 
 #define EZST1 0x455A5331 // signaled
+// magic to mark PL syscall (used as syscall number)
+#define EZBR1 0x455A4252
+#define EZSC1 0x455A5343
+#define EZCX1 0x455A4358
 
 /**
  *
@@ -164,6 +168,7 @@ struct injcode_plapi {
  * within the target process
  **/
 struct injcode_call {
+	uintptr_t magic; //EZSC1
 
 #ifdef EZ_TARGET_POSIX
 	struct {
@@ -205,33 +210,25 @@ struct injcode_call {
 	DWORD WINAPI (*SuspendThread)(HANDLE hThread);
 	HANDLE WINAPI (*GetCurrentThread)(VOID);
 #endif
-#ifdef EZ_TARGET_DARWIN
-	thread_act_t mach_thread;
-#endif
 
 	uintptr_t ezstate;
 
 	/** PLAPI **/
 	struct injcode_plapi plapi;
 
-	struct injcode_trampoline trampoline_copy;
-
 	int argc;
 	intptr_t result;
-	intptr_t result2;
 	uintptr_t argv[SC_MAX_ARGS];
 
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
 	/**
 	 * syscall wrapper parameters
 	 **/
 	struct injcode_sc_wrapper wrapper;
-#endif
 
 	/**
 	 * this field acts as the stack for the entry point (trampoline)
 	 */
-	uint8_t entry_stack[768];
+	uint8_t entry_stack[512];
 
 	/**
 	 * trampoline parameters
@@ -250,6 +247,12 @@ struct injcode_call {
 
 struct injcode_bearing
 {
+	uintptr_t magic; //EZBR1
+	
+	struct {
+		struct injcode_sc_wrapper wrapper;
+	} entry;
+	
 	ssize_t mapping_size;
 
 	int stbl_relocated;
@@ -261,6 +264,10 @@ struct injcode_bearing
 	HANDLE hEvent;
 #endif
 	void *userlib;
+
+#ifdef EZ_TARGET_DARWIN
+	thread_act_t mach_thread;
+#endif
 
 #if defined(EZ_TARGET_DARWIN)
 	pthread_t tid;
@@ -483,12 +490,13 @@ intptr_t SCAPI injected_virtual_free(volatile struct injcode_call *sc);
 #endif
 
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args);
+void PLAPI injected_pl_wrapper(volatile struct injcode_call *args);
 
 extern void PLAPI trampoline();
 extern void trampoline_entry();
 extern void trampoline_exit();
 
-extern intptr_t injected_fn(struct injcode_call *sc);
+extern intptr_t injected_fn(void *arg);
 
 /** plapi **/
 extern void *inj_memset(struct injcode_ctx *ctx, void *s, int c, size_t n);

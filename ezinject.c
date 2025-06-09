@@ -99,6 +99,7 @@ intptr_t setregs_syscall(
 
 	// this will be passed on the stack
 	struct injcode_call *rcall = &call->rcall;
+	rcall->magic = EZSC1;
 
 	uintptr_t target_sp = 0;
 	if(call->stack_addr != 0){
@@ -201,8 +202,14 @@ intptr_t setregs_syscall(
 		rcall->wrapper.target.fptr = (intptr_t (*)(volatile struct injcode_call *))ctx->branch_target.remote;
 	}
 	#else
-	// call the user supplied target through the trampoline
-	rcall->trampoline.fn_addr = ctx->branch_target.remote;
+	/**
+	 * call wrapper on PL,
+	 * which will copy `injcode_call` to `injcode_bearing` on Darwin
+	 **/
+	rcall->trampoline.fn_addr = ctx->wrapper_address.remote;
+
+	// call the user supplied target through the wrapper
+	rcall->wrapper.target.fptr = (intptr_t (*)(volatile struct injcode_call *))ctx->branch_target.remote;
 	#endif
 
 	if(ctx->rcall_handler_pre != NULL){
@@ -211,10 +218,6 @@ intptr_t setregs_syscall(
 			return -1;
 		}
 	}
-
-	// copy of trampoline params higher up in the stack,
-	// so that it will not be overwritten during the trampoline
-	memcpy(&rcall->trampoline_copy, &rcall->trampoline, sizeof(rcall->trampoline));
 
 	// backup the stack area being overwritten
 	ssize_t backupSize = (ssize_t)WORDALIGN(sizeof(*rcall));
@@ -756,6 +759,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	}
 
 	memset(br, 0x00, sizeof(*br));
+	br->magic = EZBR1;
 	br->mapping_size = mapping_size;
 	br->pl_debug = ctx->pl_debug;
 	br->libdl_handle = (void *)ctx->libdl.remote;
@@ -1061,6 +1065,7 @@ int ezinject_main(
 
 		// use trampoline on PL
 		ctx->entry_insn.remote = PL_REMOTE_CODE(ctx, code_data(&trampoline_entry, CODE_DATA_DEREF));
+		ctx->wrapper_address.remote = PL_REMOTE_CODE(ctx, code_data(&injected_pl_wrapper, CODE_DATA_DEREF));
 		// tell the trampoline to call the main injcode
 		ctx->branch_target.remote = PL_REMOTE_CODE(ctx, code_data(&injected_fn, CODE_DATA_DEREF));
 
@@ -1080,7 +1085,7 @@ int ezinject_main(
 		// when HAVE_SYSCALLS
 		INFO("- branch_target:    %p", (void *)ctx->branch_target.remote);
 		INFO("- injcode_bearing:  %p", PL_REMOTE(ctx, pl->br_start));
-		err = CHECK(RSCALL0(ctx, PL_REMOTE(ctx, pl->br_start)));
+		err = CHECK(RSCALL1(ctx, EZBR1, PL_REMOTE(ctx, pl->br_start)));
 
 		/**
 		 * if payload debugging is on, skip any cleanup

@@ -113,6 +113,7 @@ struct ezinj_ctx {
 	ez_addr libdl;
 	ez_addr entry_insn;
 	ez_addr branch_target;
+	ez_addr wrapper_address;
 	ez_addr pl_stack;
 	pfnCallHandler rcall_handler_pre;
 	pfnCallHandler rcall_handler_post;

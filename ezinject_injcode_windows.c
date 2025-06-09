@@ -7,10 +7,6 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 
-#define PL_RETURN(sc, x) do { \
-	((sc)->result = (x)); \
-	return 0; \
-} while(0)
 
 intptr_t SCAPI injected_virtual_alloc(volatile struct injcode_call *sc){
 	return (intptr_t)sc->VirtualAlloc(
