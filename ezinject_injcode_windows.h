@@ -14,13 +14,21 @@
 
 struct dl_api {
 	/** LoadLibraryA **/
-	void *(WINAPI *dlopen)(const char *filename);
+	struct {
+		void *(WINAPI *fptr)(const char *filename);
+	} dlopen;
 	/** GetProcAddress **/
-	void *(WINAPI *dlsym)(void *handle, const char *symbol);
+	struct {
+		void *(WINAPI *fptr)(void *handle, const char *symbol);
+	} dlsym;
 	/** FreeLibrary **/
-	int (WINAPI *dlclose)(void *handle);
+	struct {
+		int (WINAPI *fptr)(void *handle);
+	} dlclose;
 	/** always NULL **/
-	char *(*dlerror)(void);
+	struct {
+		char *(*fptr)(void);
+	} dlerror;
 };
 
 struct thread_api {

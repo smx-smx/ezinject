@@ -21,7 +21,7 @@ $output_file = $argv[2];
  * use the compiler flag `mfast-indirect-calls` to skip the GOT, and emit
  * a register-based BLE instead.
  * 
- * however, since BLE is a kernel-mode function (using space registers),
+ * however, since BLE is a kernel-mode instruction (using space registers),
  * we need to replace it with an equivalent usermode sequence.
  * 
  * let's make our own ABI then!

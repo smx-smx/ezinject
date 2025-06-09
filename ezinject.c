@@ -573,13 +573,15 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 		LIB_CLOSE(h_libdl);
 	}
 
+	#ifdef EZ_TARGET_POSIX
 	uintptr_t libc_got = UPTR(code_data(&syscall, CODE_DATA_DPTR));
-
-	ctx->libc_syscall = sym_addr(h_libc, "syscall", ctx->libc);
-	ctx->libc_got = (ez_addr){
+		ctx->libc_got = (ez_addr){
 		.local = libc_got,
 		.remote = EZ_REMOTE(ctx->libc, libc_got)
 	};
+	#endif
+
+	ctx->libc_syscall = sym_addr(h_libc, "syscall", ctx->libc);
 	DBGPTR(ctx->libc_syscall.local);
 	DBGPTR(ctx->libc_syscall.remote);
 
@@ -756,10 +758,10 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
 	br->uclibc_sym_tables = (void *)ctx->uclibc_sym_tables.remote;
-	br->uclibc_dl_fixup = (void *)ctx->uclibc_dl_fixup.remote;
+	br->uclibc_dl_fixup.fptr = (void *)ctx->uclibc_dl_fixup.remote;
 	br->uclibc_loaded_modules = (void *)ctx->uclibc_loaded_modules.remote;
 #ifdef EZ_ARCH_MIPS
-	br->uclibc_mips_got_reloc = (void *)ctx->uclibc_mips_got_reloc.remote;
+	br->uclibc_mips_got_reloc.fptr = (void *)ctx->uclibc_mips_got_reloc.remote;
 #endif
 #endif
 

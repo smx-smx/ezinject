@@ -285,16 +285,30 @@ struct injcode_bearing
 
 // uclibc
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
-	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
-		void *tpnt, char *full_libname, int trace_loaded_objects);
+	struct {
+		void *(*fptr)(unsigned rflags, struct dyn_elf **rpnt,
+			void *tpnt, char *full_libname, int trace_loaded_objects);
+		void *got;
+		void *self;
+	} libc_dlopen;
 	struct dyn_elf **uclibc_sym_tables;
 	#ifdef UCLIBC_OLD
-	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, int now_flag);
+	struct {
+		int (*fptr)(struct dyn_elf *rpnt, int now_flag);
+		void *got;
+		void *self;
+	} uclibc_dl_fixup;
 	#else
-	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
+	struct {
+		int (*fptr)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
+		void *got;
+		void *self;
+	} uclibc_dl_fixup;
 	#endif
 	#ifdef EZ_ARCH_MIPS
-	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
+	struct {
+		void (*fptr)(struct elf_resolve_hdr *tpnt, int lazy);
+	} uclibc_mips_got_reloc;
 	#endif
 	struct elf_resolve_hdr **uclibc_loaded_modules;
 // glibc
@@ -309,7 +323,11 @@ struct injcode_bearing
 	} libc_dlopen;
 // old glibc
 #elif defined(HAVE_LIBC_DL_OPEN)
-	void *(*libc_dlopen)(const char *name, int mode, void *caller);
+	struct {
+		void *(*fptr)(const char *name, int mode, void *caller);
+		void *got;
+		void *self;
+	} libc_dlopen;
 #elif defined(EZ_TARGET_WINDOWS)
 	// LdrLoadDll
 	NTSTATUS NTAPI (*libc_dlopen)(

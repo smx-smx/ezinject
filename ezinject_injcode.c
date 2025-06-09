@@ -52,7 +52,6 @@ void SCAPI injected_sc_trap(void){
 	asm volatile("nop\n");
 	EMIT_LABEL("injected_sc_trap_stop");
 	EMIT_LOOP();
-	asm volatile(".word 0xdeadbeef");
 }
 
 #ifdef EZ_TARGET_LINUX
@@ -292,19 +291,19 @@ INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	libdl->dlclose.fptr = (void *)PTRADD(libdl_handle, br->dlclose_offset);
 	libdl->dlsym.fptr = (void *)PTRADD(libdl_handle, br->dlsym_offset);
 
+#ifdef EZ_ARCH_HPPA
 	libdl->dlopen.got = libdl->dlclose.got =  libdl->dlsym.got
 		= br->libdl_got ? br->libdl_got : br->libc_got;
 	
 	libdl->dlopen.self = VPTR(PTRADD(ctx, offsetof(struct injcode_ctx, libdl.dlopen)));
 	libdl->dlclose.self = VPTR(PTRADD(ctx, offsetof(struct injcode_ctx, libdl.dlclose)));
 	libdl->dlsym.self = VPTR(PTRADD(ctx, offsetof(struct injcode_ctx, libdl.dlsym)));
+#endif
 	return 0;
 }
 
 INLINE intptr_t inj_load_library(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
-
-	const char *sym_crt_init = BR_STRTBL(br)[EZSTR_API_CRT_INIT].str;
 
 	// fetch argv[0], the library absolute path
 	ctx->userlib_name = BR_STRTBL(br)[EZSTR_ARGV0].str;
@@ -369,9 +368,11 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 		}
 	}
 
+#ifdef EZ_ARCH_HPPA
 	// set function descriptors
 	br->libc_syscall.self = VPTR(PTRADD(br, offsetof(struct injcode_bearing, libc_syscall)));
 	br->libc_dlopen.self = VPTR(PTRADD(br, offsetof(struct injcode_bearing, libc_dlopen)));
+#endif
 
 	if(br->pl_debug){
 		EMIT_LOOP();
@@ -506,8 +507,8 @@ pl_exit:
 		//return 0;
 	} else {
 		sc->result = result;
-		br->libc_syscall(__NR_kill,
-			br->libc_syscall(__NR_getpid),
+		CALL_FPTR(br->libc_syscall, __NR_kill,
+			CALL_FPTR(br->libc_syscall, __NR_getpid),
 			SIGSTOP);
 		return 0;
 	}

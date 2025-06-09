@@ -26,7 +26,7 @@
 
 #define REG(u, r) (u).r
 
-// since stack grows down, we must first subtract, then read
+// since stack grows up, we must first subtract, then read
 #define EMIT_POP(var) \
     asm volatile( \
         "ldw,mb %1(%%r30), %0\n" \
