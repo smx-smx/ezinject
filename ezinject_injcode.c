@@ -94,6 +94,12 @@ INLINE void injected_sc_stop(struct injcode_call *sc){
 		SIGSTOP
 	);
 }
+INLINE void injected_pl_stop(struct injcode_bearing *br){
+	CALL_FPTR(br->libc_syscall, __NR_kill,
+		CALL_FPTR(br->libc_syscall, __NR_getpid),
+		SIGSTOP
+	);
+}
 #elif defined(EZ_TARGET_WINDOWS)
 INLINE void injected_sc_stop(struct injcode_call *sc){
 	sc->ezstate = EZST1;
@@ -101,12 +107,6 @@ INLINE void injected_sc_stop(struct injcode_call *sc){
 }
 #endif
 
-INLINE void injected_pl_stop(struct injcode_bearing *br){
-	CALL_FPTR(br->libc_syscall, __NR_kill,
-		CALL_FPTR(br->libc_syscall, __NR_getpid),
-		SIGSTOP
-	);
-}
 
 INLINE void _injected_wrapper_impl(volatile struct injcode_call *sc){
 	if(sc->argv[0] == EZBR1){
@@ -121,7 +121,11 @@ INLINE void _injected_wrapper_impl(volatile struct injcode_call *sc){
 		br->entry.wrapper = sc->wrapper;
 
 		sc->result = CALL_FPTR(sc->wrapper.target, sc);
+		#ifdef EZ_TARGET_POSIX
 		injected_pl_stop(br);
+		#else
+		injected_sc_stop(sc);
+		#endif
 	} else {
 		sc->result = CALL_FPTR(sc->wrapper.target, sc);
 		injected_sc_stop(sc);
