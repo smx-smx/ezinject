@@ -20,4 +20,8 @@
     JMP_INSN " .\n" \
     "nop") // delay slot
 
+#ifndef STACK_DIR
+#define STACK_DIR -1
+#endif
+
 #endif

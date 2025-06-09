@@ -162,6 +162,34 @@ struct injcode_plapi {
 #define EZSC1 0x455A5343
 #define EZCX1 0x455A4358
 
+struct injcode_stack_data {
+#if STACK_DIR == -1
+	/**
+	 * this field acts as the stack for the entry point (trampoline)
+	 */
+	uint8_t entry_stack[512];
+
+	/**
+	 * trampoline parameters
+	 * these *MUST* be at the bottom of the struct
+	 * because this structure will be pushed on the stack
+	 **/
+	struct injcode_trampoline trampoline;
+#else
+	/**
+	 * trampoline parameters
+	 * these *MUST* be at the bottom of the struct
+	 * because this structure will be pushed on the stack
+	 **/
+	struct injcode_trampoline trampoline;
+
+	/**
+	 * this field acts as the stack for the entry point (trampoline)
+	 */
+	uint8_t entry_stack[512];
+#endif
+};
+
 /**
  *
  * this structure is pushed on the stack
@@ -169,7 +197,7 @@ struct injcode_plapi {
  **/
 struct injcode_call {
 	uintptr_t magic; //EZSC1
-
+	
 #ifdef EZ_TARGET_POSIX
 	struct {
 		long (*fptr)(long number, ...);
@@ -225,17 +253,7 @@ struct injcode_call {
 	 **/
 	struct injcode_sc_wrapper wrapper;
 
-	/**
-	 * this field acts as the stack for the entry point (trampoline)
-	 */
-	uint8_t entry_stack[512];
-
-	/**
-	 * trampoline parameters
-	 * these *MUST* be at the bottom of the struct
-	 * because this structure will be pushed on the stack
-	 **/
-	struct injcode_trampoline trampoline;
+	struct injcode_stack_data para;
 };
 
 /**
@@ -243,7 +261,7 @@ struct injcode_call {
  * get the remote address to the given field
  */
 #define RCALL_FIELD_ADDR(rcall, field) \
-	(((rcall)->trampoline.fn_arg) + offsetof(struct injcode_call, field))
+	(((rcall)->para.trampoline.fn_arg) + offsetof(struct injcode_call, field))
 
 struct injcode_bearing
 {

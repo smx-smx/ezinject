@@ -26,6 +26,9 @@
 
 #define REG(u, r) (u).r
 
+// stack grows up
+#define STACK_DIR 1
+
 // since stack grows up, we must first subtract, then read
 #define EMIT_POP(var) \
     asm volatile( \

@@ -61,23 +61,6 @@ uintptr_t get_wrapper_address(struct ezinj_ctx *ctx);
 
 size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_pl *layout);
 
-int __get_stack_growth_direction(int *parent){
-	int local;
-	if(parent < &local) return 1;
-	return -1;
-}
-
-static int __stack_growth_direction = 0;
-
-int get_stack_growth_direction(){
-	if(__stack_growth_direction != 0){
-		return __stack_growth_direction;
-	}
-	int local;
-	__stack_growth_direction = __get_stack_growth_direction(&local);
-	return __stack_growth_direction;
-}
-
 /**
  * Prepares the target process for a call invocation with syscall convention
  * NOTE: this function can be used to call anything, not just system calls
@@ -92,9 +75,6 @@ intptr_t setregs_syscall(
 	regs_t *new_ctx,
 	struct call_req *call
 ){
-	int stack_dir = get_stack_growth_direction();
-	INFO("stack_dir: %d", stack_dir);
-
 	REG(*new_ctx, REG_PC) = call->insn_addr;
 
 	// this will be passed on the stack
@@ -109,11 +89,11 @@ intptr_t setregs_syscall(
 	}
 	// allocate remote call on the stack
 	uintptr_t r_call_args = target_sp;
-	if(stack_dir < 0){
+	#if STACK_DIR == -1
 		// allocate stack data for rcall (see diagram below)
 		// this is also used as the remote memcpy base
 		r_call_args -= sizeof(*rcall);
-	} 
+	#endif
 
 	rcall->argc = 0;
 	rcall->result = 0;
@@ -165,7 +145,7 @@ intptr_t setregs_syscall(
 #undef PLAPI_USE
 
 	// set the call structure as argument for the function being called
-	rcall->trampoline.fn_arg = r_call_args;
+	rcall->para.trampoline.fn_arg = r_call_args;
 
 	// count syscall arguments excluding syscall number
 	for(int i=1; i<SC_MAX_ARGS; i++){
@@ -182,12 +162,12 @@ intptr_t setregs_syscall(
 	 *
 	 * trampoline -> wrapper -> syscall
 	 **/
-	rcall->trampoline.fn_addr = get_wrapper_address(ctx);
+	rcall->para.trampoline.fn_addr = get_wrapper_address(ctx);
 #ifdef EZ_ARCH_HPPA
-	rcall->trampoline.fn_self = r_call_args + offsetof(struct injcode_call, trampoline.fn_addr);
+	rcall->para.trampoline.fn_self = r_call_args + offsetof(struct injcode_call, para.trampoline.fn_addr);
 	rcall->wrapper.target.self = (void *)(r_call_args + offsetof(struct injcode_call, wrapper));
 #endif
-	DBGPTR(rcall->trampoline.fn_addr);
+	DBGPTR(rcall->para.trampoline.fn_addr);
 	if(call->syscall_mode){
 		/**
 		 * set the branch target
@@ -244,37 +224,44 @@ intptr_t setregs_syscall(
 	call->backup_data = saved_stack;
 	call->backup_size = backupSize;
 
-	if(stack_dir < 0){
-		/**
-		 * if the stack grows down, we must decrement by the amount of data we want 
-		 * to consume.
-		 * refer to the following diagram (with dummy sample address)
-		 * 
-		 * 0x0 -------- <-- r_call_args (memcpy base)
-		 * 0x1 | call |
-		 * 0x2 |----- | <-- wanted SP (decrement)
-		 * 0x3 | para |
-		 * 0x4 -------- <-- SP Top / New Sp Top
-		 */
-		REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
-	} else {
-		/**
-		 * if the stack grows up, we must increment by the amount of data copied.
-		 * this is because the stack grows up, so further calls performed
-		 * within the payload will overwrite the injcode_call on the stack
-		 * refer to the following diagram (with dummy sample address)
-		 * 
-		 *              <-- SP Top
-		 * 0x0 -------- <-- r_call_args (memcpy base)
-		 * 0x1 | call |
-		 * 0x2 |----- | <-- New SP Top
-		 * 0x3 | para |
-		 * 0x4 -------- <-- wanted SP (increment)
-		 * 
-		 * POP *decrements* the stack towards New SP Top
-		 */
-		REG(*new_ctx, REG_SP) = target_sp + sizeof(*rcall);
-	}
+	#if STACK_DIR == -1
+	/**
+	 * if the stack grows down, we must decrement by the amount of data we want 
+	 * to consume.
+	 * refer to the following diagram (with dummy sample address)
+	 * 
+	 * 0x0 -------- <-- r_call_args (memcpy base)
+	 * 0x1 | call |
+	 * 0x2 |----- | <-- New Sp Top
+	 * 0x3 | para |
+	 * 0x4 -------- <-- SP Top
+	 * 
+	 * POP *increments* the stack towards SP Top
+	 */
+	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
+	#elif STACK_DIR == 1
+	/**
+	 * if the stack grows up, we must increment by the amount of data copied.
+	 * this is because the stack grows up, so further calls performed
+	 * within the payload will overwrite the injcode_call on the stack
+	 * refer to the following diagram (with dummy sample address)
+	 *
+	 * to avoid trashing stack out of bounds, we leave entry_stack
+	 * at the end, and backtrack by that amount
+	 *
+	 * 0x0 -------- <-- r_call_args (memcpy base)
+	 * 0x1 | call |
+	 * 0x2 |----- | <-- SP Top
+	 * 0x3 | para |
+	 * 0x4 |----- | <-- New Sp top
+	 * 0x5 |  stk |
+	 * 0x6 --------
+	 * 
+	 * POP *decrements* the stack towards SP Top
+	 */
+	REG(*new_ctx, REG_SP) = target_sp + sizeof(*rcall)
+		- sizeof(rcall->para.entry_stack);
+	#endif
 	
 #ifdef DEBUG
 	DBGPTR((void *)REG(*new_ctx, REG_SP));
@@ -896,9 +883,9 @@ size_t create_layout(struct ezinj_ctx *ctx, size_t dyn_total_size, struct ezinj_
 
 	// stack is located at the end of the memory map
 	layout->stack_top = (uint8_t *)ctx->mapped_mem.local + mapping_size;
-	if(get_stack_growth_direction() == 1){
-		layout->stack_top -= PL_STACK_SIZE;
-	}
+	#if STACK_DIR == 1
+	layout->stack_top -= PL_STACK_SIZE;
+	#endif
 
 	/** align stack **/
 

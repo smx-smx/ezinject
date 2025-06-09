@@ -391,8 +391,8 @@ EZAPI remote_call_prepare(struct ezinj_ctx *ctx, struct injcode_call *call){
 	DBGPTR(call->wrapper.target.fptr);
 
 	// tell the trampoline to call injected_sc_wrapper
-	call->trampoline.fn_addr = r_current_sc_base + sc_wrapper_offset;
-	DBGPTR(call->trampoline.fn_addr);
+	call->para.trampoline.fn_addr = r_current_sc_base + sc_wrapper_offset;
+	DBGPTR(call->para.trampoline.fn_addr);
 	return 0;
 }
 #endif
