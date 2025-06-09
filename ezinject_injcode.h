@@ -21,7 +21,7 @@
 #ifdef EZ_ARCH_HPPA
 #define CALL_FPTR(x, ...) (((typeof(x.fptr))((x).self))(__VA_ARGS__))
 #else
-#define CALL_FPTR(x, ...) x.fptr(__VA_ARGS__)
+#define CALL_FPTR(x, ...) ((x).fptr(__VA_ARGS__))
 #endif
 
 #ifdef EZ_TARGET_WINDOWS
@@ -214,6 +214,8 @@ struct injcode_call {
 	/** PLAPI **/
 	struct injcode_plapi plapi;
 
+	struct injcode_trampoline trampoline_copy;
+
 	int argc;
 	intptr_t result;
 	intptr_t result2;
@@ -229,7 +231,7 @@ struct injcode_call {
 	/**
 	 * this field acts as the stack for the entry point (trampoline)
 	 */
-	uint8_t entry_stack[512];
+	uint8_t entry_stack[768];
 
 	/**
 	 * trampoline parameters

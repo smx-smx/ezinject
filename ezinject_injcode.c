@@ -353,6 +353,7 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 	CALL_FPTR(sc->plapi.inj_memset,
 		NULL, ctx, 0x00, sizeof(*ctx));
+	
 	inj_plapi_init(sc, ctx);
 
 	ctx->br = br;
@@ -393,13 +394,14 @@ intptr_t PLAPI injected_fn(struct injcode_call *sc){
 
 			sc->mach_thread = br->mach_thread_self();
 
-			// sc->trampoline.fn_addr
-			if(br->pthread_create_from_mach_thread(&br->tid, NULL, (void * (*)(void *))injected_fn, sc) != 0){
+			if(br->pthread_create_from_mach_thread(
+				&br->tid, NULL, (void * (*)(void *))sc->trampoline_copy.fn_addr, sc
+			) != 0){
 				PCALL(ctx, inj_dchar, '!');
 				result = INJ_ERR_DARWIN_THREAD;
 				goto pl_exit;
 			}
-			goto pl_exit;
+			goto pl_exit_parent;
 		} else {
 			// detach ourselves to free resources
 			// (the parent can't do it because it has no TLS)
@@ -504,6 +506,7 @@ pl_exit:
 	#ifdef EZ_TARGET_DARWIN
 	if(thread_is_parent){
 		// it looks we can't kill a thread created from `thread_create_running`, so we do hacks
+	pl_exit_parent:
 		EMIT_LOOP();
 		//return 0;
 	} else {
@@ -514,6 +517,7 @@ pl_exit:
 		return 0;
 	}
 	#else
+	inj_logfini(ctx);
 	// return to ezinject
 	PL_RETURN(sc, result);
 	#endif

@@ -212,6 +212,10 @@ intptr_t setregs_syscall(
 		}
 	}
 
+	// copy of trampoline params higher up in the stack,
+	// so that it will not be overwritten during the trampoline
+	memcpy(&rcall->trampoline_copy, &rcall->trampoline, sizeof(rcall->trampoline));
+
 	// backup the stack area being overwritten
 	ssize_t backupSize = (ssize_t)WORDALIGN(sizeof(*rcall));
 	uint8_t *saved_stack = calloc(backupSize, 1);
@@ -1089,7 +1093,7 @@ int ezinject_main(
 		ctx->syscall_mode = true;
 		ctx->pl_stack.remote = 0;
 		INFO("target: freeing payload memory");
-		remote_pl_free(ctx, remote_shm_ptr);
+		//remote_pl_free(ctx, remote_shm_ptr);
 
 	#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
 		// switch back to the ELF header, to free vmem

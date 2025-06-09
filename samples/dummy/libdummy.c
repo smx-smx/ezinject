@@ -167,7 +167,7 @@ int lib_main(int argc, char *argv[]){
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
-	#ifndef EZ_ARCH_HPPA
+	#if !defined(EZ_TARGET_DARWIN) && !defined(EZ_ARCH_HPPA)
 	#ifdef EZ_TARGET_POSIX
 	pthread_create(&tid, NULL, library_unload_worker, NULL);
 	#else
