@@ -94,12 +94,14 @@ INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 	}
 
 #ifdef EZ_TARGET_DARWIN
-	void *h_self = ctx->libdl.dlopen(NULL, RTLD_LAZY);
+	void *h_self = CALL_FPTR(ctx->libdl.dlopen,
+		NULL, RTLD_LAZY);
 	if(h_self == NULL){
 		return -1;
 	}
 	intptr_t res = PCALL(ctx, inj_fetchsym, EZSTR_API_DLERROR, h_self, (void **)&ctx->libdl.dlerror);
-	ctx->libdl.dlclose(h_self);
+	CALL_FPTR(ctx->libdl.dlclose,
+		h_self);
 	return res;
 #else
 	return PCALL(ctx, inj_fetchsym, EZSTR_API_DLERROR, ctx->h_libdl, (void **)&ctx->libdl.dlerror);
