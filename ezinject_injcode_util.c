@@ -27,7 +27,8 @@ void PLAPI *inj_memset(struct injcode_ctx *ctx, void *s, int c, size_t n){
 
 #ifdef EZ_ARCH_ARM
 INLINE void inj_cacheflush(struct injcode_bearing *br, void *from, void *to){
-	br->libc_syscall(__ARM_NR_cacheflush, from, to, 0);
+	CALL_FPTR(br->libc_syscall, 
+		__ARM_NR_cacheflush, from, to, 0);
 }
 #else
 INLINE void inj_cacheflush(struct injcode_bearing *br, void *from, void *to){

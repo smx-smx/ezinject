@@ -44,8 +44,6 @@ install(
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake-modules/")
 include(cmake/ezinject.cmake)
 
-add_definitions(-DLH_JUMP_ABS)
-
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 11)
 
@@ -55,6 +53,13 @@ check_c_compiler_flag("-Wextra" HAVE_WEXTRA)
 check_c_compiler_flag("-Werror=implicit-function-declaration" HAVE_WERROR_IMPLICIT_FN)
 check_c_compiler_flag("-Wno-unused-parameter" HAVE_WNO_UNUSED_PARAMETER)
 check_c_compiler_flag("-Wno-cast-function-type" HAVE_WNO_CAST_FUNCTION_TYPE)
+check_c_compiler_flag("-ffunction-sections" HAVE_CFLAG_FFUNCTION_SECTIONS)
+check_c_compiler_flag("-fdata-sections" HAVE_CFLAG_FDATA_SECTIONS)
+
+# for injcode
+check_c_compiler_flag("-mno-stack-arg-probe" HAVE_CFLAG_STACK_ARG_PROBE)
+check_c_compiler_flag("-fno-jump-tables" HAVE_CFLAG_NO_JUMP_TABLES)
+check_c_compiler_flag("-fno-stack-protector" HAVE_CFLAG_NO_STACK_PROTECTOR)
 
 if(HAVE_WEXTRA)
 	add_compile_options(-Wextra)
@@ -68,6 +73,13 @@ if(HAVE_WNO_UNUSED_PARAMETER)
 endif()
 if(HAVE_WNO_CAST_FUNCTION_TYPE)
 	add_compile_options(-Wno-cast-function-type)
+endif()
+
+if(HAVE_CFLAG_FFUNCTION_SECTIONS)
+	add_compile_options(-ffunction-sections)
+endif()
+if(HAVE_CFLAG_FDATA_SECTIONS)
+	add_compile_options(-fdata-sections)
 endif()
 
 if(CMAKE_TOOLCHAIN_FILE)
@@ -86,7 +98,10 @@ if(NOT DEFINED DEBUG)
 	endif()
 endif()
 
-
+include_directories(
+	${CMAKE_BINARY_DIR} 
+	${CMAKE_SOURCE_DIR}
+)
 
 macro(find_uclibc)
 	find_library(DYN_LINKER
@@ -311,6 +326,12 @@ if(EZ_TARGET_LINUX)
 		set(EZ_ARCH_HEADER arch/ezinject_amd64.h)
 	elseif(EZ_ARCH_MIPS)
 		set(EZ_ARCH_HEADER arch/ezinject_mips.h)
+	elseif(EZ_ARCH_PPC64)
+		set(EZ_ARCH_HEADER arch/ezinject_ppc64.h)
+	elseif(EZ_ARCH_RISCV)
+		set(EZ_ARCH_HEADER arch/ezinject_riscv.h)
+	elseif(EZ_ARCH_HPPA)
+		set(EZ_ARCH_HEADER arch/ezinject_hppa.h)
 	endif()
 elseif(EZ_TARGET_FREEBSD)
 	if(EZ_ARCH_AMD64)
@@ -381,28 +402,6 @@ install(
 	DESTINATION include/ezinject
 )
 
-set(all_headers ${ezinject_headers})
-
-if(EZ_TARGET_WINDOWS)
-	list(APPEND all_headers
-		os/windows/util.h
-		os/windows/InjLib/Struct.h)
-	install(
-		FILES
-			os/windows/InjLib/Struct.h
-		DESTINATION
-			include/ezinject/os/windows/InjLib
-	)
-	install(
-		FILES
-			os/windows/util.h
-		DESTINATION
-			include/ezinject/os/windows
-	)
-endif()
-
-
-
 install(
 	FILES ${EZ_ARCH_HEADER}
 	DESTINATION include/ezinject/arch
@@ -436,101 +435,26 @@ string(APPEND CMAKE_SHARED_LINKER_FLAGS ${_common_flags})
 string(APPEND CMAKE_EXE_LINKER_FLAGS ${_common_flags})
 
 
-set(ezinject_sources
-	ezinject_util.c
-)
-if(EZ_TARGET_POSIX)
-	list(APPEND ezinject_sources
-		os/posix/remote.c
-	)
-	list(APPEND ezinject_sources
-		os/posix/inject.c
-	)
-	if(EZ_TARGET_LINUX)
-		list(APPEND ezinject_sources
-			os/linux/common.c os/linux/common.h
-			os/linux/remote.c
-			os/linux/util.c
-		)
-		list(APPEND ezinject_sources
-			os/linux/inject.c
-		)
+add_executable(ezinject)
 
-		# bionic
-		if(EZ_TARGET_ANDROID)
-			list(APPEND ezinject_sources
-				os/android/libc_bionic.c
-				elfparse.c elfparse.h
-			)
-		# glibc
-		elseif(HAVE_LIBC_DLOPEN_MODE OR HAVE_LIBC_DL_OPEN)
-			list(APPEND ezinject_sources
-				os/linux/libc_glibc.c
-			)
-		# uClibc
-		elseif(HAVE_DL_LOAD_SHARED_LIBRARY)
-			list(APPEND ezinject_sources
-				os/linux/libc_uclibc.c
-			)
-		# new glibc/generic
-		else()
-			list(APPEND ezinject_sources
-				os/linux/libc_generic.c
-			)
-		endif()
-	elseif(EZ_TARGET_FREEBSD)
-		list(APPEND ezinject_sources
-			os/freebsd/remote.c
-			os/freebsd/util.c
-			os/freebsd/libc_freebsd.c
-		)
-		list(APPEND ezinject_sources
-			os/freebsd/inject.c
-		)
-	elseif(EZ_TARGET_DARWIN)
-		list(APPEND ezinject_sources
-			os/darwin/remote.c
-			os/darwin/util.c
-			os/darwin/libc_darwin.c
-		)
-		list(APPEND ezinject_sources
-			os/darwin/inject.c
-		)
-	endif()
-elseif(EZ_TARGET_WINDOWS)
-	list(APPEND ezinject_sources
-		# InjLib
-		os/windows/InjLib/GetProcAddress.c os/windows/InjLib/GetProcAddress.h
-		os/windows/InjLib/Inject.c os/windows/InjLib/Inject.h
-		os/windows/InjLib/LenDis.c os/windows/InjLib/LenDis.h
-		os/windows/InjLib/Remote.c os/windows/InjLib/Remote.h
-		#
-		os/windows/remote.c
-		os/windows/util.c os/windows/util.h
-		os/windows/libc_windows.c
+set(EZINJECT_TARGET ezinject)
 
-		os/windows/InjLib/Struct.h
-	)
-	list(APPEND ezinject_sources
-		os/posix/inject.c
-		os/windows/inject.c
-	)
-endif()
+add_library(ezinject_util
+	ezinject_util.c ezinject_util.h)
+add_library(ezinject_log log.c)
 
 # TODO: cross platform
 if(EZ_TARGET_LINUX)
+	add_library(elfparse elfparse.c elfparse.h)
 	add_executable(ezpatch
 		elfparse.c elfparse.h
 		ezpatch.c
-		log.c log.h
-		ezinject_util.c ezinject_util.h
-		os/linux/util.c
 	)
-	target_link_libraries(ezpatch ${DL_LIBRARY_NAME})
-	target_include_directories(ezpatch PRIVATE
-		${CMAKE_BINARY_DIR}
-		${CMAKE_SOURCE_DIR}
-		${CMAKE_SOURCE_DIR}/include
+	target_link_libraries(ezpatch
+		${DL_LIBRARY_NAME}
+		os_linux_util
+		ezinject_util
+		ezinject_log
 	)
 	install(
 		TARGETS ezpatch
@@ -538,24 +462,25 @@ if(EZ_TARGET_LINUX)
 	)
 endif()
 
-add_library(libezinject_static
-	log.c
-	${ezinject_sources}
-)
-target_include_directories(libezinject_static PUBLIC
-	${CMAKE_SOURCE_DIR}
-	${CMAKE_BINARY_DIR})
+add_subdirectory(os)
 
-add_executable(ezinject
+target_sources(ezinject PRIVATE 
 	ezinject.c
-	ezinject_injcode.c
-	${all_headers}
+	${ezinject_headers}
 )
-target_link_libraries(ezinject libezinject_static)
-
-if(EZ_TARGET_FREEBSD)
-	target_link_libraries(ezinject procstat)
+if(EZ_ARCH_HPPA)
+	target_sources(ezinject PRIVATE 
+		${CMAKE_BINARY_DIR}/ezinject_injcode_patched.s
+	)
+else()
+	target_sources(ezinject PRIVATE 
+		ezinject_injcode.c
+	)
 endif()
+
+target_link_libraries(ezinject
+	ezinject_log
+	ezinject_util)
 
 if(ENABLE_STATIC)
 	target_link_options(ezinject PRIVATE -static)
@@ -565,28 +490,31 @@ install(
 	EXPORT ${ezinject_target_export}
 )
 
-check_c_compiler_flag("-ffunction-sections" HAVE_CFLAG_FFUNCTION_SECTIONS)
-check_c_compiler_flag("-fdata-sections" HAVE_CFLAG_FDATA_SECTIONS)
-if(HAVE_CFLAG_FFUNCTION_SECTIONS)
-	add_compile_options(-ffunction-sections)
-endif()
-if(HAVE_CFLAG_FDATA_SECTIONS)
-	add_compile_options(-fdata-sections)
+set(injcode_cflags "")
+if(EZ_ARCH_PPC64 OR EZ_ARCH_HPPA)
+	# for PPC:
+	# required to skip generation of _savegpr0_* _restgpr0_*
+	# see: https://reviews.llvm.org/D79977
+	#
+	# for HPPA
+	# we want the inline version of $$dyncall
+	string(APPEND injcode_cflags "-O2")
+else()
+	string(APPEND injcode_cflags "-Os")
 endif()
 
-check_c_compiler_flag("-mno-stack-arg-probe" HAVE_CFLAG_STACK_ARG_PROBE)
-check_c_compiler_flag("-fno-jump-tables" HAVE_CFLAG_NO_JUMP_TABLES)
-check_c_compiler_flag("-fno-stack-protector" HAVE_CFLAG_NO_STACK_PROTECTOR)
-
-set(injcode_cflags "-Os -fno-stack-check -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
+string(APPEND injcode_cflags " -fno-stack-check -fno-pic -nostdlib -fomit-frame-pointer -ffreestanding")
 if(HAVE_CFLAG_NO_JUMP_TABLES)
-	set(injcode_cflags "${injcode_cflags} -fno-jump-tables")
+	string(APPEND injcode_cflags " -fno-jump-tables")
 endif()
 if(HAVE_CFLAG_NO_STACK_PROTECTOR)
-	set(injcode_cflags "${injcode_cflags} -fno-stack-protector")
+	string(APPEND injcode_cflags " -fno-stack-protector")
 endif()
 if(HAVE_CFLAG_STACK_ARG_PROBE)
-	set(injcode_cflags "${injcode_cflags} -mno-stack-arg-probe")
+	string(APPEND injcode_cflags " -mno-stack-arg-probe")
+endif()
+if(EZ_ARCH_HPPA)
+	string(APPEND injcode_cflags " -mfast-indirect-calls")
 endif()
 
 # -fno-stack-protector: remove stack cookie checks
@@ -600,6 +528,35 @@ set_source_files_properties(
 	crt/crt_injcode.c
 	PROPERTIES COMPILE_FLAGS "${injcode_cflags}")
 
+if(EZ_ARCH_HPPA)
+	separate_arguments(injcode_args UNIX_COMMAND "${injcode_cflags}")
+	add_custom_command(
+		OUTPUT ${CMAKE_BINARY_DIR}/ezinject_injcode.s
+		COMMAND ${CMAKE_C_COMPILER}
+			-I${CMAKE_BINARY_DIR} 
+			-I${CMAKE_SOURCE_DIR}
+			${injcode_args} -S
+			${CMAKE_SOURCE_DIR}/ezinject_injcode.c
+			-o ${CMAKE_BINARY_DIR}/ezinject_injcode.s
+		DEPENDS ${CMAKE_SOURCE_DIR}/ezinject_injcode.c
+	)
+	add_custom_target(ezinject_injcode_asm
+		DEPENDS ${CMAKE_BINARY_DIR}/ezinject_injcode.s
+	)
+	add_custom_command(
+		OUTPUT ${CMAKE_BINARY_DIR}/ezinject_injcode_patched.s
+		COMMAND php ${CMAKE_SOURCE_DIR}/hppa_patch_calls.php
+			${CMAKE_BINARY_DIR}/ezinject_injcode.s
+			${CMAKE_BINARY_DIR}/ezinject_injcode_patched.s
+		DEPENDS
+			${CMAKE_SOURCE_DIR}/hppa_patch_calls.php
+			${CMAKE_BINARY_DIR}/ezinject_injcode.s
+	)
+	add_custom_target(patch_ezinject_injcode_asm
+		DEPENDS ${CMAKE_BINARY_DIR}/ezinject_injcode_patched.s
+	)
+	add_dependencies(ezinject patch_ezinject_injcode_asm)
+endif()
 
 if(EZ_TARGET_POSIX)
 	target_link_libraries(ezinject dl)

@@ -17,7 +17,7 @@
 #define EMIT_LDP(var1, var2) asm volatile("ldp %0, %1, [sp], #16" : "=r"(var1), "=r"(var2))
 
 #define POP_PARAMS(out_br, out_func) \
-	EMIT_LDP(out_br, out_func);
+	EMIT_LDP(out_func, out_br);
 
 #define JMP_INSN "b"
 

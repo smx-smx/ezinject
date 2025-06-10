@@ -10,6 +10,7 @@
 #include <sys/ptrace.h>
 #include <sys/wait.h>
 #include <sys/uio.h>
+#include <elf.h>
 
 #include "ezinject.h"
 #include "ezinject_arch.h"
@@ -19,7 +20,7 @@
 
 #if !defined(PTRACE_GETREGS) && !defined(PT_GETREGS)
 // NT_PRSTATUS
-#include <linux/elf.h>
+#include <elf.h>
 #endif
 
 EZAPI remote_attach(struct ezinj_ctx *ctx){
@@ -39,26 +40,26 @@ EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 }
 
 EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
-#if defined(PTRACE_GETREGS) || defined(PT_GETREGS)
-	return ptrace(PTRACE_GETREGS, ctx->target, 0, regs);
-#else
+#if defined(PTRACE_GETREGSET) && defined(NT_PRSTATUS) && !defined(NO_REGSET)
 	struct iovec iovec = {
 		.iov_base = regs,
 		.iov_len = sizeof(*regs)
 	};
 	return ptrace(PTRACE_GETREGSET, ctx->target, (void*)NT_PRSTATUS, &iovec);
+#else
+	return ptrace(PTRACE_GETREGS, ctx->target, 0, regs);
 #endif
 }
 
 EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
-#if defined(PTRACE_SETREGS) || defined(PT_SETREGS)
-	return ptrace(PTRACE_SETREGS, ctx->target, 0, regs);
-#else
+#if defined(PTRACE_SETREGSET) && defined(NT_PRSTATUS)
 	struct iovec iovec = {
 		.iov_base = regs,
 		.iov_len = sizeof(*regs)
 	};
 	return ptrace(PTRACE_SETREGSET, ctx->target, (void*)NT_PRSTATUS, &iovec);
+#else
+	return ptrace(PTRACE_SETREGS, ctx->target, 0, regs);
 #endif
 }
 

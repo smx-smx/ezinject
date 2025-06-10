@@ -59,14 +59,16 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	}
 
 	// calls _dl_load_shared_library, will insert tpnt into rpnt->next
-	tpnt = br->libc_dlopen(0, &rpnt, NULL, libdl_name, 0);
+	tpnt = CALL_FPTR(br->libc_dlopen,
+		0, &rpnt, NULL, libdl_name, 0);
 	if(tpnt == NULL){
 		PCALL(ctx, inj_dchar, '!');
 		return NULL;
 	}
 
 #ifdef EZ_ARCH_MIPS
-	br->uclibc_mips_got_reloc(tpnt, 0);
+	CALL_FPTR(br->uclibc_mips_got_reloc,
+		tpnt, 0);
 #endif
 
 #ifndef UCLIBC_OLD
@@ -98,9 +100,11 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
  	  * -- symbol 'dl_cleanup': can't resolve symbol
  	  */
 #ifdef UCLIBC_OLD
-	br->uclibc_dl_fixup(&dyn, RTLD_NOW);
+	CALL_FPTR(br->uclibc_dl_fixup,
+		&dyn, RTLD_NOW);
 #else
-	br->uclibc_dl_fixup(&dyn, global_scope, RTLD_NOW);
+	CALL_FPTR(br->uclibc_dl_fixup,
+		&dyn, global_scope, RTLD_NOW);
 #endif
 
 	return (void *)tpnt->loadaddr;

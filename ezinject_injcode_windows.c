@@ -7,10 +7,6 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 
-#define PL_RETURN(sc, x) do { \
-	((sc)->result = (x)); \
-	return 0; \
-} while(0)
 
 intptr_t SCAPI injected_virtual_alloc(volatile struct injcode_call *sc){
 	return (intptr_t)sc->VirtualAlloc(
@@ -38,7 +34,7 @@ INLINE void inj_thread_stop(struct injcode_ctx *ctx, int signal){
 
 INLINE void *inj_dlopen(struct injcode_ctx *ctx, const char *filename, unsigned flags){
 	UNUSED(flags);
-	return ctx->libdl.dlopen(filename);
+	return CALL_FPTR(ctx->libdl.dlopen, filename);
 }
 
 INLINE intptr_t inj_thread_wait(

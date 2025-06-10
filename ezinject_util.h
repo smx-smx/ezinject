@@ -6,11 +6,34 @@
  *  2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
  *  3. This notice may not be removed or altered from any source distribution.
  */
+#ifndef __EZINJECT_UTIL_H
+#define __EZINJECT_UTIL_H
+
+#include "config.h"
+
+#ifdef EZ_TARGET_ANDROID
+// workaround header dependency bug with Android NDK r14b
+// error: unknown type name '__va_list'
+#include <err.h>
+#endif
+
 #include <stdio.h>
-#include <stdint.h>
-#include <sys/types.h>
 
 #include "ezinject.h"
 
+enum code_data_transform {
+    // as-is
+    CODE_DATA_NONE = 0,
+    // follow PLT stub (e.g. HP-UX)
+    CODE_DATA_DEREF,
+    // undo architectural shift (e.g. ARM Thumb)
+    CODE_DATA_BYTES,
+    CODE_DATA_DPTR,
+};
+
 void hexdump(void *pAddressIn, long lSize);
 ez_addr sym_addr(void *handle, const char *sym_name, ez_addr lib);
+char *os_realpath(const char *path);
+void *code_data(void *code, enum code_data_transform transform);
+
+#endif

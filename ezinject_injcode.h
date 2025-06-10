@@ -16,6 +16,13 @@
 
 #include "config.h"
 #include "ezinject_compat.h"
+#include "ezinject_arch.h"
+
+#ifdef EZ_ARCH_HPPA
+#define CALL_FPTR(x, ...) (((typeof(x.fptr))((x).self))(__VA_ARGS__))
+#else
+#define CALL_FPTR(x, ...) ((x).fptr(__VA_ARGS__))
+#endif
 
 #ifdef EZ_TARGET_WINDOWS
 #include "os/windows/InjLib/Struct.h"
@@ -93,8 +100,12 @@ struct injcode_user {
 
 struct injcode_call;
 struct injcode_sc_wrapper {
-	// pointer to the actual function to call
-	intptr_t (*target)(volatile struct injcode_call *args);
+	struct {
+		// pointer to the actual function to call
+		intptr_t (*fptr)(volatile struct injcode_call *args);
+		void *got;
+		void *self;
+	} target;
 };
 
 /**
@@ -103,22 +114,81 @@ struct injcode_sc_wrapper {
  * and will be POP'd by the trampoline
  **/
 struct injcode_trampoline {
-	uintptr_t fn_arg;
+	// first element consumed by GROW-DOWN SP
 	uintptr_t fn_addr;
+#ifdef EZ_ARCH_HPPA
+	uintptr_t fn_got;
+	// points to fn_addr
+	uintptr_t fn_self;
+#endif
+	uintptr_t fn_arg;
+	// first element consumed by GROW-UP SP
 };
 
 struct injcode_bearing;
 struct injcode_ctx;
 
 struct injcode_plapi {
-	void *(*inj_memset)(struct injcode_ctx *ctx, void *s, int c, size_t n);
-	void (*inj_puts)(struct injcode_ctx *ctx, const char *str);
-	void (*inj_dchar)(struct injcode_ctx *ctx, char ch);
-	void (*inj_dbgptr)(struct injcode_ctx *ctx, void *ptr);
-	intptr_t (*inj_fetchsym)(struct injcode_ctx *ctx, enum ezinj_str_id str_id, void *handle, void **sym);
+	struct {
+		void *(*fptr)(struct injcode_ctx *ctx, void *s, int c, size_t n);
+		void *got;
+		void *self;
+	} inj_memset;
+	struct {
+		void (*fptr)(struct injcode_ctx *ctx, const char *str);
+		void *got;
+		void *self;
+	} inj_puts;
+	struct {
+		void (*fptr)(struct injcode_ctx *ctx, char ch);
+		void *got;
+		void *self;
+	} inj_dchar;
+	struct {
+		void (*fptr)(struct injcode_ctx *ctx, void *ptr);
+		void *got;
+		void *self;
+	} inj_dbgptr;
+	struct {
+		intptr_t (*fptr)(struct injcode_ctx *ctx, enum ezinj_str_id str_id, void *handle, void **sym);
+		void *got;
+		void *self;
+	} inj_fetchsym;
 };
 
 #define EZST1 0x455A5331 // signaled
+// magic to mark PL syscall (used as syscall number)
+#define EZBR1 0x455A4252
+#define EZSC1 0x455A5343
+#define EZCX1 0x455A4358
+
+struct injcode_stack_data {
+#if STACK_DIR == -1
+	/**
+	 * this field acts as the stack for the entry point (trampoline)
+	 */
+	uint8_t entry_stack[512];
+
+	/**
+	 * trampoline parameters
+	 * these *MUST* be at the bottom of the struct
+	 * because this structure will be pushed on the stack
+	 **/
+	struct injcode_trampoline trampoline;
+#else
+	/**
+	 * trampoline parameters
+	 * these *MUST* be at the bottom of the struct
+	 * because this structure will be pushed on the stack
+	 **/
+	struct injcode_trampoline trampoline;
+
+	/**
+	 * this field acts as the stack for the entry point (trampoline)
+	 */
+	uint8_t entry_stack[512];
+#endif
+};
 
 /**
  *
@@ -126,14 +196,32 @@ struct injcode_plapi {
  * within the target process
  **/
 struct injcode_call {
+	uintptr_t magic; //EZSC1
+	
 #ifdef EZ_TARGET_POSIX
-	long (*libc_syscall)(long number, ...);
+	struct {
+		long (*fptr)(long number, ...);
+		void *got;
+		void *self;
+	} libc_syscall;
 #endif
 #ifdef EZ_TARGET_LINUX
-	void *(*libc_mmap)(void *addr, size_t length, int prot, int flags,
+	struct {
+		void *(*fptr)(void *addr, size_t length, int prot, int flags,
                   int fd, off_t offset);
-	int (*libc_open)(const char *pathname, int flags, ...);
-	ssize_t (*libc_read)(int fd, void *buf, size_t count);
+		void *got;
+		void *self;
+	} libc_mmap;
+	struct {
+		int (*fptr)(const char *pathname, int flags, ...);
+		void *got;
+		void *self;
+	} libc_open;
+	struct {
+		ssize_t (*fptr)(int fd, void *buf, size_t count);
+		void *got;
+		void *self;
+	} libc_read;
 #endif
 #ifdef EZ_TARGET_WINDOWS
 	LPVOID WINAPI (*VirtualAlloc)(
@@ -150,9 +238,6 @@ struct injcode_call {
 	DWORD WINAPI (*SuspendThread)(HANDLE hThread);
 	HANDLE WINAPI (*GetCurrentThread)(VOID);
 #endif
-#ifdef EZ_TARGET_DARWIN
-	thread_act_t mach_thread;
-#endif
 
 	uintptr_t ezstate;
 
@@ -161,27 +246,14 @@ struct injcode_call {
 
 	int argc;
 	intptr_t result;
-	intptr_t result2;
 	uintptr_t argv[SC_MAX_ARGS];
 
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS)
 	/**
 	 * syscall wrapper parameters
 	 **/
 	struct injcode_sc_wrapper wrapper;
-#endif
 
-	/**
-	 * this field acts as the stack for the entry point (trampoline)
-	 */
-	uint8_t entry_stack[512];
-
-	/**
-	 * trampoline parameters
-	 * these *MUST* be at the bottom of the struct
-	 * because this structure will be pushed on the stack
-	 **/
-	struct injcode_trampoline trampoline;
+	struct injcode_stack_data para;
 };
 
 /**
@@ -189,10 +261,16 @@ struct injcode_call {
  * get the remote address to the given field
  */
 #define RCALL_FIELD_ADDR(rcall, field) \
-	(((rcall)->trampoline.fn_arg) + offsetof(struct injcode_call, field))
+	(((rcall)->para.trampoline.fn_arg) + offsetof(struct injcode_call, field))
 
 struct injcode_bearing
 {
+	uintptr_t magic; //EZBR1
+	
+	struct {
+		struct injcode_sc_wrapper wrapper;
+	} entry;
+	
 	ssize_t mapping_size;
 
 	int stbl_relocated;
@@ -204,6 +282,10 @@ struct injcode_bearing
 	HANDLE hEvent;
 #endif
 	void *userlib;
+
+#ifdef EZ_TARGET_DARWIN
+	thread_act_t mach_thread;
+#endif
 
 #if defined(EZ_TARGET_DARWIN)
 	pthread_t tid;
@@ -228,26 +310,51 @@ struct injcode_bearing
 	mach_port_t  (*task_self_trap)(void);
 #endif
 
+// uclibc
 #if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
-	void *(*libc_dlopen)(unsigned rflags, struct dyn_elf **rpnt,
-		void *tpnt, char *full_libname, int trace_loaded_objects);
+	struct {
+		void *(*fptr)(unsigned rflags, struct dyn_elf **rpnt,
+			void *tpnt, char *full_libname, int trace_loaded_objects);
+		void *got;
+		void *self;
+	} libc_dlopen;
 	struct dyn_elf **uclibc_sym_tables;
 	#ifdef UCLIBC_OLD
-	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, int now_flag);
+	struct {
+		int (*fptr)(struct dyn_elf *rpnt, int now_flag);
+		void *got;
+		void *self;
+	} uclibc_dl_fixup;
 	#else
-	int (*uclibc_dl_fixup)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
+	struct {
+		int (*fptr)(struct dyn_elf *rpnt, struct r_scope_elem *scope, int now_flag);
+		void *got;
+		void *self;
+	} uclibc_dl_fixup;
 	#endif
 	#ifdef EZ_ARCH_MIPS
-	void (*uclibc_mips_got_reloc)(struct elf_resolve_hdr *tpnt, int lazy);
+	struct {
+		void (*fptr)(struct elf_resolve_hdr *tpnt, int lazy);
+	} uclibc_mips_got_reloc;
 	#endif
 	struct elf_resolve_hdr **uclibc_loaded_modules;
+// glibc
 #elif defined(HAVE_LIBDL_IN_LIBC) \
 || defined(HAVE_LIBC_DLOPEN_MODE) \
 || defined(EZ_TARGET_ANDROID) \
 || defined(EZ_TARGET_DARWIN)
-	void *(*libc_dlopen)(const char *name, int mode);
+	struct {
+		void *(*fptr)(const char *name, int mode);
+		void *got;
+		void *self;
+	} libc_dlopen;
+// old glibc
 #elif defined(HAVE_LIBC_DL_OPEN)
-	void *(*libc_dlopen)(const char *name, int mode, void *caller);
+	struct {
+		void *(*fptr)(const char *name, int mode, void *caller);
+		void *got;
+		void *self;
+	} libc_dlopen;
 #elif defined(EZ_TARGET_WINDOWS)
 	// LdrLoadDll
 	NTSTATUS NTAPI (*libc_dlopen)(
@@ -300,7 +407,13 @@ struct injcode_bearing
 	off_t dlsym_offset;
 	// libdl base address, if already loaded
 	void *libdl_handle;
-	long (*libc_syscall)(long number, ...);
+	void *libc_got;
+	void *libdl_got;
+	struct {
+		long (*fptr)(long number, ...);
+		void *got;
+		void *self;
+	} libc_syscall;
 	pthread_mutex_t mutex;
 	pthread_cond_t cond;
 	uint8_t loaded_signal;
@@ -395,12 +508,13 @@ intptr_t SCAPI injected_virtual_free(volatile struct injcode_call *sc);
 #endif
 
 void SCAPI injected_sc_wrapper(volatile struct injcode_call *args);
+void PLAPI injected_pl_wrapper(volatile struct injcode_call *args);
 
 extern void PLAPI trampoline();
 extern void trampoline_entry();
 extern void trampoline_exit();
 
-extern intptr_t injected_fn(struct injcode_call *sc);
+extern intptr_t injected_fn(void *arg);
 
 /** plapi **/
 extern void *inj_memset(struct injcode_ctx *ctx, void *s, int c, size_t n);

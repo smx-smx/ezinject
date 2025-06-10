@@ -56,6 +56,13 @@ struct ezinj_pl {
 	uint8_t *stack_top;
 };
 
+struct ezinj_strings {
+	struct ezinj_str *args;
+	unsigned num_strings;
+	unsigned argsLim;
+	size_t dyn_str_size;
+};
+
 struct ezinj_ctx;
 
 #define PL_REMOTE(ctx, addr) (ctx->mapped_mem.remote + PTRDIFF(addr, ctx->mapped_mem.local))
@@ -74,6 +81,7 @@ struct ezinj_ctx_plapi {
 struct ezinj_ctx {
 	bool pl_debug;
 	bool syscall_mode;
+	bool bail;
 	pid_t target;
 	uintptr_t r_xpage_base;
 	char *module_logfile;
@@ -105,11 +113,14 @@ struct ezinj_ctx {
 	ez_addr libdl;
 	ez_addr entry_insn;
 	ez_addr branch_target;
+	ez_addr wrapper_address;
 	ez_addr pl_stack;
 	pfnCallHandler rcall_handler_pre;
 	pfnCallHandler rcall_handler_post;
 	ez_addr libc_syscall;
 	ez_addr libc_dlopen;
+	ez_addr libc_got;
+	ez_addr libdl_got;
 #ifdef EZ_TARGET_DARWIN
 	ez_addr pthread_create_from_mach_thread;
 	ez_addr pthread_create;

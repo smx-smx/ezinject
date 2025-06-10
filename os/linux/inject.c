@@ -98,9 +98,8 @@ EZAPI remote_pl_copy(struct ezinj_ctx *ctx){
 			ERR("remote open(2) failed");
 			break;
 		}
-		DBG("remote fd: %d", r_fd);
-
-		if((ssize_t)CHECK(RSCALL3(ctx, __NR_read, r_fd, ctx->mapped_mem.remote, br->mapping_size) != br->mapping_size)){
+		ssize_t num_read = (ssize_t)CHECK(RSCALL3(ctx, __NR_read, r_fd, ctx->mapped_mem.remote, br->mapping_size));
+		if(num_read != br->mapping_size){
 			ERR("remote read(2) failed");
 			break;
 		}

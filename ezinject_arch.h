@@ -11,4 +11,17 @@
 
 #include "config.h"
 #include EZ_ARCH_HEADER
+
+#ifndef ADJUST_STACK
+#define ADJUST_STACK()
+#endif
+
+#define EMIT_LOOP() asm volatile(\
+    JMP_INSN " .\n" \
+    "nop") // delay slot
+
+#ifndef STACK_DIR
+#define STACK_DIR -1
+#endif
+
 #endif

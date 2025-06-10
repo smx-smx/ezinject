@@ -20,8 +20,8 @@
 	: "=r"(var))
 
 #define POP_PARAMS(out_br, out_func) \
-	EMIT_POP(out_br); \
-	EMIT_POP(out_func)
+	EMIT_POP(out_func); \
+	EMIT_POP(out_br)
 
 #define JMP_INSN "j"
 

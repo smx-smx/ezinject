@@ -38,7 +38,7 @@ void CPLAPI crt_inj_unload2(struct inj_unload_call *call, struct inj_unload_call
     for(;;);
 }
 
-void CPLAPI crt_inj_unload(struct inj_unload_call *call_req){
+void CPLAPI WINAPI crt_inj_unload(struct inj_unload_call *call_req){
     /** copy arguments and code to our stack */
     struct inj_unload_call call_local;
     call_req->memcpy(&call_local, call_req, sizeof(*call_req));

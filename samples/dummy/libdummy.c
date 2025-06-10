@@ -141,7 +141,7 @@ int lib_preinit(struct injcode_user *user){
 #include <signal.h>
 pthread_t tid;
 
-void *library_unload_worker(void *arg){
+void * WINAPI library_unload_worker(void *arg){
 	usleep(1000 * 1000 * 1);
 	if(lib_unload_prepare() != 0){
 		ERR("library unload failed");
@@ -167,7 +167,13 @@ int lib_main(int argc, char *argv[]){
 	for(int i=0; i<argc; i++){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
+	#if !defined(EZ_TARGET_DARWIN) && !defined(EZ_ARCH_HPPA)
+	#ifdef EZ_TARGET_POSIX
 	pthread_create(&tid, NULL, library_unload_worker, NULL);
+	#else
+	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)library_unload_worker, NULL, 0, NULL);
+	#endif
+	#endif
 
 	#ifdef USE_LH
 	installHooks();
