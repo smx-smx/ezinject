@@ -20,7 +20,7 @@
 
 #if !defined(PTRACE_GETREGS) && !defined(PT_GETREGS)
 // NT_PRSTATUS
-#include <linux/elf.h>
+#include <elf.h>
 #endif
 
 EZAPI remote_attach(struct ezinj_ctx *ctx){
