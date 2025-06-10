@@ -9,6 +9,7 @@ RUN apt-get update \
 		gcc-12-powerpc64le-linux-gnu \
 		gcc-12-riscv64-linux-gnu \
 		gcc-12-hppa-linux-gnu \
+		php-cli \
 	&& apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
