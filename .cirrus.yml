@@ -114,6 +114,14 @@ linux_glibc_armv4_task:
     - ./build.sh targets/ttgo-arm-linux.cmake
         -DEZ_LIBC=glibc-old
 
+linux_parisc32_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  script:
+    - ./build.sh targets/hppa.cmake
+        -DEZ_LIBC=glibc
+
 linux_powerpc64le_task:
   container:
     dockerfile: .ci/linux/Dockerfile
