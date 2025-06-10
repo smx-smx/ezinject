@@ -186,7 +186,7 @@ intptr_t setregs_syscall(
 	 * call wrapper on PL,
 	 * which will copy `injcode_call` to `injcode_bearing` on Darwin
 	 **/
-	rcall->trampoline.fn_addr = ctx->wrapper_address.remote;
+	rcall->para.trampoline.fn_addr = ctx->wrapper_address.remote;
 
 	// call the user supplied target through the wrapper
 	rcall->wrapper.target.fptr = (intptr_t (*)(volatile struct injcode_call *))ctx->branch_target.remote;
