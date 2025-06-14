@@ -69,6 +69,7 @@ See the php module for an example
   - mips
   - x86
   - amd64
+  - powerpc32
   - powerpc64
   - riscv64
   - hppa1.1

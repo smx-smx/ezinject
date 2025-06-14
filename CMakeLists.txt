@@ -326,6 +326,8 @@ if(EZ_TARGET_LINUX)
 		set(EZ_ARCH_HEADER arch/ezinject_amd64.h)
 	elseif(EZ_ARCH_MIPS)
 		set(EZ_ARCH_HEADER arch/ezinject_mips.h)
+	elseif(EZ_ARCH_PPC32)
+		set(EZ_ARCH_HEADER arch/ezinject_ppc32.h)
 	elseif(EZ_ARCH_PPC64)
 		set(EZ_ARCH_HEADER arch/ezinject_ppc64.h)
 	elseif(EZ_ARCH_RISCV)
@@ -491,7 +493,7 @@ install(
 )
 
 set(injcode_cflags "")
-if(EZ_ARCH_PPC64 OR EZ_ARCH_HPPA)
+if(EZ_ARCH_PPC32 OR EZ_ARCH_PPC64 OR EZ_ARCH_HPPA)
 	# for PPC:
 	# required to skip generation of _savegpr0_* _restgpr0_*
 	# see: https://reviews.llvm.org/D79977
