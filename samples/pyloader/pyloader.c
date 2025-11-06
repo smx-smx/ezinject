@@ -14,6 +14,28 @@
 
 #include "ezinject_module.h"
 
+/**
+ * basename and dirname might modify the source path.
+ * they also return a pointer to static memory that might be overwritten in subsequent calls
+ */
+char *my_basename(const char *path){
+	char *cpy = strdup(path);
+	if(!cpy) return NULL;
+	char *ret = basename(cpy);
+	ret = strdup(ret);
+	free(cpy);
+	return ret;
+}
+char *my_dirname(const char *path){
+	char *cpy = strdup(path);
+	if(!cpy) return NULL;
+	char *ret = dirname(cpy);
+	ret = strdup(ret);
+	free(cpy);
+	return ret;
+}
+
+
 int lib_loginit(log_config_t *log_cfg){
 	return -1;
 }
@@ -24,10 +46,19 @@ int lib_preinit(struct injcode_user *user){
 	return 0;
 }
 
-static char gPythonHome[255];
-static char gPythonProgramName[] = "python";
-static char gEnvPythonPath[2048] = "PYTHONPATH=";
-static char *gEnvPythonIoEncoding = "PYTHONIOENCODING=UTF-8";
+static void os_setenv(const char *key, const char *val){
+	#ifdef EZ_TARGET_WINDOWS
+	_putenv_s(key, val);
+	#else
+	setenv(key, val, 1);
+	#endif
+}
+
+#ifdef EZ_TARGET_WINDOWS
+#define PATH_DELIM ";"
+#else
+#define PATH_DELIM ":"
+#endif
 
 int lib_main(int argc, char *argv[]){
 	lputs("Hello World from main");
@@ -46,132 +77,114 @@ int lib_main(int argc, char *argv[]){
 		return 1;
 	}
 
-	const char *libPythonPath = argv[1];
-	const char *pythonHome  = argv[2];
-	const char *pythonPath = argv[3];
-	const char *pythonScript  = argv[4];
-
-	strncpy(gPythonHome, pythonHome, sizeof(gPythonHome));
-
-	/**
-	 * add the folder holding libpython to LD_LIBRARY_PATH
-	 **/
-
-	char *libPython_dir = strdup(libPythonPath);
-	char *libdir = dirname(libPython_dir);
-
-	char *env;
-	char *current_libpath = getenv("LD_LIBRARY_PATH");
-	if(current_libpath == NULL){
-		asprintf(&env, "LD_LIBRARY_PATH=%s", libdir);
-	} else if(strstr(current_libpath, libdir) == NULL) {
-		asprintf(&env, "LD_LIBRARY_PATH=%s:%s", current_libpath, libdir);
-	}
-	free(libdir);
-
-	putenv(env);
-	free(env);
-
-	/**
-	 * Load libpython and resolve symbols
-	 **/
-	void *hpy = LIB_OPEN(libPythonPath);
-	if(hpy == NULL){
-		lprintf("dlopen '%s' failed: %s\n", libPythonPath, LIB_ERROR());
-		return 1;
-	}
-
-	void (*Py_SetProgramName)(char *) = LIB_GETSYM(hpy, "Py_SetProgramName");
-	void (*Py_SetPythonHome)(char *) = LIB_GETSYM(hpy, "Py_SetPythonHome");
-	void (*Py_Initialize)(void) = LIB_GETSYM(hpy, "Py_Initialize");
-	void (*PyEval_InitThreads)(void) = LIB_GETSYM(hpy, "PyEval_InitThreads");
-	int (*PyRun_SimpleString)(char *) = LIB_GETSYM(hpy, "PyRun_SimpleString");
-	void (*Py_Finalize)(void) = LIB_GETSYM(hpy, "Py_Finalize");
-	int (*Py_IsInitialized)(void) = LIB_GETSYM(hpy, "Py_IsInitialized");
-
-	if(Py_SetProgramName == NULL
-	   || Py_SetPythonHome == NULL
-	   || Py_Initialize == NULL
-	   || PyEval_InitThreads == NULL
-	   || PyRun_SimpleString == NULL
-	   || Py_Finalize == NULL
-	   || Py_IsInitialized == NULL
-	){
-		lprintf("Some python symbols could not be resolved\n");
-		return 1;
-	}
-
-	/**
-	 * Obtain script directory and filename
-	 **/
-
-	char *pyScript_dir = strdup(pythonScript);
-	char *scriptDir = dirname(pyScript_dir);
-
-	char *pyScript_filename = strdup(pythonScript);
-	char *lastdot = strrchr(pyScript_filename, '.');
-	*lastdot = '\0';
-
-	char *scriptName = basename(pyScript_filename);
-
-	lprintf("Script: %s\n", pythonScript);
-	lprintf("Script dir: %s, filename: %s\n", scriptDir, scriptName);
-	// prepend script directory
-	strncat(gEnvPythonPath, scriptDir, sizeof(gEnvPythonPath)-1);
-	{
-		char *end = strchr(gEnvPythonPath, '\0');
-		#ifdef EZ_TARGET_WINDOWS
-		*(end++) = ';';
-		#else
-		*(end++) = ':';
-		#endif
-		*end = '\0';
-	}
-	strncat(gEnvPythonPath, pythonPath, sizeof(gEnvPythonPath)-1);
-
-	putenv(gEnvPythonPath);
-	putenv(gEnvPythonIoEncoding);
+	const char *arg_libPythonPath = argv[1];
+	const char *arg_pythonHome  = argv[2];
+	const char *arg_pythonPath = argv[3];
+	const char *arg_pythonScript  = argv[4];
 
 
-	/**
-	 * Initialize the interpreter
-	 **/
+	int rc = 1;
 
-	int wasInitialized = Py_IsInitialized();
-	if(!wasInitialized){
-		lprintf("Initializing...\n");
-		Py_SetPythonHome(gPythonHome);
-		PyEval_InitThreads();
+	char *pythonPath = NULL;
+	char *scriptDir = NULL;
+	char *scriptName = NULL;
+	char *pyCode = NULL;
 
-		Py_SetProgramName(gPythonProgramName);
+	do {
+		/**
+		* Load libpython and resolve symbols
+		**/
+		void *hpy = LIB_OPEN(arg_libPythonPath);
+		if(hpy == NULL){
+			lprintf("dlopen '%s' failed: %s\n", arg_libPythonPath, LIB_ERROR());
+			break;
+		}
 
-		lprintf("Calling Py_Initialize...\n");
-		Py_Initialize();
-	}
+		void (*Py_Initialize)(void) = LIB_GETSYM(hpy, "Py_Initialize");
+		void (*PyEval_InitThreads)(void) = LIB_GETSYM(hpy, "PyEval_InitThreads");
+		int (*PyRun_SimpleString)(const char *) = LIB_GETSYM(hpy, "PyRun_SimpleString");
+		void (*Py_Finalize)(void) = LIB_GETSYM(hpy, "Py_Finalize");
+		int (*Py_IsInitialized)(void) = LIB_GETSYM(hpy, "Py_IsInitialized");
 
-	/**
-	 * Run the python script
-	 **/
+		if(Py_Initialize == NULL
+		|| PyEval_InitThreads == NULL
+		|| PyRun_SimpleString == NULL
+		|| Py_Finalize == NULL
+		|| Py_IsInitialized == NULL
+		){
+			lprintf("Some python symbols could not be resolved\n");
+			break;
+		}
 
-	char *pyCode;
-	asprintf(&pyCode, "import %s\n", scriptName);
-	if(PyRun_SimpleString(pyCode) < 0){
-		lprintf("An error or exception occured\n");
-	}
+		lprintf("Script: %s\n", arg_pythonScript);
 
-	/**
-	 * Cleanup
-	 **/
+		/**
+		* Obtain script directory and filename
+		**/
+		scriptDir = my_dirname(arg_pythonScript);
 
-	free(pyCode);
-	free(pyScript_dir);
-	free(pyScript_filename);
 
-	if(!wasInitialized){
-		lprintf("Finalizing...\n");
-		Py_Finalize();
-	}
+		// prepend script directory
+		asprintf(&pythonPath, "%s"PATH_DELIM"%s", scriptDir, arg_pythonPath);
+		if(!pythonPath){
+			lprintf("asprintf() failed\n");
+			break;
+		}
 
-	lprintf("Done\n");
-	return 0;
+		os_setenv("PYTHONHOME", arg_pythonHome);
+		os_setenv("PYTHONPATH", pythonPath);
+		os_setenv("PYTHONIOENCODING", "UTF-8");
+
+		/**
+		* Initialize the interpreter
+		**/
+
+		int wasInitialized = Py_IsInitialized();
+		if(!wasInitialized){
+			lprintf("Initializing...\n");
+			PyEval_InitThreads();
+
+			lprintf("Calling Py_Initialize...\n");
+			Py_Initialize();
+		}
+
+		/**
+		* Run the python script
+		**/
+
+		scriptName = my_basename(arg_pythonScript);
+		if(!scriptName){
+			break;
+		}
+		char *lastdot = strrchr(scriptName, '.');
+		if(lastdot){
+			*lastdot = '\0';
+		}
+
+		lprintf("Script dir: %s, filename: %s\n", scriptDir, scriptName);
+
+		asprintf(&pyCode, "import %s\n", scriptName);
+		if(PyRun_SimpleString(pyCode) < 0){
+			lprintf("An error or exception occured\n");
+		}
+
+		/**
+		* Cleanup
+		**/
+
+		if(!wasInitialized){
+			lprintf("Finalizing...\n");
+			Py_Finalize();
+		}
+
+		lprintf("Done\n");
+		rc = 0;
+	} while(0);
+
+	if(pyCode) free(pyCode);
+	if(pythonPath) free(pythonPath);
+	if(scriptDir) free(scriptDir);
+	if(scriptName) free(scriptName);
+
+	return rc;
 }
