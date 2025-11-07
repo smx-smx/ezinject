@@ -35,13 +35,14 @@ char *my_dirname(const char *path){
 	return ret;
 }
 
+static bool user_persist = false;
 
 int lib_loginit(log_config_t *log_cfg){
 	return -1;
 }
 
 int lib_preinit(struct injcode_user *user){
-	UNUSED(user);
+	user_persist = user->persist;
 	// access user data
 	return 0;
 }
@@ -172,7 +173,7 @@ int lib_main(int argc, char *argv[]){
 		* Cleanup
 		**/
 
-		if(!wasInitialized){
+		if(!user_persist && !wasInitialized){
 			lprintf("Finalizing...\n");
 			Py_Finalize();
 		}
