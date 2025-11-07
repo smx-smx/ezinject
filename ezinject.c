@@ -704,7 +704,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 		}
 		fclose(fh);
 
-		char *logPath = os_realpath(ctx->module_logfile);
+		logPath = os_realpath(ctx->module_logfile);
 		if(!logPath){
 			ERR("realpath(%s) failed", ctx->module_logfile);
 			return NULL;
@@ -716,7 +716,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	}
 
 	PUSH_STRING(EZSTR_API_CRT_INIT, "crt_init");
-	PUSH_STRING(EZSTR_LOG_FILEPATH, logPath);
 
 	// argv0
 	PUSH_STRING(EZSTR_ARGV0, libName);
