@@ -803,7 +803,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #undef USE_LIBC_SYM
 
 	// normally false, but can be optionally forced to true
-	// by passing -p to ezinject
+	// by passing -r to ezinject
 	// whether it will be respected or not depends on the module implementation
 	br->user.persist = ctx->module_persist;
 
@@ -1131,13 +1131,13 @@ int main(int argc, char *argv[]){
 
 	{
 		int c;
-		while ((c = getopt (argc, argv, "hdpl:v:")) != -1){
+		while ((c = getopt (argc, argv, "hdrl:v:")) != -1){
 			switch(c){
 				case 'd':
 					WARN("payload debugging enabled");
 					ctx.pl_debug = 1;
 					break;
-				case 'p':
+				case 'r':
 					ctx.module_persist = true;
 					break;
 				case 'l':;
@@ -1159,8 +1159,8 @@ int main(int argc, char *argv[]){
 	if(argc < 3) {
 		usage:
 		fprintf(stderr,
-			"Usage: %s [-h|-d|-p|-l <log_path>|-v <verbosity>] <pid> <library.so> [args...]\n"
-			"  -p: persist user module (won't be unloaded). NOTE: the loaded module may still override this\n"
+			"Usage: %s [-h|-d|-r|-l <log_path>|-v <verbosity>] <pid> <library.so> -- [args...]\n"
+			"  -r: resident/persistent user module (won't be unloaded). NOTE: may still be overridden by the loaded module\n"
 			"  -l <log path>: specify log file for payload/module log messages\n"
 			"  -d: payload debug mode (skips thread wait/cleanup)\n", argv[0]
 		);
