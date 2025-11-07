@@ -82,6 +82,7 @@ struct ezinj_ctx {
 	bool pl_debug;
 	bool syscall_mode;
 	bool bail;
+	bool module_persist;
 	pid_t target;
 	uintptr_t r_xpage_base;
 	char *module_logfile;

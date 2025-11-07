@@ -197,7 +197,7 @@ struct injcode_stack_data {
  **/
 struct injcode_call {
 	uintptr_t magic; //EZSC1
-	
+
 #ifdef EZ_TARGET_POSIX
 	struct {
 		long (*fptr)(long number, ...);
@@ -266,11 +266,11 @@ struct injcode_call {
 struct injcode_bearing
 {
 	uintptr_t magic; //EZBR1
-	
+
 	struct {
 		struct injcode_sc_wrapper wrapper;
 	} entry;
-	
+
 	ssize_t mapping_size;
 
 	int stbl_relocated;

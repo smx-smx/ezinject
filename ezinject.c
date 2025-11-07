@@ -226,16 +226,16 @@ intptr_t setregs_syscall(
 
 	#if STACK_DIR == -1
 	/**
-	 * if the stack grows down, we must decrement by the amount of data we want 
+	 * if the stack grows down, we must decrement by the amount of data we want
 	 * to consume.
 	 * refer to the following diagram (with dummy sample address)
-	 * 
+	 *
 	 * 0x0 -------- <-- r_call_args (memcpy base)
 	 * 0x1 | call |
 	 * 0x2 |----- | <-- New Sp Top
 	 * 0x3 | para |
 	 * 0x4 -------- <-- SP Top
-	 * 
+	 *
 	 * POP *increments* the stack towards SP Top
 	 */
 	REG(*new_ctx, REG_SP) = target_sp - sizeof(struct injcode_trampoline);
@@ -256,13 +256,13 @@ intptr_t setregs_syscall(
 	 * 0x4 |----- | <-- New Sp top
 	 * 0x5 |  stk |
 	 * 0x6 --------
-	 * 
+	 *
 	 * POP *decrements* the stack towards SP Top
 	 */
 	REG(*new_ctx, REG_SP) = target_sp + sizeof(*rcall)
 		- sizeof(rcall->para.entry_stack);
 	#endif
-	
+
 #ifdef DEBUG
 	DBGPTR((void *)REG(*new_ctx, REG_SP));
 #endif
@@ -709,7 +709,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 			ERR("realpath(%s) failed", ctx->module_logfile);
 			return NULL;
 		}
-	
+
 		PUSH_STRING(EZSTR_LOG_FILEPATH, logPath);
 	} else {
 		PUSH_STRING(EZSTR_LOG_FILEPATH, "");
@@ -801,6 +801,11 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #endif
 
 #undef USE_LIBC_SYM
+
+	// normally false, but can be optionally forced to true
+	// by passing -p to ezinject
+	// whether it will be respected or not depends on the module implementation
+	br->user.persist = ctx->module_persist;
 
 	br->argc = argc;
 	br->dyn_total_size = dyn_total_size;
@@ -1126,11 +1131,14 @@ int main(int argc, char *argv[]){
 
 	{
 		int c;
-		while ((c = getopt (argc, argv, "hdl:v:")) != -1){
+		while ((c = getopt (argc, argv, "hdpl:v:")) != -1){
 			switch(c){
 				case 'd':
-					WARN("payload debugging enabled, the target **WILL** freeze");
+					WARN("payload debugging enabled");
 					ctx.pl_debug = 1;
+					break;
+				case 'p':
+					ctx.module_persist = true;
 					break;
 				case 'l':;
 					module_logfile = strdup(optarg);
@@ -1150,7 +1158,12 @@ int main(int argc, char *argv[]){
 
 	if(argc < 3) {
 		usage:
-		ERR("Usage: %s [-h|-d|-l <log_path>|-v <verbosity>] <pid> <library.so> [args...]", argv[0]);
+		fprintf(stderr,
+			"Usage: %s [-h|-d|-p|-l <log_path>|-v <verbosity>] <pid> <library.so> [args...]\n"
+			"  -p: persist user module (won't be unloaded). NOTE: the loaded module may still override this\n"
+			"  -l <log path>: specify log file for payload/module log messages\n"
+			"  -d: payload debug mode (skips thread wait/cleanup)\n", argv[0]
+		);
 		return 1;
 	}
 
