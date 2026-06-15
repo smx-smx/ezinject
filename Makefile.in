@@ -176,6 +176,7 @@ bin_PROGRAMS = ezinject$(EXEEXT) $(am__EXEEXT_1) target$(EXEEXT) \
 # POSIX dl-based test target
 @EZ_TARGET_POSIX_TRUE@am__append_43 = target_dl
 @HAVE_CXX_TRUE@check_PROGRAMS = test_basic_injection$(EXEEXT)
+@HAVE_CXX_TRUE@am__append_44 = test_runner.sh
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_check_compile_flag.m4 \
@@ -1062,7 +1063,7 @@ noinst_LTLIBRARIES = libezinject_util.la libezinject_log.la \
 	$(am__append_11) $(am__append_13) $(am__append_15) \
 	$(am__append_17) libezinject_crt.la libezinject_crt_injcode.la
 EXTRA_LTLIBRARIES = 
-CLEANFILES = $(am__append_19)
+CLEANFILES = $(am__append_19) $(am__append_44)
 
 # ---------------------------------------------------------------------------
 # Extra distribution files
@@ -1250,7 +1251,8 @@ interface_include_HEADERS = crt/lh/interface/if_hook.h crt/lh/interface/if_cpu.h
 # ---------------------------------------------------------------------------
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = ezinject.pc
-@HAVE_CXX_TRUE@TESTS = test_runner.sh
+@HAVE_CXX_TRUE@check_SCRIPTS = test_runner.sh
+@HAVE_CXX_TRUE@TESTS = $(check_SCRIPTS)
 @HAVE_CXX_TRUE@test_basic_injection_SOURCES = test/basic_injection.cpp
 @HAVE_CXX_TRUE@test_basic_injection_CPPFLAGS = $(AM_CPPFLAGS)
 @HAVE_CXX_TRUE@test_basic_injection_CXXFLAGS = $(AM_CFLAGS) -std=c++11
@@ -2453,7 +2455,7 @@ echo "information.  Thanks.";                                                \
 	fi;								\
 	$$success || exit 1
 
-check-TESTS: $(check_PROGRAMS)
+check-TESTS: $(check_PROGRAMS) $(check_SCRIPTS)
 	@$(am__rm_f) $(RECHECK_LOGS)
 	@$(am__rm_f) $(RECHECK_LOGS:.log=.trs)
 	@$(am__rm_f) $(TEST_SUITE_LOG)
@@ -2462,7 +2464,7 @@ check-TESTS: $(check_PROGRAMS)
 	log_list=`echo $$log_list`; \
 	$(MAKE) $(AM_MAKEFLAGS) $(TEST_SUITE_LOG) TEST_LOGS="$$log_list"; \
 	exit $$?;
-recheck: all $(check_PROGRAMS)
+recheck: all $(check_PROGRAMS) $(check_SCRIPTS)
 	@$(am__rm_f) $(TEST_SUITE_LOG)
 	@set +e; $(am__set_TESTS_bases); \
 	bases=`for i in $$bases; do echo $$i; done \
@@ -2674,7 +2676,7 @@ distcleancheck: distclean
 	       $(distcleancheck_listfiles) ; \
 	       exit 1; } >&2
 check-am: all-am
-	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS)
+	$(MAKE) $(AM_MAKEFLAGS) $(check_PROGRAMS) $(check_SCRIPTS)
 	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
 all-am: Makefile $(PROGRAMS) $(LTLIBRARIES) $(DATA) $(HEADERS) \
@@ -3042,10 +3044,7 @@ uninstall-hook:
 
 @HAVE_CXX_TRUE@test_runner.sh: Makefile
 @HAVE_CXX_TRUE@	@echo '#!/bin/sh' > $@
-@HAVE_CXX_TRUE@	@echo '"$(abs_builddir)/test_basic_injection"' \
-@HAVE_CXX_TRUE@	  '"$(abs_builddir)/target"' \
-@HAVE_CXX_TRUE@	  '"$(abs_builddir)/ezinject"' \
-@HAVE_CXX_TRUE@	  '"$(abs_builddir)/.libs/libdummy.so"' >> $@
+@HAVE_CXX_TRUE@	@echo 'exec $(abs_builddir)/test_basic_injection $(abs_builddir)/target $(abs_builddir)/ezinject $(abs_builddir)/.libs/libdummy.so' >> $@
 @HAVE_CXX_TRUE@	@chmod +x $@
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.

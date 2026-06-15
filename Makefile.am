@@ -514,7 +514,9 @@ EXTRA_DIST += \
 # ---------------------------------------------------------------------------
 if HAVE_CXX
 check_PROGRAMS = test_basic_injection
-TESTS = test_runner.sh
+check_SCRIPTS = test_runner.sh
+TESTS = $(check_SCRIPTS)
+CLEANFILES += test_runner.sh
 
 test_basic_injection_SOURCES = test/basic_injection.cpp
 test_basic_injection_CPPFLAGS = $(AM_CPPFLAGS)
@@ -523,9 +525,6 @@ test_basic_injection_LDADD = $(LIBPTHREAD_LINK)
 
 test_runner.sh: Makefile
 	@echo '#!/bin/sh' > $@
-	@echo '"$(abs_builddir)/test_basic_injection"' \
-	  '"$(abs_builddir)/target"' \
-	  '"$(abs_builddir)/ezinject"' \
-	  '"$(abs_builddir)/.libs/libdummy.so"' >> $@
+	@echo 'exec $(abs_builddir)/test_basic_injection $(abs_builddir)/target $(abs_builddir)/ezinject $(abs_builddir)/.libs/libdummy.so' >> $@
 	@chmod +x $@
 endif
