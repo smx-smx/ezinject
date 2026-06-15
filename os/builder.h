@@ -30,6 +30,18 @@ bool os_should_retry(struct ezinj_ctx *ctx, int err);
 void os_plt_resolve(void);
 void os_print_maps(void);
 int  os_sc_init(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf);
+
+static inline void os_strings_posix(struct ezinj_strings *strings,
+	int (*push)(struct ezinj_strings *, enum ezinj_str_id, const char *))
+{
+	push(strings, EZSTR_API_DLERROR, "dlerror");
+	push(strings, EZSTR_API_PTHREAD_MUTEX_INIT, "pthread_mutex_init");
+	push(strings, EZSTR_API_PTHREAD_MUTEX_LOCK, "pthread_mutex_lock");
+	push(strings, EZSTR_API_PTHREAD_MUTEX_UNLOCK, "pthread_mutex_unlock");
+	push(strings, EZSTR_API_COND_INIT, "pthread_cond_init");
+	push(strings, EZSTR_API_COND_WAIT, "pthread_cond_wait");
+}
+
 int  os_sc_relocate(struct ezinj_ctx *ctx, uintptr_t r_sc_elf, uintptr_t *r_sc_vmem);
 int  os_sc_cleanup_vmem(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf, uintptr_t r_sc_vmem);
 

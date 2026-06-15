@@ -70,10 +70,13 @@ bool os_should_retry(struct ezinj_ctx *ctx, int err){
 	return false;
 }
 
+extern int push_string(struct ezinj_strings *strings, enum ezinj_str_id str_id, const char *str);
+
 void os_strings_init(struct ezinj_ctx *ctx, struct ezinj_strings *strings, struct os_builder_ctx *os_ctx){
 	UNUSED(ctx);
-	UNUSED(strings);
 	memset(os_ctx, 0, sizeof(*os_ctx));
+
+	os_strings_posix(strings, push_string);
 }
 
 void os_bearing_setup(struct injcode_bearing *br, struct ezinj_ctx *ctx, struct os_builder_ctx *os_ctx){

@@ -83,12 +83,7 @@ void os_strings_init(struct ezinj_ctx *ctx, struct ezinj_strings *strings, struc
 
 	PUSH_STRING(EZSTR_PL_FILENAME, pl_filename);
 
-	PUSH_STRING(EZSTR_API_DLERROR, "dlerror");
-	PUSH_STRING(EZSTR_API_PTHREAD_MUTEX_INIT, "pthread_mutex_init");
-	PUSH_STRING(EZSTR_API_PTHREAD_MUTEX_LOCK, "pthread_mutex_lock");
-	PUSH_STRING(EZSTR_API_PTHREAD_MUTEX_UNLOCK, "pthread_mutex_unlock");
-	PUSH_STRING(EZSTR_API_COND_INIT, "pthread_cond_init");
-	PUSH_STRING(EZSTR_API_COND_WAIT, "pthread_cond_wait");
+	os_strings_posix(strings, push_string);
 }
 
 void os_bearing_setup(struct injcode_bearing *br, struct ezinj_ctx *ctx, struct os_builder_ctx *os_ctx){
