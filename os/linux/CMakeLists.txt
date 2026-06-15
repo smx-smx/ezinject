@@ -3,6 +3,7 @@ add_library(os_linux
 	common.c
 	inject.c
 	remote.c
+	builder.c
 )
 
 if(HAVE_LIBC_DLOPEN_MODE OR HAVE_LIBC_DL_OPEN)

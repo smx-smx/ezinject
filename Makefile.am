@@ -68,7 +68,9 @@ libos_linux_util_la_SOURCES = os/linux/util.c
 libos_linux_la_SOURCES = \
 	os/linux/common.c \
 	os/linux/inject.c \
-	os/linux/remote.c
+	os/linux/remote.c \
+	os/linux/builder.c \
+	os/builder.h
 
 if HAVE_LIBC_DLOPEN_MODE_COND
 libos_linux_la_SOURCES += os/linux/libc_glibc.c
@@ -109,7 +111,8 @@ libos_darwin_la_SOURCES = \
 	os/darwin/inject.c \
 	os/darwin/libc_darwin.c \
 	os/darwin/remote.c \
-	os/darwin/util.c
+	os/darwin/util.c \
+	os/darwin/builder.c
 
 ezinject_LDADD += libos_darwin.la
 endif
@@ -122,7 +125,8 @@ libos_freebsd_la_SOURCES = \
 	os/freebsd/inject.c \
 	os/freebsd/libc_freebsd.c \
 	os/freebsd/remote.c \
-	os/freebsd/util.c
+	os/freebsd/util.c \
+	os/freebsd/builder.c
 
 ezinject_LDADD += libos_freebsd.la
 endif
@@ -143,7 +147,8 @@ noinst_LTLIBRARIES += libos_windows.la libos_windows_util.la libwindows_injlib.l
 libos_windows_la_SOURCES = \
 	os/windows/inject.c \
 	os/windows/libc_windows.c \
-	os/windows/remote.c
+	os/windows/remote.c \
+	os/windows/builder.c
 
 libos_windows_util_la_SOURCES = os/windows/util.c os/windows/util.h
 

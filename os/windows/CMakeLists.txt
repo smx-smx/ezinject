@@ -2,6 +2,7 @@ add_library(os_windows
 	inject.c
 	libc_windows.c
 	remote.c
+	builder.c
 )
 add_library(os_windows_util util.c util.h)
 

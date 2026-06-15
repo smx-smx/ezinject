@@ -338,27 +338,31 @@ libos_android_la_OBJECTS = $(am_libos_android_la_OBJECTS)
 @EZ_TARGET_ANDROID_TRUE@am_libos_android_la_rpath =
 libos_darwin_la_LIBADD =
 am__libos_darwin_la_SOURCES_DIST = os/darwin/inject.c \
-	os/darwin/libc_darwin.c os/darwin/remote.c os/darwin/util.c
+	os/darwin/libc_darwin.c os/darwin/remote.c os/darwin/util.c \
+	os/darwin/builder.c
 @EZ_TARGET_DARWIN_TRUE@am_libos_darwin_la_OBJECTS =  \
 @EZ_TARGET_DARWIN_TRUE@	os/darwin/inject.lo \
 @EZ_TARGET_DARWIN_TRUE@	os/darwin/libc_darwin.lo \
-@EZ_TARGET_DARWIN_TRUE@	os/darwin/remote.lo os/darwin/util.lo
+@EZ_TARGET_DARWIN_TRUE@	os/darwin/remote.lo os/darwin/util.lo \
+@EZ_TARGET_DARWIN_TRUE@	os/darwin/builder.lo
 libos_darwin_la_OBJECTS = $(am_libos_darwin_la_OBJECTS)
 @EZ_TARGET_DARWIN_TRUE@am_libos_darwin_la_rpath =
 libos_freebsd_la_LIBADD =
 am__libos_freebsd_la_SOURCES_DIST = os/freebsd/inject.c \
 	os/freebsd/libc_freebsd.c os/freebsd/remote.c \
-	os/freebsd/util.c
+	os/freebsd/util.c os/freebsd/builder.c
 @EZ_TARGET_FREEBSD_TRUE@am_libos_freebsd_la_OBJECTS =  \
 @EZ_TARGET_FREEBSD_TRUE@	os/freebsd/inject.lo \
 @EZ_TARGET_FREEBSD_TRUE@	os/freebsd/libc_freebsd.lo \
 @EZ_TARGET_FREEBSD_TRUE@	os/freebsd/remote.lo \
-@EZ_TARGET_FREEBSD_TRUE@	os/freebsd/util.lo
+@EZ_TARGET_FREEBSD_TRUE@	os/freebsd/util.lo \
+@EZ_TARGET_FREEBSD_TRUE@	os/freebsd/builder.lo
 libos_freebsd_la_OBJECTS = $(am_libos_freebsd_la_OBJECTS)
 @EZ_TARGET_FREEBSD_TRUE@am_libos_freebsd_la_rpath =
 libos_linux_la_LIBADD =
 am__libos_linux_la_SOURCES_DIST = os/linux/common.c os/linux/inject.c \
-	os/linux/remote.c os/linux/libc_glibc.c os/linux/libc_uclibc.c \
+	os/linux/remote.c os/linux/builder.c os/builder.h \
+	os/linux/libc_glibc.c os/linux/libc_uclibc.c \
 	os/linux/libc_generic.c
 @EZ_TARGET_LINUX_TRUE@@HAVE_LIBC_DLOPEN_MODE_COND_TRUE@am__objects_9 = os/linux/libc_glibc.lo
 @EZ_TARGET_LINUX_TRUE@@HAVE_LIBC_DL_OPEN_COND_TRUE@am__objects_10 = os/linux/libc_glibc.lo
@@ -366,8 +370,9 @@ am__libos_linux_la_SOURCES_DIST = os/linux/common.c os/linux/inject.c \
 @EZ_TARGET_LINUX_TRUE@@GENERIC_LIBC_COND_TRUE@am__objects_12 = os/linux/libc_generic.lo
 @EZ_TARGET_LINUX_TRUE@am_libos_linux_la_OBJECTS = os/linux/common.lo \
 @EZ_TARGET_LINUX_TRUE@	os/linux/inject.lo os/linux/remote.lo \
-@EZ_TARGET_LINUX_TRUE@	$(am__objects_9) $(am__objects_10) \
-@EZ_TARGET_LINUX_TRUE@	$(am__objects_11) $(am__objects_12)
+@EZ_TARGET_LINUX_TRUE@	os/linux/builder.lo $(am__objects_9) \
+@EZ_TARGET_LINUX_TRUE@	$(am__objects_10) $(am__objects_11) \
+@EZ_TARGET_LINUX_TRUE@	$(am__objects_12)
 libos_linux_la_OBJECTS = $(am_libos_linux_la_OBJECTS)
 @EZ_TARGET_LINUX_TRUE@am_libos_linux_la_rpath =
 libos_linux_util_la_LIBADD =
@@ -393,11 +398,13 @@ libos_posix_util_la_OBJECTS = $(am_libos_posix_util_la_OBJECTS)
 @EZ_TARGET_POSIX_TRUE@am_libos_posix_util_la_rpath =
 libos_windows_la_LIBADD =
 am__libos_windows_la_SOURCES_DIST = os/windows/inject.c \
-	os/windows/libc_windows.c os/windows/remote.c
+	os/windows/libc_windows.c os/windows/remote.c \
+	os/windows/builder.c
 @EZ_TARGET_WINDOWS_TRUE@am_libos_windows_la_OBJECTS =  \
 @EZ_TARGET_WINDOWS_TRUE@	os/windows/inject.lo \
 @EZ_TARGET_WINDOWS_TRUE@	os/windows/libc_windows.lo \
-@EZ_TARGET_WINDOWS_TRUE@	os/windows/remote.lo
+@EZ_TARGET_WINDOWS_TRUE@	os/windows/remote.lo \
+@EZ_TARGET_WINDOWS_TRUE@	os/windows/builder.lo
 libos_windows_la_OBJECTS = $(am_libos_windows_la_OBJECTS)
 @EZ_TARGET_WINDOWS_TRUE@am_libos_windows_la_rpath =
 libos_windows_util_la_LIBADD =
@@ -511,19 +518,22 @@ am__depfiles_remade = ./$(DEPDIR)/elfparse.Plo \
 	crt/lh/interface/cpu/mips/$(DEPDIR)/liblh_ifcpu_la-cpu_mips.Plo \
 	crt/lh/interface/hook/$(DEPDIR)/liblh_ifhook_la-lh_hook.Plo \
 	os/android/$(DEPDIR)/libc_bionic.Plo \
-	os/darwin/$(DEPDIR)/inject.Plo \
+	os/darwin/$(DEPDIR)/builder.Plo os/darwin/$(DEPDIR)/inject.Plo \
 	os/darwin/$(DEPDIR)/libc_darwin.Plo \
 	os/darwin/$(DEPDIR)/remote.Plo os/darwin/$(DEPDIR)/util.Plo \
+	os/freebsd/$(DEPDIR)/builder.Plo \
 	os/freebsd/$(DEPDIR)/inject.Plo \
 	os/freebsd/$(DEPDIR)/libc_freebsd.Plo \
 	os/freebsd/$(DEPDIR)/remote.Plo os/freebsd/$(DEPDIR)/util.Plo \
-	os/linux/$(DEPDIR)/common.Plo os/linux/$(DEPDIR)/inject.Plo \
+	os/linux/$(DEPDIR)/builder.Plo os/linux/$(DEPDIR)/common.Plo \
+	os/linux/$(DEPDIR)/inject.Plo \
 	os/linux/$(DEPDIR)/libc_generic.Plo \
 	os/linux/$(DEPDIR)/libc_glibc.Plo \
 	os/linux/$(DEPDIR)/libc_uclibc.Plo \
 	os/linux/$(DEPDIR)/remote.Plo os/linux/$(DEPDIR)/util.Plo \
 	os/posix/$(DEPDIR)/inject.Plo os/posix/$(DEPDIR)/remote.Plo \
-	os/posix/$(DEPDIR)/util.Plo os/windows/$(DEPDIR)/inject.Plo \
+	os/posix/$(DEPDIR)/util.Plo os/windows/$(DEPDIR)/builder.Plo \
+	os/windows/$(DEPDIR)/inject.Plo \
 	os/windows/$(DEPDIR)/libc_windows.Plo \
 	os/windows/$(DEPDIR)/libezinject_crt_la-util.Plo \
 	os/windows/$(DEPDIR)/remote.Plo os/windows/$(DEPDIR)/util.Plo \
@@ -909,6 +919,7 @@ libezinject_log_la_CFLAGS = $(AM_CFLAGS)
 @EZ_TARGET_LINUX_TRUE@libos_linux_util_la_SOURCES = os/linux/util.c
 @EZ_TARGET_LINUX_TRUE@libos_linux_la_SOURCES = os/linux/common.c \
 @EZ_TARGET_LINUX_TRUE@	os/linux/inject.c os/linux/remote.c \
+@EZ_TARGET_LINUX_TRUE@	os/linux/builder.c os/builder.h \
 @EZ_TARGET_LINUX_TRUE@	$(am__append_5) $(am__append_6) \
 @EZ_TARGET_LINUX_TRUE@	$(am__append_7) $(am__append_8)
 @EZ_TARGET_POSIX_TRUE@libos_posix_la_SOURCES = os/posix/remote.c
@@ -918,19 +929,22 @@ libos_posix_shellcode_la_SOURCES = os/posix/inject.c
 @EZ_TARGET_DARWIN_TRUE@	os/darwin/inject.c \
 @EZ_TARGET_DARWIN_TRUE@	os/darwin/libc_darwin.c \
 @EZ_TARGET_DARWIN_TRUE@	os/darwin/remote.c \
-@EZ_TARGET_DARWIN_TRUE@	os/darwin/util.c
+@EZ_TARGET_DARWIN_TRUE@	os/darwin/util.c \
+@EZ_TARGET_DARWIN_TRUE@	os/darwin/builder.c
 
 @EZ_TARGET_FREEBSD_TRUE@libos_freebsd_la_SOURCES = \
 @EZ_TARGET_FREEBSD_TRUE@	os/freebsd/inject.c \
 @EZ_TARGET_FREEBSD_TRUE@	os/freebsd/libc_freebsd.c \
 @EZ_TARGET_FREEBSD_TRUE@	os/freebsd/remote.c \
-@EZ_TARGET_FREEBSD_TRUE@	os/freebsd/util.c
+@EZ_TARGET_FREEBSD_TRUE@	os/freebsd/util.c \
+@EZ_TARGET_FREEBSD_TRUE@	os/freebsd/builder.c
 
 @EZ_TARGET_ANDROID_TRUE@libos_android_la_SOURCES = os/android/libc_bionic.c
 @EZ_TARGET_WINDOWS_TRUE@libos_windows_la_SOURCES = \
 @EZ_TARGET_WINDOWS_TRUE@	os/windows/inject.c \
 @EZ_TARGET_WINDOWS_TRUE@	os/windows/libc_windows.c \
-@EZ_TARGET_WINDOWS_TRUE@	os/windows/remote.c
+@EZ_TARGET_WINDOWS_TRUE@	os/windows/remote.c \
+@EZ_TARGET_WINDOWS_TRUE@	os/windows/builder.c
 
 @EZ_TARGET_WINDOWS_TRUE@libos_windows_util_la_SOURCES = os/windows/util.c os/windows/util.h
 @EZ_TARGET_WINDOWS_TRUE@libwindows_injlib_la_SOURCES = \
@@ -1304,6 +1318,8 @@ os/darwin/remote.lo: os/darwin/$(am__dirstamp) \
 	os/darwin/$(DEPDIR)/$(am__dirstamp)
 os/darwin/util.lo: os/darwin/$(am__dirstamp) \
 	os/darwin/$(DEPDIR)/$(am__dirstamp)
+os/darwin/builder.lo: os/darwin/$(am__dirstamp) \
+	os/darwin/$(DEPDIR)/$(am__dirstamp)
 
 libos_darwin.la: $(libos_darwin_la_OBJECTS) $(libos_darwin_la_DEPENDENCIES) $(EXTRA_libos_darwin_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) $(am_libos_darwin_la_rpath) $(libos_darwin_la_OBJECTS) $(libos_darwin_la_LIBADD) $(LIBS)
@@ -1321,6 +1337,8 @@ os/freebsd/remote.lo: os/freebsd/$(am__dirstamp) \
 	os/freebsd/$(DEPDIR)/$(am__dirstamp)
 os/freebsd/util.lo: os/freebsd/$(am__dirstamp) \
 	os/freebsd/$(DEPDIR)/$(am__dirstamp)
+os/freebsd/builder.lo: os/freebsd/$(am__dirstamp) \
+	os/freebsd/$(DEPDIR)/$(am__dirstamp)
 
 libos_freebsd.la: $(libos_freebsd_la_OBJECTS) $(libos_freebsd_la_DEPENDENCIES) $(EXTRA_libos_freebsd_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(LINK) $(am_libos_freebsd_la_rpath) $(libos_freebsd_la_OBJECTS) $(libos_freebsd_la_LIBADD) $(LIBS)
@@ -1335,6 +1353,8 @@ os/linux/common.lo: os/linux/$(am__dirstamp) \
 os/linux/inject.lo: os/linux/$(am__dirstamp) \
 	os/linux/$(DEPDIR)/$(am__dirstamp)
 os/linux/remote.lo: os/linux/$(am__dirstamp) \
+	os/linux/$(DEPDIR)/$(am__dirstamp)
+os/linux/builder.lo: os/linux/$(am__dirstamp) \
 	os/linux/$(DEPDIR)/$(am__dirstamp)
 os/linux/libc_glibc.lo: os/linux/$(am__dirstamp) \
 	os/linux/$(DEPDIR)/$(am__dirstamp)
@@ -1376,6 +1396,8 @@ os/windows/inject.lo: os/windows/$(am__dirstamp) \
 os/windows/libc_windows.lo: os/windows/$(am__dirstamp) \
 	os/windows/$(DEPDIR)/$(am__dirstamp)
 os/windows/remote.lo: os/windows/$(am__dirstamp) \
+	os/windows/$(DEPDIR)/$(am__dirstamp)
+os/windows/builder.lo: os/windows/$(am__dirstamp) \
 	os/windows/$(DEPDIR)/$(am__dirstamp)
 
 libos_windows.la: $(libos_windows_la_OBJECTS) $(libos_windows_la_DEPENDENCIES) $(EXTRA_libos_windows_la_DEPENDENCIES) 
@@ -1502,14 +1524,17 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@crt/lh/interface/cpu/mips/$(DEPDIR)/liblh_ifcpu_la-cpu_mips.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@crt/lh/interface/hook/$(DEPDIR)/liblh_ifhook_la-lh_hook.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/android/$(DEPDIR)/libc_bionic.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@os/darwin/$(DEPDIR)/builder.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/darwin/$(DEPDIR)/inject.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/darwin/$(DEPDIR)/libc_darwin.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/darwin/$(DEPDIR)/remote.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/darwin/$(DEPDIR)/util.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@os/freebsd/$(DEPDIR)/builder.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/freebsd/$(DEPDIR)/inject.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/freebsd/$(DEPDIR)/libc_freebsd.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/freebsd/$(DEPDIR)/remote.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/freebsd/$(DEPDIR)/util.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@os/linux/$(DEPDIR)/builder.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/linux/$(DEPDIR)/common.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/linux/$(DEPDIR)/inject.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/linux/$(DEPDIR)/libc_generic.Plo@am__quote@ # am--include-marker
@@ -1520,6 +1545,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@os/posix/$(DEPDIR)/inject.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/posix/$(DEPDIR)/remote.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/posix/$(DEPDIR)/util.Plo@am__quote@ # am--include-marker
+@AMDEP_TRUE@@am__include@ @am__quote@os/windows/$(DEPDIR)/builder.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/windows/$(DEPDIR)/inject.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/windows/$(DEPDIR)/libc_windows.Plo@am__quote@ # am--include-marker
 @AMDEP_TRUE@@am__include@ @am__quote@os/windows/$(DEPDIR)/libezinject_crt_la-util.Plo@am__quote@ # am--include-marker
@@ -2282,14 +2308,17 @@ distclean: distclean-am
 	-rm -f crt/lh/interface/cpu/mips/$(DEPDIR)/liblh_ifcpu_la-cpu_mips.Plo
 	-rm -f crt/lh/interface/hook/$(DEPDIR)/liblh_ifhook_la-lh_hook.Plo
 	-rm -f os/android/$(DEPDIR)/libc_bionic.Plo
+	-rm -f os/darwin/$(DEPDIR)/builder.Plo
 	-rm -f os/darwin/$(DEPDIR)/inject.Plo
 	-rm -f os/darwin/$(DEPDIR)/libc_darwin.Plo
 	-rm -f os/darwin/$(DEPDIR)/remote.Plo
 	-rm -f os/darwin/$(DEPDIR)/util.Plo
+	-rm -f os/freebsd/$(DEPDIR)/builder.Plo
 	-rm -f os/freebsd/$(DEPDIR)/inject.Plo
 	-rm -f os/freebsd/$(DEPDIR)/libc_freebsd.Plo
 	-rm -f os/freebsd/$(DEPDIR)/remote.Plo
 	-rm -f os/freebsd/$(DEPDIR)/util.Plo
+	-rm -f os/linux/$(DEPDIR)/builder.Plo
 	-rm -f os/linux/$(DEPDIR)/common.Plo
 	-rm -f os/linux/$(DEPDIR)/inject.Plo
 	-rm -f os/linux/$(DEPDIR)/libc_generic.Plo
@@ -2300,6 +2329,7 @@ distclean: distclean-am
 	-rm -f os/posix/$(DEPDIR)/inject.Plo
 	-rm -f os/posix/$(DEPDIR)/remote.Plo
 	-rm -f os/posix/$(DEPDIR)/util.Plo
+	-rm -f os/windows/$(DEPDIR)/builder.Plo
 	-rm -f os/windows/$(DEPDIR)/inject.Plo
 	-rm -f os/windows/$(DEPDIR)/libc_windows.Plo
 	-rm -f os/windows/$(DEPDIR)/libezinject_crt_la-util.Plo
@@ -2389,14 +2419,17 @@ maintainer-clean: maintainer-clean-am
 	-rm -f crt/lh/interface/cpu/mips/$(DEPDIR)/liblh_ifcpu_la-cpu_mips.Plo
 	-rm -f crt/lh/interface/hook/$(DEPDIR)/liblh_ifhook_la-lh_hook.Plo
 	-rm -f os/android/$(DEPDIR)/libc_bionic.Plo
+	-rm -f os/darwin/$(DEPDIR)/builder.Plo
 	-rm -f os/darwin/$(DEPDIR)/inject.Plo
 	-rm -f os/darwin/$(DEPDIR)/libc_darwin.Plo
 	-rm -f os/darwin/$(DEPDIR)/remote.Plo
 	-rm -f os/darwin/$(DEPDIR)/util.Plo
+	-rm -f os/freebsd/$(DEPDIR)/builder.Plo
 	-rm -f os/freebsd/$(DEPDIR)/inject.Plo
 	-rm -f os/freebsd/$(DEPDIR)/libc_freebsd.Plo
 	-rm -f os/freebsd/$(DEPDIR)/remote.Plo
 	-rm -f os/freebsd/$(DEPDIR)/util.Plo
+	-rm -f os/linux/$(DEPDIR)/builder.Plo
 	-rm -f os/linux/$(DEPDIR)/common.Plo
 	-rm -f os/linux/$(DEPDIR)/inject.Plo
 	-rm -f os/linux/$(DEPDIR)/libc_generic.Plo
@@ -2407,6 +2440,7 @@ maintainer-clean: maintainer-clean-am
 	-rm -f os/posix/$(DEPDIR)/inject.Plo
 	-rm -f os/posix/$(DEPDIR)/remote.Plo
 	-rm -f os/posix/$(DEPDIR)/util.Plo
+	-rm -f os/windows/$(DEPDIR)/builder.Plo
 	-rm -f os/windows/$(DEPDIR)/inject.Plo
 	-rm -f os/windows/$(DEPDIR)/libc_windows.Plo
 	-rm -f os/windows/$(DEPDIR)/libezinject_crt_la-util.Plo

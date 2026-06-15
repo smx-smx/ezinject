@@ -42,9 +42,7 @@
 #include "ezinject_arch.h"
 #include "ezinject_injcode.h"
 
-#ifdef EZ_TARGET_WINDOWS
-#include "os/windows/util.h"
-#endif
+#include "os/builder.h"
 
 #include "log.h"
 
@@ -100,36 +98,7 @@ intptr_t setregs_syscall(
 	// copy call arguments
 	memcpy(&rcall->argv, &call->argv, sizeof(call->argv));
 
-#ifdef EZ_TARGET_POSIX
-	rcall->libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
-	rcall->libc_syscall.got = (void *)ctx->libc_got.remote;
-	rcall->libc_syscall.self = (void *)r_call_args + offsetof(struct injcode_call, libc_syscall);
-#endif
-#ifdef EZ_TARGET_LINUX
-	if(ctx->force_mmap_syscall){
-		rcall->libc_mmap.fptr = NULL;
-	} else {
-		rcall->libc_mmap.fptr = (void *)ctx->libc_mmap.remote;
-	}
-
-	rcall->libc_mmap.got = (void *)ctx->libc_got.remote;
-	rcall->libc_mmap.self = (void *)r_call_args + offsetof(struct injcode_call, libc_mmap);
-
-	rcall->libc_open.fptr = (void *)ctx->libc_open.remote;
-	rcall->libc_open.got = (void *)ctx->libc_got.remote;
-	rcall->libc_open.self = (void *)r_call_args + offsetof(struct injcode_call, libc_open);
-
-
-	rcall->libc_read.fptr = (void *)ctx->libc_read.remote;
-	rcall->libc_read.got = (void *)ctx->libc_got.remote;
-	rcall->libc_read.self = (void *)r_call_args + offsetof(struct injcode_call, libc_read);
-#endif
-#ifdef EZ_TARGET_WINDOWS
-	rcall->VirtualAlloc = (void *)ctx->virtual_alloc.remote;
-	rcall->VirtualFree = (void *)ctx->virtual_free.remote;
-	rcall->SuspendThread = (void *)ctx->suspend_thread.remote;
-	rcall->GetCurrentThread = (void *)ctx->get_current_thread.remote;
-#endif
+	os_rcall_setup(ctx, rcall, r_call_args);
 
 #define PLAPI_USE(fn) do { \
 	rcall->plapi.fn.fptr = (void *)ctx->plapi.fn; \
@@ -326,10 +295,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 
 	bool wait = false;
 	do {
-		#ifdef EZ_TARGET_WINDOWS
-		// hack
-		ctx->r_ezstate_addr = RCALL_FIELD_ADDR(&call->rcall, ezstate);
-		#endif
+		os_invoke_begin(ctx, &call->rcall);
 
 		if(ctx->bail){
 			// hard exit for debugging purposes
@@ -343,29 +309,7 @@ intptr_t remote_call_common(struct ezinj_ctx *ctx, struct call_req *call){
 			return -1;
 		}
 
-	#ifdef EZ_TARGET_POSIX
-	// this may be defined to a runtime call (!!)
-	// in that case, it will return the *current* SIGRTMIN, which is not what we want
-	#undef SIGRTMIN
-	#define SIGRTMIN 32
-		#define IS_IGNORED_SIG(x) ((x) == SIGCHLD || (x) == SIGUSR1 || (x) == SIGUSR2 || (x) >= SIGRTMIN)
-
-		wait = false;
-
-		int signal = WSTOPSIG(status);
-		DBG("signal: %d", signal);
-		/**
-		 * some glibc versions use SIGRTMIN for thread management
-		 * we need to forward those signals so that
-		 * `pthread_create` and `pthread_join`
-		 * can work correctly
-		 */
-		if(!call->syscall_mode && IS_IGNORED_SIG(signal)){
-			INFO("forwarding signal %d", signal);
-			remote_continue(ctx, signal);
-			wait = true;
-		}
-	#endif
+		wait = os_forward_signal(ctx, status, call->syscall_mode);
 	} while(wait);
 
 	if(ctx->pl_debug){
@@ -650,21 +594,8 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 #define PUSH_STRING(id, str) \
 	if((rc=push_string(&strings, id, str)) < 0) goto end;
 
-#ifdef EZ_TARGET_LINUX
-	off_t pl_filename_offset = strings.dyn_str_size;
-	/**
-	 * construct tempory payload filename
-	 * yes, we use tempnam as we don't know
-	 * the system temporary directory
-	 **/
-	char *pl_filename = tempnam(NULL, "ezpl");
-	if(pl_filename == NULL){
-		PERROR("tmpnam");
-		return NULL;
-	}
-
-	PUSH_STRING(EZSTR_PL_FILENAME, pl_filename);
-#endif
+	struct os_builder_ctx os_ctx;
+	os_strings_init(ctx, &strings, &os_ctx);
 
 	// library to load
 	char *libName = os_realpath(argv[0]);
@@ -677,21 +608,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	PUSH_STRING(EZSTR_API_LIBDL, ctx->libdl_name);
 	// libpthread.so name (without path)
 	PUSH_STRING(EZSTR_API_LIBPTHREAD, ctx->libpthread_name);
-
-#if defined(EZ_TARGET_POSIX)
-	PUSH_STRING(EZSTR_API_DLERROR, "dlerror");
-	PUSH_STRING(EZSTR_API_PTHREAD_MUTEX_INIT, "pthread_mutex_init");
-	PUSH_STRING(EZSTR_API_PTHREAD_MUTEX_LOCK, "pthread_mutex_lock");
-	PUSH_STRING(EZSTR_API_PTHREAD_MUTEX_UNLOCK, "pthread_mutex_unlock");
-	PUSH_STRING(EZSTR_API_COND_INIT, "pthread_cond_init");
-	PUSH_STRING(EZSTR_API_COND_WAIT, "pthread_cond_wait");
-#elif defined(EZ_TARGET_WINDOWS)
-	PUSH_STRING(EZSTR_API_CREATE_EVENT, "CreateEventA");
-	PUSH_STRING(EZSTR_API_CREATE_THREAD, "CreateThread");
-	PUSH_STRING(EZSTR_API_CLOSE_HANDLE, "CloseHandle");
-	PUSH_STRING(EZSTR_API_WAIT_FOR_SINGLE_OBJECT, "WaitForSingleObject");
-	PUSH_STRING(EZSTR_API_GET_EXIT_CODE_THREAD, "GetExitCodeThread");
-#endif
 
 	char *logPath = NULL;
 
@@ -750,54 +666,11 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->pl_debug = ctx->pl_debug;
 	br->libdl_handle = (void *)ctx->libdl.remote;
 
-#if defined(HAVE_DL_LOAD_SHARED_LIBRARY)
-	br->uclibc_sym_tables = (void *)ctx->uclibc_sym_tables.remote;
-	br->uclibc_dl_fixup.fptr = (void *)ctx->uclibc_dl_fixup.remote;
-	br->uclibc_loaded_modules = (void *)ctx->uclibc_loaded_modules.remote;
-#ifdef EZ_ARCH_MIPS
-	br->uclibc_mips_got_reloc.fptr = (void *)ctx->uclibc_mips_got_reloc.remote;
-#endif
-#endif
-
-#ifdef EZ_TARGET_DARWIN
-	br->pthread_create = (void *)ctx->pthread_create.remote;
-	br->pthread_join = (void *)ctx->pthread_join.remote;
-	br->pthread_create_from_mach_thread = (void *)ctx->pthread_create_from_mach_thread.remote;
-	br->pthread_detach = (void *)ctx->pthread_detach.remote;
-	br->pthread_self = (void *)ctx->pthread_self.remote;
-	br->mach_thread_self = (void *)ctx->mach_thread_self.remote;
-	br->thread_terminate = (void *)ctx->thread_terminate.remote;
-	br->mach_port_allocate = (void *)ctx->mach_port_allocate.remote;
-	br->task_self_trap = (void *)ctx->task_self_trap.remote;
-#endif
-
-#ifdef EZ_TARGET_WINDOWS
-	br->CreateFileA = (void *)ctx->create_file.remote;
-	br->WriteFile = (void *)ctx->write_file.remote;
-	br->CloseHandle = (void *)ctx->close_handle.remote;
-	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
-	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
-	br->kernel32_base = ctx->libdl.remote;
-#endif
+	os_bearing_setup(br, ctx, &os_ctx);
 
 	br->dlopen_offset = ctx->dlopen_offset;
 	br->dlclose_offset = ctx->dlclose_offset;
 	br->dlsym_offset = ctx->dlsym_offset;
-
-#ifdef EZ_TARGET_POSIX
-	br->libc_dlopen.fptr = (void *)ctx->libc_dlopen.remote;
-	br->libc_dlopen.got = (void *)ctx->libdl_got.remote;
-
-	br->libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
-	br->libc_syscall.got = (void *)ctx->libc_got.remote;
-
-	DBGPTR(br->libc_dlopen.fptr);
-	DBGPTR(br->libc_dlopen.got);
-	DBGPTR(br->libc_syscall.fptr);
-
-	br->libc_got = (void *)ctx->libc_got.remote;
-	br->libdl_got = (void *)ctx->libdl_got.remote;
-#endif
 
 #undef USE_LIBC_SYM
 
@@ -809,9 +682,6 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 	br->argc = argc;
 	br->dyn_total_size = dyn_total_size;
 	br->num_strings = strings.num_strings;
-#ifdef EZ_TARGET_LINUX
-	br->pl_filename_offset = pl_filename_offset;
-#endif
 
 	char *stringEntries = (char *)br + sizeof(*br) + dyn_ptr_size;
 	char *stringData = stringEntries + dyn_entries_size;
@@ -835,9 +705,7 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 
 
 end:
-#ifdef EZ_TARGET_LINUX
-	free(pl_filename);
-#endif
+	free(os_ctx.pl_filename);
 
 	if(libName){
 		free(libName);
@@ -988,21 +856,10 @@ int ezinject_main(
 		// creates the new payload area with mmap (invoked from EXEHDR)
 		INFO("target: allocating %zu bytes", br->mapping_size);
 		uintptr_t remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
-		#if defined(EZ_TARGET_LINUX)
-		if(remote_shm_ptr == 0){
-			// mmap(3) failed. try with mmap(2)
-			ctx->force_mmap_syscall = 1;
-			WARN("mmap(3) failed, trying mmap(2)");
-			remote_shm_ptr = remote_pl_alloc(ctx, br->mapping_size);
-		}
-		#endif
+		remote_shm_ptr = os_alloc_retry(ctx, remote_shm_ptr, br->mapping_size);
 
 		if(remote_shm_ptr == 0){
-			#if defined(EZ_TARGET_WINDOWS)
-			PERROR("VirtualAllocEx failed");
-			#else
-			ERR("Remote alloc failed: %p", (void *)remote_shm_ptr);
-			#endif
+			ERR("Remote alloc failed");
 			break;
 		}
 		INFO("target: payload base: %p", (void *)remote_shm_ptr);
@@ -1011,18 +868,11 @@ int ezinject_main(
 
 		struct ezinj_pl *pl = &ctx->pl;
 
-		#if defined(EZ_TARGET_LINUX)
-		INFO("target: copying payload (using files)");
-		if(remote_pl_copy(ctx) != 0){
-			ERR("remote_pl_copy failed");
+		INFO("target: copying payload");
+		if(os_pl_copy(ctx, br->mapping_size) != 0){
+			ERR("os_pl_copy failed");
 			break;
 		}
-		#else
-		INFO("target: copying payload (using debugger)");
-		if(remote_write(ctx, ctx->mapped_mem.remote, (void *)ctx->mapped_mem.local, br->mapping_size) != br->mapping_size){
-			PERROR("remote_write failed");
-		}
-		#endif
 
 		#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
 		// allocate new shellcode on a new memory map
@@ -1177,13 +1027,7 @@ int main(int argc, char *argv[]){
 	ctx.libdl_name = DL_LIBRARY_NAME;
 	ctx.libpthread_name = PTHREAD_LIBRARY_NAME;
 
-	#ifdef EZ_TARGET_WINDOWS
-	SYSTEM_INFO sysInfo;
-	GetSystemInfo(&sysInfo);
-	ctx.pagesize = sysInfo.dwPageSize;
-	#else
-	ctx.pagesize = getpagesize();
-	#endif
+	os_pagesize_init(&ctx);
 
 	if(os_api_init(&ctx) != 0){
 		ERR("os_api_init() failed");
@@ -1206,27 +1050,19 @@ int main(int argc, char *argv[]){
 	INFO("waiting for target to stop...");
 
 	int err = 0;
-#ifndef EZ_TARGET_WINDOWS
-	if(remote_wait(&ctx, 0) < 0){
+	if(os_post_attach_wait(&ctx) < 0){
 		ERR("remote_wait");
 		return 1;
 	}
-#endif
 
 	err = ezinject_main(&ctx, argc - optind, &argv[optind]);
-	/**
-	 * due to an eglibc bug, libdl loading will fail even tho it actually worked
-	 * if we're targeting linux, try again
-	 */
-	#ifdef EZ_TARGET_LINUX
-	if(err == INJ_ERR_LIBDL){
+	if(os_should_retry(&ctx, err)){
 		cleanup_mem(&ctx);
 		if(libc_init(&ctx) != 0){
 			return 1;
 		}
 		err = ezinject_main(&ctx, argc - optind, &argv[optind]);
 	}
-	#endif
 
 
 	INFO("detaching...");

@@ -1,2 +1,2 @@
-add_library(os_darwin inject.c libc_darwin.c remote.c util.c)
+add_library(os_darwin inject.c libc_darwin.c remote.c util.c builder.c)
 target_link_libraries(${EZINJECT_TARGET} os_darwin)
