@@ -44,6 +44,9 @@ AC_ARG_ENABLE([cpp-samples],
   [enable_cpp_samples=$enableval])
 AM_CONDITIONAL([ENABLE_CPP_SAMPLES], [test "x$enable_cpp_samples" = xyes])
 
+dnl C++ test support
+AM_CONDITIONAL([HAVE_CXX], [test "x$ac_cv_prog_cxx_works" != xno && test -n "$CXX"])
+
 dnl ---------------------------------------------------------------------------
 dnl Static build
 dnl ---------------------------------------------------------------------------

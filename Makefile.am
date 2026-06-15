@@ -505,4 +505,27 @@ EXTRA_DIST += \
 	hppa_patch_calls.sh \
 	crt/lh/interface/cpu/cpu_common.h \
 	crt/lh/interface/cpu/intel/cpu_intel.h \
-	m4/ax_check_compile_flag.m4
+	m4/ax_check_compile_flag.m4 \
+	test/basic_injection.cpp \
+	test/CMakeLists.txt
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+if HAVE_CXX
+check_PROGRAMS = test_basic_injection
+TESTS = test_runner.sh
+
+test_basic_injection_SOURCES = test/basic_injection.cpp
+test_basic_injection_CPPFLAGS = $(AM_CPPFLAGS)
+test_basic_injection_CXXFLAGS = $(AM_CFLAGS) -std=c++11
+test_basic_injection_LDADD = $(LIBPTHREAD_LINK)
+
+test_runner.sh: Makefile
+	@echo '#!/bin/sh' > $@
+	@echo '"$(abs_builddir)/test_basic_injection"' \
+	  '"$(abs_builddir)/target"' \
+	  '"$(abs_builddir)/ezinject"' \
+	  '"$(abs_builddir)/.libs/libdummy.so"' >> $@
+	@chmod +x $@
+endif

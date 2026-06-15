@@ -712,6 +712,8 @@ EZ_TARGET_FREEBSD_FALSE
 EZ_TARGET_FREEBSD_TRUE
 EZ_TARGET_LINUX_FALSE
 EZ_TARGET_LINUX_TRUE
+HAVE_CXX_FALSE
+HAVE_CXX_TRUE
 ENABLE_CPP_SAMPLES_FALSE
 ENABLE_CPP_SAMPLES_TRUE
 ENABLE_STATIC_FALSE
@@ -19261,6 +19263,15 @@ else
 fi
 
 
+ if test "x$ac_cv_prog_cxx_works" != xno && test -n "$CXX"; then
+  HAVE_CXX_TRUE=
+  HAVE_CXX_FALSE='#'
+else
+  HAVE_CXX_TRUE='#'
+  HAVE_CXX_FALSE=
+fi
+
+
 # Check whether --enable-static was given.
 if test ${enable_static+y}
 then :
@@ -21246,6 +21257,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${ENABLE_CPP_SAMPLES_TRUE}" && test -z "${ENABLE_CPP_SAMPLES_FALSE}"; then
   as_fn_error $? "conditional \"ENABLE_CPP_SAMPLES\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${HAVE_CXX_TRUE}" && test -z "${HAVE_CXX_FALSE}"; then
+  as_fn_error $? "conditional \"HAVE_CXX\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${EZ_TARGET_LINUX_TRUE}" && test -z "${EZ_TARGET_LINUX_FALSE}"; then
