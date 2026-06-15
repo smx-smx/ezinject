@@ -99,3 +99,5 @@ void os_rcall_setup(struct ezinj_ctx *ctx, struct injcode_call *rcall, uintptr_t
 	rcall->platform.SuspendThread = (void *)ctx->platform.suspend_thread.remote;
 	rcall->platform.GetCurrentThread = (void *)ctx->platform.get_current_thread.remote;
 }
+
+void os_plt_resolve(void){}

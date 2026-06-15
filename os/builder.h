@@ -27,5 +27,7 @@ void os_invoke_begin(struct ezinj_ctx *ctx, struct injcode_call *rcall);
 uintptr_t os_alloc_retry(struct ezinj_ctx *ctx, uintptr_t result, size_t mapping_size);
 int  os_pl_copy(struct ezinj_ctx *ctx, size_t mapping_size);
 bool os_should_retry(struct ezinj_ctx *ctx, int err);
+void os_plt_resolve(void);
+void os_print_maps(void);
 
 #endif

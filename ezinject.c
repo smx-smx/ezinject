@@ -527,17 +527,8 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 	return 0;
 }
 
-void invoke_plt_resolvers(){
-#ifdef EZ_TARGET_POSIX
-	int fd = open("/tmp/invalid_file_path", 0);
-	if(fd >= 0) close(fd);
-	mmap(0, 0, 0, 0, -1, 0);
-	syscall(__NR_getpid);
-#endif
-}
-
 int libc_init(struct ezinj_ctx *ctx){
-	invoke_plt_resolvers();
+	os_plt_resolve();
 
 	if(libc_init_default(ctx) != 0){
 		return 1;

@@ -11,6 +11,9 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/syscall.h>
 
 #include "config.h"
 #include "ezinject_util.h"
@@ -134,4 +137,11 @@ void os_rcall_setup(struct ezinj_ctx *ctx, struct injcode_call *rcall, uintptr_t
 	rcall->platform.libc_read.fptr = (void *)ctx->platform.libc_read.remote;
 	rcall->platform.libc_read.got = (void *)ctx->libc_got.remote;
 	rcall->platform.libc_read.self = (void *)r_call_args + offsetof(struct injcode_call, platform.libc_read);
+}
+
+void os_plt_resolve(void){
+	int fd = open("/tmp/invalid_file_path", 0);
+	if(fd >= 0) close(fd);
+	mmap(0, 0, 0, 0, -1, 0);
+	syscall(__NR_getpid);
 }
