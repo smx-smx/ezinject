@@ -1,52 +1,299 @@
-#ifndef __EZINJECT_CONFIG_H
-#define __EZINJECT_CONFIG_H
+/* config.h.in.  Generated from configure.ac by autoheader.  */
 
-#cmakedefine CMAKE_SIZEOF_VOID_P @CMAKE_SIZEOF_VOID_P@
-#cmakedefine DEBUG
-#cmakedefine EZ_ARCH_ARM
-#cmakedefine EZ_ARCH_ARM64
-#cmakedefine EZ_ARCH_I386
-#cmakedefine EZ_ARCH_AMD64
-#cmakedefine EZ_ARCH_MIPS
-#cmakedefine EZ_ARCH_PPC32
-#cmakedefine EZ_ARCH_PPC64
-#cmakedefine EZ_ARCH_HPPA
-#cmakedefine EZ_TARGET_LINUX
-#cmakedefine EZ_TARGET_FREEBSD
-#cmakedefine EZ_TARGET_POSIX
-#cmakedefine EZ_TARGET_ANDROID
-#cmakedefine EZ_TARGET_WINDOWS
-#cmakedefine EZ_TARGET_DARWIN
-#cmakedefine HAVE_CPU_VLE
-#cmakedefine HAVE_SHM_EXEC
-#cmakedefine HAVE_STRSIGNAL
-#cmakedefine HAVE_LIBC_DLOPEN_MODE
-#cmakedefine HAVE_LIBC_DL_OPEN
-#cmakedefine HAVE_DL_LOAD_SHARED_LIBRARY
-#cmakedefine HAVE_LIBDL_IN_LIBC
-#cmakedefine HAVE_SHM_SYSCALLS
-#cmakedefine HAVE_RTLD_NOLOAD
-#cmakedefine HAVE_PTRACE_SETREGS
-#cmakedefine HAVE_PSR_T_BIT
-#cmakedefine HAVE_PROPER_LIBGCC
-#cmakedefine USE_ANDROID_ASHMEM
-#cmakedefine USE_ARM_THUMB
-#cmakedefine USE_CAPSTONE
-#cmakedefine USE_FRIDA_GUM
-#cmakedefine UCLIBC_OLD
-#cmakedefine EZ_ARCH_HEADER "@EZ_ARCH_HEADER@"
-#cmakedefine C_LIBRARY_NAME "@C_LIBRARY_NAME@"
-#cmakedefine DYN_LINKER_NAME "@DYN_LINKER_NAME@"
-#cmakedefine DL_LIBRARY_NAME "@DL_LIBRARY_NAME@"
-#cmakedefine PTHREAD_LIBRARY_NAME "@PTHREAD_LIBRARY_NAME@"
+/* C library name */
+#undef C_LIBRARY_NAME
 
-// NOTE: Windows uses emulated syscalls to map `mmap` to `VirtualAlloc` and `munmap` to `VirtualFree`
+/* Define to 1 for debug build */
+#undef DEBUG
+
+/* DL library name */
+#undef DL_LIBRARY_NAME
+
+/* Dynamic linker name */
+#undef DYN_LINKER_NAME
+
+/* Define to 1 for AMD64/x86_64 */
+#undef EZ_ARCH_AMD64
+
+/* Define to 1 for ARM */
+#undef EZ_ARCH_ARM
+
+/* Define to 1 for ARM64/AArch64 */
+#undef EZ_ARCH_ARM64
+
+/* Architecture-specific header path */
+#undef EZ_ARCH_HEADER
+
+/* Define to 1 for HPPA */
+#undef EZ_ARCH_HPPA
+
+/* Define to 1 for i386 */
+#undef EZ_ARCH_I386
+
+/* Define to 1 for MIPS */
+#undef EZ_ARCH_MIPS
+
+/* Define to 1 for PowerPC 32-bit */
+#undef EZ_ARCH_PPC32
+
+/* Define to 1 for PowerPC 64-bit */
+#undef EZ_ARCH_PPC64
+
+/* Define to 1 for Android */
+#undef EZ_TARGET_ANDROID
+
+/* Define to 1 for Darwin/macOS */
+#undef EZ_TARGET_DARWIN
+
+/* Define to 1 for FreeBSD */
+#undef EZ_TARGET_FREEBSD
+
+/* Define to 1 for Linux */
+#undef EZ_TARGET_LINUX
+
+/* Define to 1 for POSIX */
+#undef EZ_TARGET_POSIX
+
+/* Define to 1 for Windows */
+#undef EZ_TARGET_WINDOWS
+
+/* Define to 1 if CPU uses variable-length instructions */
+#undef HAVE_CPU_VLE
+
+/* Define to 1 if you have the <dlfcn.h> header file. */
+#undef HAVE_DLFCN_H
+
+/* Define to 1 if you have the 'dlopen' function. */
+#undef HAVE_DLOPEN
+
+/* Define to 1 if you have the 'dlsym' function. */
+#undef HAVE_DLSYM
+
+/* Define to 1 for uClibc _dl_load_shared_library */
+#undef HAVE_DL_LOAD_SHARED_LIBRARY
+
+/* Define to 1 if you have the <inttypes.h> header file. */
+#undef HAVE_INTTYPES_H
+
+/* Define to 1 if you have the 'c' library (-lc). */
+#undef HAVE_LIBC
+
+/* Define to 1 for glibc __libc_dlopen_mode */
+#undef HAVE_LIBC_DLOPEN_MODE
+
+/* Define to 1 for glibc old dl_open */
+#undef HAVE_LIBC_DL_OPEN
+
+/* Define to 1 if dlopen is in libc */
+#undef HAVE_LIBDL_IN_LIBC
+
+/* Define to 1 if you have the <minix/config.h> header file. */
+#undef HAVE_MINIX_CONFIG_H
+
+/* Define to 1 if PSR_T_BIT is available */
+#undef HAVE_PSR_T_BIT
+
+/* Define to 1 if PTRACE_SETREGS is available */
+#undef HAVE_PTRACE_SETREGS
+
+/* Define to 1 if RTLD_NOLOAD is available */
+#undef HAVE_RTLD_NOLOAD
+
+/* Define to 1 if shm_open supports O_EXEC */
+#undef HAVE_SHM_EXEC
+
+/* Define to 1 if you have the <stdint.h> header file. */
+#undef HAVE_STDINT_H
+
+/* Define to 1 if you have the <stdio.h> header file. */
+#undef HAVE_STDIO_H
+
+/* Define to 1 if you have the <stdlib.h> header file. */
+#undef HAVE_STDLIB_H
+
+/* Define to 1 if you have the <strings.h> header file. */
+#undef HAVE_STRINGS_H
+
+/* Define to 1 if you have the <string.h> header file. */
+#undef HAVE_STRING_H
+
+/* Define to 1 if strsignal is available */
+#undef HAVE_STRSIGNAL
+
+/* NOTE: Windows uses emulated syscalls to map mmap to VirtualAlloc and munmap to VirtualFree */
 #if (defined(EZ_TARGET_POSIX) || defined(EZ_TARGET_WINDOWS)) && !defined(EZ_TARGET_DARWIN)
-#define HAVE_SYSCALLS
+#define HAVE_SYSCALLS 1
 #endif
 
 #ifdef HAVE_SYSCALLS
-#define HAVE_SHELLCODE
+#define HAVE_SHELLCODE 1
 #endif
 
+/* Map autotools SIZEOF_VOID_P to the name used by netapi sample */
+#if defined(SIZEOF_VOID_P) && !defined(CMAKE_SIZEOF_VOID_P)
+#define CMAKE_SIZEOF_VOID_P SIZEOF_VOID_P
 #endif
+
+/* Define to 1 if you have the <sys/stat.h> header file. */
+#undef HAVE_SYS_STAT_H
+
+/* Define to 1 if you have the <sys/types.h> header file. */
+#undef HAVE_SYS_TYPES_H
+
+/* Define to 1 if you have the <unistd.h> header file. */
+#undef HAVE_UNISTD_H
+
+/* Define to 1 if you have the <wchar.h> header file. */
+#undef HAVE_WCHAR_H
+
+/* Define to 1 if you have the '__libc_dlopen_mode' function. */
+#undef HAVE___LIBC_DLOPEN_MODE
+
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
+#undef LT_OBJDIR
+
+/* Name of package */
+#undef PACKAGE
+
+/* Define to the address where bug reports for this package should be sent. */
+#undef PACKAGE_BUGREPORT
+
+/* Define to the full name of this package. */
+#undef PACKAGE_NAME
+
+/* Define to the full name and version of this package. */
+#undef PACKAGE_STRING
+
+/* Define to the one symbol short name of this package. */
+#undef PACKAGE_TARNAME
+
+/* Define to the home page for this package. */
+#undef PACKAGE_URL
+
+/* Define to the version of this package. */
+#undef PACKAGE_VERSION
+
+/* Pthread library name */
+#undef PTHREAD_LIBRARY_NAME
+
+/* The size of 'void *', as computed by sizeof. */
+#undef SIZEOF_VOID_P
+
+/* Define to 1 if all of the C89 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
+#undef STDC_HEADERS
+
+/* Define to 1 for old uClibc */
+#undef UCLIBC_OLD
+
+/* Define to 1 for Android ashmem */
+#undef USE_ANDROID_ASHMEM
+
+/* Define to 1 for ARM Thumb mode */
+#undef USE_ARM_THUMB
+
+/* Define to 1 to enable Capstone */
+#undef USE_CAPSTONE
+
+/* Define to 1 to enable frida-gum */
+#undef USE_FRIDA_GUM
+
+/* Enable extensions on AIX, Interix, z/OS.  */
+#ifndef _ALL_SOURCE
+# undef _ALL_SOURCE
+#endif
+/* Enable extensions on Cosmopolitan Libc. */
+#ifndef _COSMO_SOURCE
+# undef _COSMO_SOURCE
+#endif
+/* Enable general extensions on macOS.  */
+#ifndef _DARWIN_C_SOURCE
+# undef _DARWIN_C_SOURCE
+#endif
+/* Enable general extensions on Solaris.  */
+#ifndef __EXTENSIONS__
+# undef __EXTENSIONS__
+#endif
+/* Enable GNU extensions on systems that have them.  */
+#ifndef _GNU_SOURCE
+# undef _GNU_SOURCE
+#endif
+/* Enable X/Open compliant socket functions that do not require linking
+   with -lxnet on HP-UX 11.11.  */
+#ifndef _HPUX_ALT_XOPEN_SOCKET_API
+# undef _HPUX_ALT_XOPEN_SOCKET_API
+#endif
+/* Identify the host operating system as Minix.
+   This macro does not affect the system headers' behavior.
+   A future release of Autoconf may stop defining this macro.  */
+#ifndef _MINIX
+# undef _MINIX
+#endif
+/* Enable general extensions on NetBSD.
+   Enable NetBSD compatibility extensions on Minix.  */
+#ifndef _NETBSD_SOURCE
+# undef _NETBSD_SOURCE
+#endif
+/* Enable OpenBSD compatibility extensions on NetBSD.
+   Oddly enough, this does nothing on OpenBSD.  */
+#ifndef _OPENBSD_SOURCE
+# undef _OPENBSD_SOURCE
+#endif
+/* Define to 1 if needed for POSIX-compatible behavior.  */
+#ifndef _POSIX_SOURCE
+# undef _POSIX_SOURCE
+#endif
+/* Define to 2 if needed for POSIX-compatible behavior.  */
+#ifndef _POSIX_1_SOURCE
+# undef _POSIX_1_SOURCE
+#endif
+/* Enable POSIX-compatible threading on Solaris.  */
+#ifndef _POSIX_PTHREAD_SEMANTICS
+# undef _POSIX_PTHREAD_SEMANTICS
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-5:2014.  */
+#ifndef __STDC_WANT_IEC_60559_ATTRIBS_EXT__
+# undef __STDC_WANT_IEC_60559_ATTRIBS_EXT__
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-1:2014.  */
+#ifndef __STDC_WANT_IEC_60559_BFP_EXT__
+# undef __STDC_WANT_IEC_60559_BFP_EXT__
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-2:2015.  */
+#ifndef __STDC_WANT_IEC_60559_DFP_EXT__
+# undef __STDC_WANT_IEC_60559_DFP_EXT__
+#endif
+/* Enable extensions specified by C23 Annex F.  */
+#ifndef __STDC_WANT_IEC_60559_EXT__
+# undef __STDC_WANT_IEC_60559_EXT__
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-4:2015.  */
+#ifndef __STDC_WANT_IEC_60559_FUNCS_EXT__
+# undef __STDC_WANT_IEC_60559_FUNCS_EXT__
+#endif
+/* Enable extensions specified by C23 Annex H and ISO/IEC TS 18661-3:2015.  */
+#ifndef __STDC_WANT_IEC_60559_TYPES_EXT__
+# undef __STDC_WANT_IEC_60559_TYPES_EXT__
+#endif
+/* Enable extensions specified by ISO/IEC TR 24731-2:2010.  */
+#ifndef __STDC_WANT_LIB_EXT2__
+# undef __STDC_WANT_LIB_EXT2__
+#endif
+/* Enable extensions specified by ISO/IEC 24747:2009.  */
+#ifndef __STDC_WANT_MATH_SPEC_FUNCS__
+# undef __STDC_WANT_MATH_SPEC_FUNCS__
+#endif
+/* Enable extensions on HP NonStop.  */
+#ifndef _TANDEM_SOURCE
+# undef _TANDEM_SOURCE
+#endif
+/* Enable X/Open extensions.  Define to 500 only if necessary
+   to make mbstate_t available.  */
+#ifndef _XOPEN_SOURCE
+# undef _XOPEN_SOURCE
+#endif
+
+
+/* Version number of package */
+#undef VERSION

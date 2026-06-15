@@ -1,0 +1,12 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: ezinject
+Description: Modular binary injection framework
+Version: @VERSION@
+URL: https://github.com/smx-smx/ezinject2
+Requires:
+Libs: -L${libdir}
+Cflags: -I${includedir}/ezinject

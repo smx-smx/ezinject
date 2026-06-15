@@ -358,7 +358,7 @@ if(EZ_ARCH_HEADER STREQUAL "")
 endif()
 
 configure_file(
-	config.h.in
+	config.h.cmake.in
 	${CMAKE_BINARY_DIR}/config.h
 )
 

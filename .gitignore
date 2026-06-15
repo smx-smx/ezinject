@@ -1,6 +1,10 @@
 ezpatch
 target
 build/
+build-*/
 *.a
 *.so
 *.o
+autom4te.cache/
+config.h.in~
+configure~
