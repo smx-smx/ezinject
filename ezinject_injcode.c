@@ -215,10 +215,6 @@ INLINE uint64_t str64(uint64_t x){
 #include "ezinject_injcode_windows.h"
 #endif
 
-#ifdef EZ_TARGET_DARWIN
-#include "ezinject_injcode_darwin_thread.c"
-#endif
-
 #ifdef EZ_TARGET_WINDOWS
 typedef HANDLE log_handle_t;
 #else
@@ -251,6 +247,10 @@ struct injcode_ctx {
 	/** handle to the library providing threads **/
 	void *h_libthread;
 };
+
+#ifdef EZ_TARGET_DARWIN
+#include "ezinject_injcode_darwin_thread.c"
+#endif
 
 #if defined(EZ_TARGET_POSIX)
 #include "ezinject_injcode_posix_common.c"

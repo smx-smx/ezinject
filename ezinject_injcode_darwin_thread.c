@@ -3,7 +3,7 @@
  * The injector creates the payload thread via thread_create_running (no TLS).
  * This code spawns a proper pthread (with TLS) and handles parent/child roles.
  */
-static INLINE intptr_t inj_darwin_thread_setup(
+INLINE intptr_t inj_darwin_thread_setup(
 	struct injcode_ctx *ctx, struct injcode_bearing *br)
 {
 	if(!br->platform.pthread_create_from_mach_thread)
