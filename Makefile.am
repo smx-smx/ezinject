@@ -217,12 +217,12 @@ lib_LTLIBRARIES += liblh_ifcpu.la liblh_ifhook.la
 
 liblh_ifcpu_la_SOURCES = crt/lh/interface/cpu/cpu_common.c
 liblh_ifcpu_la_CFLAGS = $(AM_CFLAGS) -DLH_JUMP_ABS -fPIC
-liblh_ifcpu_la_LIBADD =
+liblh_ifcpu_la_LIBADD = libezinject_log.la libezinject_util.la
 liblh_ifcpu_la_LDFLAGS = $(UNDEFINED_FLAG) -avoid-version
 
 liblh_ifhook_la_SOURCES = crt/lh/interface/hook/lh_hook.c
 liblh_ifhook_la_CFLAGS = $(AM_CFLAGS) -DLH_JUMP_ABS -fPIC
-liblh_ifhook_la_LIBADD = liblh_ifcpu.la
+liblh_ifhook_la_LIBADD = liblh_ifcpu.la libezinject_log.la libezinject_util.la
 liblh_ifhook_la_LDFLAGS = $(UNDEFINED_FLAG) -avoid-version
 
 if LH_CPU_ARM
@@ -498,6 +498,7 @@ EXTRA_DIST += \
 	ezinject_injcode_glibc.c \
 	ezinject_injcode_uclibc.c \
 	ezinject_injcode_windows.c \
+	ezinject_injcode_darwin_thread.c \
 	ezinject_injcode_posix.h \
 	ezinject_injcode_windows.h \
 	hppa_patch_calls.php \

@@ -287,7 +287,8 @@ am_libezinject_util_la_OBJECTS = ezinject_util.lo
 libezinject_util_la_OBJECTS = $(am_libezinject_util_la_OBJECTS)
 @LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@am__DEPENDENCIES_3 =  \
 @LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@	$(am__DEPENDENCIES_1)
-@LH_ENABLED_TRUE@liblh_ifcpu_la_DEPENDENCIES = $(am__DEPENDENCIES_3)
+@LH_ENABLED_TRUE@liblh_ifcpu_la_DEPENDENCIES = libezinject_log.la \
+@LH_ENABLED_TRUE@	libezinject_util.la $(am__DEPENDENCIES_3)
 am__liblh_ifcpu_la_SOURCES_DIST = crt/lh/interface/cpu/cpu_common.c \
 	crt/lh/interface/cpu/arm/cpu_arm.c \
 	crt/lh/interface/cpu/arm64/cpu_arm64.c \
@@ -312,6 +313,7 @@ liblh_ifcpu_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(LDFLAGS) -o $@
 @LH_ENABLED_TRUE@am_liblh_ifcpu_la_rpath = -rpath $(libdir)
 @LH_ENABLED_TRUE@liblh_ifhook_la_DEPENDENCIES = liblh_ifcpu.la \
+@LH_ENABLED_TRUE@	libezinject_log.la libezinject_util.la \
 @LH_ENABLED_TRUE@	$(am__DEPENDENCIES_3)
 am__liblh_ifhook_la_SOURCES_DIST = crt/lh/interface/hook/lh_hook.c
 @LH_ENABLED_TRUE@am_liblh_ifhook_la_OBJECTS = crt/lh/interface/hook/liblh_ifhook_la-lh_hook.lo
@@ -893,9 +895,9 @@ EXTRA_DIST = config.h.cmake.in build.sh CMakeLists.txt \
 	ezinject_injcode_windows_common.c ezinject_injcode_util.c \
 	ezinject_injcode_posix.c ezinject_injcode_glibc.c \
 	ezinject_injcode_uclibc.c ezinject_injcode_windows.c \
-	ezinject_injcode_posix.h ezinject_injcode_windows.h \
-	hppa_patch_calls.php hppa_patch_calls.sh \
-	crt/lh/interface/cpu/cpu_common.h \
+	ezinject_injcode_darwin_thread.c ezinject_injcode_posix.h \
+	ezinject_injcode_windows.h hppa_patch_calls.php \
+	hppa_patch_calls.sh crt/lh/interface/cpu/cpu_common.h \
 	crt/lh/interface/cpu/intel/cpu_intel.h \
 	m4/ax_check_compile_flag.m4
 
@@ -970,12 +972,14 @@ libos_posix_shellcode_la_SOURCES = os/posix/inject.c
 @LH_ENABLED_TRUE@	$(am__append_29) $(am__append_30)
 @LH_ENABLED_TRUE@liblh_ifcpu_la_CFLAGS = $(AM_CFLAGS) -DLH_JUMP_ABS \
 @LH_ENABLED_TRUE@	-fPIC $(am__append_27) $(am__append_31)
-@LH_ENABLED_TRUE@liblh_ifcpu_la_LIBADD = $(am__append_32)
+@LH_ENABLED_TRUE@liblh_ifcpu_la_LIBADD = libezinject_log.la \
+@LH_ENABLED_TRUE@	libezinject_util.la $(am__append_32)
 @LH_ENABLED_TRUE@liblh_ifcpu_la_LDFLAGS = $(UNDEFINED_FLAG) -avoid-version
 @LH_ENABLED_TRUE@liblh_ifhook_la_SOURCES = crt/lh/interface/hook/lh_hook.c
 @LH_ENABLED_TRUE@liblh_ifhook_la_CFLAGS = $(AM_CFLAGS) -DLH_JUMP_ABS \
 @LH_ENABLED_TRUE@	-fPIC $(am__append_33)
 @LH_ENABLED_TRUE@liblh_ifhook_la_LIBADD = liblh_ifcpu.la \
+@LH_ENABLED_TRUE@	libezinject_log.la libezinject_util.la \
 @LH_ENABLED_TRUE@	$(am__append_34)
 @LH_ENABLED_TRUE@liblh_ifhook_la_LDFLAGS = $(UNDEFINED_FLAG) -avoid-version
 libezinject_crt_la_SOURCES = crt/crt.c crt/crt.h crt/crt_user.c \

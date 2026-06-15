@@ -215,6 +215,10 @@ INLINE uint64_t str64(uint64_t x){
 #include "ezinject_injcode_windows.h"
 #endif
 
+#ifdef EZ_TARGET_DARWIN
+#include "ezinject_injcode_darwin_thread.c"
+#endif
+
 #ifdef EZ_TARGET_WINDOWS
 typedef HANDLE log_handle_t;
 #else
@@ -443,37 +447,14 @@ intptr_t PLAPI injected_fn(void *arg){
 	PCALL(ctx, inj_dchar, 'e');
 
 	#ifdef EZ_TARGET_DARWIN
-	bool thread_is_parent = false;
-	if(br->platform.pthread_create_from_mach_thread){
-		thread_is_parent = br->platform.tid == 0;
-		if(thread_is_parent){
-			PCALL(ctx, inj_dchar, 't');
-
-			br->platform.mach_thread = br->platform.mach_thread_self();
-
-			// spawn child thread with TLS
-			if(br->platform.pthread_create_from_mach_thread(
-				&br->platform.tid, NULL, (void * (*)(void *))br->entry.wrapper.target.fptr, ctx
-			) != 0){
-				PCALL(ctx, inj_dchar, '!');
-				result = INJ_ERR_DARWIN_THREAD;
-				goto pl_exit;
-			}
-			// trap parent thread
-			goto pl_exit_parent;
-		} else {
-			// detach ourselves to free resources
-			// (the parent can't do it because it has no TLS)
-			if(br->platform.pthread_detach(br->platform.pthread_self()) != 0){
-				PCALL(ctx, inj_dchar, '!');
-			}
-
-			// kill the parent thread
-			// (the parent can't do it because it has no TLS within `thread_terminate`)
-			if(br->platform.thread_terminate(br->platform.mach_thread) != KERN_SUCCESS){
-				PCALL(ctx, inj_dchar, '!');
-			}
+	{
+		intptr_t darwin_rv = inj_darwin_thread_setup(ctx, br);
+		if(darwin_rv == INJ_ERR_DARWIN_THREAD){
+			result = INJ_ERR_DARWIN_THREAD;
+			goto pl_exit;
 		}
+		if(darwin_rv == 1)
+			goto pl_exit_parent;
 	}
 	#endif
 
@@ -567,18 +548,15 @@ pl_exit:
 	inj_logfini(ctx);
 
 	#ifdef EZ_TARGET_DARWIN
-	if(thread_is_parent){
-		// it looks we can't kill a thread created from `thread_create_running`, so we do hacks
-	pl_exit_parent:
-		EMIT_LOOP();
-		//return 0;
-	} else {
-		injected_pl_stop(br);
-	}
+	injected_pl_stop(br);
 	#endif
 
-	// return to wrapper
 	return result;
 
 	EMIT_LOOP();
+
+#ifdef EZ_TARGET_DARWIN
+pl_exit_parent:
+	EMIT_LOOP();
+#endif
 }
