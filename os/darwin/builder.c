@@ -76,7 +76,7 @@ void os_strings_init(struct ezinj_ctx *ctx, struct ezinj_strings *strings, struc
 	UNUSED(ctx);
 	memset(os_ctx, 0, sizeof(*os_ctx));
 
-	os_strings_posix(strings, push_string);
+	os_strings_posix(strings);
 }
 
 void os_bearing_setup(struct injcode_bearing *br, struct ezinj_ctx *ctx, struct os_builder_ctx *os_ctx){

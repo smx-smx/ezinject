@@ -65,7 +65,6 @@ bool os_should_retry(struct ezinj_ctx *ctx, int err){
 	return false;
 }
 
-extern int push_string(struct ezinj_strings *strings, enum ezinj_str_id str_id, const char *str);
 
 #define PUSH_STRING(id, str) do { \
 	if(push_string(strings, id, str) < 0) return; \

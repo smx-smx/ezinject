@@ -21,7 +21,6 @@
 #include "os/builder.h"
 #include "log.h"
 
-extern int push_string(struct ezinj_strings *strings, enum ezinj_str_id str_id, const char *str);
 
 #define PUSH_STRING(id, str) do { \
 	if(push_string(strings, id, str) < 0) return; \
@@ -83,7 +82,7 @@ void os_strings_init(struct ezinj_ctx *ctx, struct ezinj_strings *strings, struc
 
 	PUSH_STRING(EZSTR_PL_FILENAME, pl_filename);
 
-	os_strings_posix(strings, push_string);
+	os_strings_posix(strings);
 }
 
 void os_bearing_setup(struct injcode_bearing *br, struct ezinj_ctx *ctx, struct os_builder_ctx *os_ctx){
