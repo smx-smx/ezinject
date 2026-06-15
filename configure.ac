@@ -254,7 +254,10 @@ else
   if test "x$EZ_TARGET_ANDROID" = xyes; then
     PTHREAD_LIBRARY_NAME="$C_LIBRARY_NAME"
   elif test "x$EZ_TARGET_DARWIN" = xyes; then
-    PTHREAD_LIBRARY_NAME="libsystem_pthread.dylib"
+    dnl macOS 10.6 has pthread in libSystem.B; 10.7+ uses libsystem_pthread
+    AC_CHECK_FILE([/usr/lib/libsystem_pthread.dylib],
+      [PTHREAD_LIBRARY_NAME="libsystem_pthread.dylib"],
+      [PTHREAD_LIBRARY_NAME="libSystem.B.dylib"])
   else
     AC_CHECK_LIB([pthread], [pthread_create],
       [PTHREAD_LIBRARY_NAME="libpthread.so.0"],

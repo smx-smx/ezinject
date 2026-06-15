@@ -19777,7 +19777,31 @@ fi
     if test "x$EZ_TARGET_ANDROID" = xyes; then
     PTHREAD_LIBRARY_NAME="$C_LIBRARY_NAME"
   elif test "x$EZ_TARGET_DARWIN" = xyes; then
-    PTHREAD_LIBRARY_NAME="libsystem_pthread.dylib"
+        { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking for /usr/lib/libsystem_pthread.dylib" >&5
+printf %s "checking for /usr/lib/libsystem_pthread.dylib... " >&6; }
+if test ${ac_cv_file__usr_lib_libsystem_pthread_dylib+y}
+then :
+  printf %s "(cached) " >&6
+else case e in #(
+  e) test "$cross_compiling" = yes &&
+  as_fn_error $? "cannot check for file existence when cross compiling" "$LINENO" 5
+if test -r "/usr/lib/libsystem_pthread.dylib"; then
+  ac_cv_file__usr_lib_libsystem_pthread_dylib=yes
+else
+  ac_cv_file__usr_lib_libsystem_pthread_dylib=no
+fi ;;
+esac
+fi
+{ printf '%s\n' "$as_me:${as_lineno-$LINENO}: result: $ac_cv_file__usr_lib_libsystem_pthread_dylib" >&5
+printf '%s\n' "$ac_cv_file__usr_lib_libsystem_pthread_dylib" >&6; }
+if test "x$ac_cv_file__usr_lib_libsystem_pthread_dylib" = xyes
+then :
+  PTHREAD_LIBRARY_NAME="libsystem_pthread.dylib"
+else case e in #(
+  e) PTHREAD_LIBRARY_NAME="libSystem.B.dylib" ;;
+esac
+fi
+
   else
     { printf '%s\n' "$as_me:${as_lineno-$LINENO}: checking for pthread_create in -lpthread" >&5
 printf %s "checking for pthread_create in -lpthread... " >&6; }

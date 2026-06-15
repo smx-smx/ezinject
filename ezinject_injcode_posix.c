@@ -81,19 +81,8 @@ INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 		return -1;
 	}
 
-#ifdef EZ_TARGET_DARWIN
-	void *h_self = CALL_FPTR(ctx->libdl.dlopen,
-		NULL, RTLD_LAZY);
-	if(h_self == NULL){
-		return -1;
-	}
-	intptr_t res = PCALL(ctx, inj_fetchsym, EZSTR_API_DLERROR, h_self, (void **)&ctx->libdl.dlerror);
-	CALL_FPTR(ctx->libdl.dlclose,
-		h_self);
-	return res;
-#else
-	return PCALL(ctx, inj_fetchsym, EZSTR_API_DLERROR, ctx->h_libdl, (void **)&ctx->libdl.dlerror);
-#endif
+	PCALL(ctx, inj_fetchsym, EZSTR_API_DLERROR, ctx->h_libdl, (void **)&ctx->libdl.dlerror);
+	return 0;
 }
 
 INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
@@ -102,11 +91,16 @@ INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 	if(_inj_init_libdl(ctx) != 0){
 		return -1;
 	}
-	result += PCALL(ctx, inj_fetchsym, EZSTR_API_PTHREAD_MUTEX_INIT, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_init);
-	result += PCALL(ctx, inj_fetchsym, EZSTR_API_PTHREAD_MUTEX_LOCK, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_lock);
-	result += PCALL(ctx, inj_fetchsym, EZSTR_API_PTHREAD_MUTEX_UNLOCK, ctx->h_libthread, (void **)&ctx->libthread.pthread_mutex_unlock);
-	result += PCALL(ctx, inj_fetchsym, EZSTR_API_COND_INIT, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_init);
-	result += PCALL(ctx, inj_fetchsym, EZSTR_API_COND_WAIT, ctx->h_libthread, (void **)&ctx->libthread.pthread_cond_wait);
+#ifdef EZ_TARGET_DARWIN
+	void *handle = RTLD_DEFAULT;
+#else
+	void *handle = ctx->h_libthread;
+#endif
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_PTHREAD_MUTEX_INIT, handle, (void **)&ctx->libthread.pthread_mutex_init);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_PTHREAD_MUTEX_LOCK, handle, (void **)&ctx->libthread.pthread_mutex_lock);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_PTHREAD_MUTEX_UNLOCK, handle, (void **)&ctx->libthread.pthread_mutex_unlock);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_COND_INIT, handle, (void **)&ctx->libthread.pthread_cond_init);
+	result += PCALL(ctx, inj_fetchsym, EZSTR_API_COND_WAIT, handle, (void **)&ctx->libthread.pthread_cond_wait);
 	if(result != 0){
 		return -1;
 	}
