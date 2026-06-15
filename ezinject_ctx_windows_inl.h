@@ -2,11 +2,8 @@
 #define __EZINJECT_CTX_PLATFORM_WINDOWS_H
 
 struct ctx_platform {
-	int wait_call_seq;
-	DEBUG_EVENT ev;
 	HANDLE hProc;
 	HANDLE hThread;
-	DWORD target_tid;
 	uintptr_t r_ezstate_addr;
 	uint8_t *saved_sc_data;
 	ssize_t saved_sc_size;

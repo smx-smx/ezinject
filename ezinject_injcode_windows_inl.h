@@ -34,8 +34,6 @@ struct bearing_platform {
 		PVOID   *Cookie
 	);
 	NTSTATUS NTAPI (*LdrUnregisterDllNotification)(PVOID Cookie);
-	WINBOOL WINAPI (*AllocConsole)(void);
-	uintptr_t ntdll_base;
 	uintptr_t kernel32_base;
 };
 

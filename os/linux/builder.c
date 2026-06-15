@@ -71,7 +71,6 @@ void os_strings_init(struct ezinj_ctx *ctx, struct ezinj_strings *strings, struc
 	UNUSED(ctx);
 	memset(os_ctx, 0, sizeof(*os_ctx));
 
-	off_t pl_filename_offset = strings->dyn_str_size;
 	char *pl_filename = tempnam(NULL, "ezpl");
 	if(pl_filename == NULL){
 		PERROR("tmpnam");

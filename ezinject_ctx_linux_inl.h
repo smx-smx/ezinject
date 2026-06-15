@@ -9,7 +9,6 @@ struct ctx_platform {
 	ez_addr libc_mmap;
 	ez_addr libc_open;
 	ez_addr libc_read;
-	ez_addr libc_close;
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
 	ez_addr uclibc_sym_tables;
 	ez_addr uclibc_loaded_modules;

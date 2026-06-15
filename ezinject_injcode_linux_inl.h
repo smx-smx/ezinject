@@ -54,7 +54,6 @@ struct bearing_platform {
 		void *self;
 	} libc_dlopen;
 #endif
-	off_t pl_filename_offset;
 };
 
 struct call_platform {
