@@ -799,24 +799,9 @@ int ezinject_main(
 	uintptr_t r_sc_elf = 0;
 	uintptr_t r_sc_vmem = 0;
 
-	#if defined(HAVE_SHELLCODE)
 	// allocate initial shellcode on the ELF header
-	INFO("target: allocating sc");
-	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
-		ERR("remote_sc_alloc: failed to overwrite ELF header");
+	if(os_sc_init(ctx, &r_sc_elf) != 0)
 		return -1;
-	}
-	remote_sc_set(ctx, r_sc_elf);
-
-	// wait for a single syscall
-	ctx->syscall_mode = true;
-
-	/* Verify that remote_call works correctly */
-	if(remote_sc_check(ctx) != 0){
-		ERR("remote_sc_check failed");
-		return -1;
-	}
-	#endif
 
 	intptr_t err = -1;
 	do {
@@ -841,23 +826,8 @@ int ezinject_main(
 			break;
 		}
 
-		#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
-		// allocate new shellcode on a new memory map
-		// the current shellcode is used for the allocation
-		// this must be done before switching to payload mode
-		INFO("target: relocating sc");
-		if(remote_sc_alloc(ctx, SC_ALLOC_MMAP, &r_sc_vmem) != 0){
-			ERR("remote_sc_alloc: mmap failed");
+		if(os_sc_relocate(ctx, r_sc_elf, &r_sc_vmem) < 0)
 			return -1;
-		}
-		remote_sc_set(ctx, r_sc_vmem);
-
-		// restore the ELF header
-		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
-			ERR("remote_sc_free: ELF header restore failed");
-			return -1;
-		}
-		#endif
 
 		// switch to SIGSTOP wait mode
 		ctx->syscall_mode = false;
@@ -908,20 +878,8 @@ int ezinject_main(
 		INFO("target: freeing payload memory");
 		//remote_pl_free(ctx, remote_shm_ptr);
 
-	#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
-		// switch back to the ELF header, to free vmem
-		if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, &r_sc_elf) != 0){
-			ERR("remote_sc_alloc: failed to overwrite ELF header");
+		if(os_sc_cleanup_vmem(ctx, &r_sc_elf, r_sc_vmem) < 0)
 			return -1;
-		}
-		remote_sc_set(ctx, r_sc_elf);
-
-		// free memory mapped sc
-		if(remote_sc_free(ctx, SC_ALLOC_MMAP, r_sc_vmem) != 0){
-			ERR("remote_sc_free: failed to free memory map");
-			return -1;
-		}
-	#endif
 
 		// now free the ELF header once more (no syscalls allowed after this point)
 		if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){

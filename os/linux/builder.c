@@ -162,3 +162,62 @@ void os_print_maps(void){
 	} while(0);
 	free(path);
 }
+
+int os_sc_init(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf){
+	*r_sc_elf = 0;
+#ifdef HAVE_SHELLCODE
+	// allocate initial shellcode on the ELF header
+	INFO("target: allocating sc");
+	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+		ERR("remote_sc_alloc: failed to overwrite ELF header");
+		return -1;
+	}
+	remote_sc_set(ctx, *r_sc_elf);
+	// wait for a single syscall
+	ctx->syscall_mode = true;
+	/* Verify that remote_call works correctly */
+	if(remote_sc_check(ctx) != 0){
+		ERR("remote_sc_check failed");
+		return -1;
+	}
+#endif
+	return 0;
+}
+
+int os_sc_relocate(struct ezinj_ctx *ctx, uintptr_t r_sc_elf, uintptr_t *r_sc_vmem){
+	*r_sc_vmem = 0;
+#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
+	// allocate new shellcode on a new memory map
+	// the current shellcode is used for the allocation
+	// this must be done before switching to payload mode
+	INFO("target: relocating sc");
+	if(remote_sc_alloc(ctx, SC_ALLOC_MMAP, r_sc_vmem) != 0){
+		ERR("remote_sc_alloc: mmap failed");
+		return -1;
+	}
+	remote_sc_set(ctx, *r_sc_vmem);
+	// restore the ELF header
+	if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+		ERR("remote_sc_free: ELF header restore failed");
+		return -1;
+	}
+#endif
+	return 0;
+}
+
+int os_sc_cleanup_vmem(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf, uintptr_t r_sc_vmem){
+#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
+	// switch back to the ELF header, to free vmem
+	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+		ERR("remote_sc_alloc: failed to overwrite ELF header");
+		return -1;
+	}
+	remote_sc_set(ctx, *r_sc_elf);
+	// free memory mapped sc
+	if(remote_sc_free(ctx, SC_ALLOC_MMAP, r_sc_vmem) != 0){
+		ERR("remote_sc_free: failed to free memory map");
+		return -1;
+	}
+#endif
+	return 0;
+}

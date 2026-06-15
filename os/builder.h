@@ -29,5 +29,8 @@ int  os_pl_copy(struct ezinj_ctx *ctx, size_t mapping_size);
 bool os_should_retry(struct ezinj_ctx *ctx, int err);
 void os_plt_resolve(void);
 void os_print_maps(void);
+int  os_sc_init(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf);
+int  os_sc_relocate(struct ezinj_ctx *ctx, uintptr_t r_sc_elf, uintptr_t *r_sc_vmem);
+int  os_sc_cleanup_vmem(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf, uintptr_t r_sc_vmem);
 
 #endif
