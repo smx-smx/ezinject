@@ -145,3 +145,20 @@ void os_plt_resolve(void){
 	mmap(0, 0, 0, 0, -1, 0);
 	syscall(__NR_getpid);
 }
+
+void os_print_maps(void){
+	pid_t pid = syscall(__NR_getpid);
+	char *path;
+	asprintf(&path, "/proc/%u/maps", pid);
+	do {
+		FILE *fh = fopen(path, "r");
+		if(!fh) return;
+		char line[256];
+		while(!feof(fh)){
+			fgets(line, sizeof(line), fh);
+			fputs(line, stdout);
+		}
+		fclose(fh);
+	} while(0);
+	free(path);
+}

@@ -772,30 +772,6 @@ void sigint_handler(int signum){
 	cleanup_mem(&ctx);
 }
 
-#if defined(EZ_TARGET_LINUX)
-void print_maps(){
-	pid_t pid = syscall(__NR_getpid);
-	char *path;
-	asprintf(&path, "/proc/%u/maps", pid);
-	do {
-		FILE *fh = fopen(path, "r");
-		if(!fh){
-			return;
-		}
-
-		char line[256];
-		while(!feof(fh)){
-			fgets(line, sizeof(line), fh);
-			fputs(line, stdout);
-		}
-		fclose(fh);
-	} while(0);
-	free(path);
-}
-#else
-void print_maps(){}
-#endif
-
 static void ezinject_log_init(){
 	log_config_t log = {
 		.log_leave_open = 1,
@@ -809,7 +785,7 @@ int ezinject_main(
 	struct ezinj_ctx *ctx,
 	int argc, char *argv[]
 ){
-	print_maps();
+	os_print_maps();
 
 	signal(SIGINT, sigint_handler);
 

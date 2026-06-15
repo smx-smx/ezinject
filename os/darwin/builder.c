@@ -111,3 +111,5 @@ void os_plt_resolve(void){
 	mmap(0, 0, 0, 0, -1, 0);
 	syscall(__NR_getpid);
 }
+
+void os_print_maps(void){}

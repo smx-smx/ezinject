@@ -101,3 +101,4 @@ void os_rcall_setup(struct ezinj_ctx *ctx, struct injcode_call *rcall, uintptr_t
 }
 
 void os_plt_resolve(void){}
+void os_print_maps(void){}
