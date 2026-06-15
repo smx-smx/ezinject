@@ -37,7 +37,7 @@ bool os_forward_signal(struct ezinj_ctx *ctx, int status, bool syscall_mode){
 }
 
 void os_invoke_begin(struct ezinj_ctx *ctx, struct injcode_call *rcall){
-	ctx->r_ezstate_addr = RCALL_FIELD_ADDR(rcall, ezstate);
+	ctx->platform.r_ezstate_addr = RCALL_FIELD_ADDR(rcall, ezstate);
 }
 
 uintptr_t os_alloc_retry(struct ezinj_ctx *ctx, uintptr_t result, size_t mapping_size){
@@ -84,18 +84,18 @@ void os_strings_init(struct ezinj_ctx *ctx, struct ezinj_strings *strings, struc
 
 void os_bearing_setup(struct injcode_bearing *br, struct ezinj_ctx *ctx, struct os_builder_ctx *os_ctx){
 	UNUSED(os_ctx);
-	br->CreateFileA = (void *)ctx->create_file.remote;
-	br->WriteFile = (void *)ctx->write_file.remote;
-	br->CloseHandle = (void *)ctx->close_handle.remote;
-	br->LdrRegisterDllNotification = (void *)ctx->nt_register_dll_noti.remote;
-	br->LdrUnregisterDllNotification = (void *)ctx->nt_unregister_dll_noti.remote;
-	br->kernel32_base = ctx->libdl.remote;
+	br->platform.CreateFileA = (void *)ctx->platform.create_file.remote;
+	br->platform.WriteFile = (void *)ctx->platform.write_file.remote;
+	br->platform.CloseHandle = (void *)ctx->platform.close_handle.remote;
+	br->platform.LdrRegisterDllNotification = (void *)ctx->platform.nt_register_dll_noti.remote;
+	br->platform.LdrUnregisterDllNotification = (void *)ctx->platform.nt_unregister_dll_noti.remote;
+	br->platform.kernel32_base = ctx->libdl.remote;
 }
 
 void os_rcall_setup(struct ezinj_ctx *ctx, struct injcode_call *rcall, uintptr_t r_call_args){
 	UNUSED(r_call_args);
-	rcall->VirtualAlloc = (void *)ctx->virtual_alloc.remote;
-	rcall->VirtualFree = (void *)ctx->virtual_free.remote;
-	rcall->SuspendThread = (void *)ctx->suspend_thread.remote;
-	rcall->GetCurrentThread = (void *)ctx->get_current_thread.remote;
+	rcall->platform.VirtualAlloc = (void *)ctx->platform.virtual_alloc.remote;
+	rcall->platform.VirtualFree = (void *)ctx->platform.virtual_free.remote;
+	rcall->platform.SuspendThread = (void *)ctx->platform.suspend_thread.remote;
+	rcall->platform.GetCurrentThread = (void *)ctx->platform.get_current_thread.remote;
 }

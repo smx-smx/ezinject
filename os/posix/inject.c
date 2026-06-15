@@ -200,10 +200,10 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *out_sc_base){
 
 
 	if((flags & SC_ALLOC_ELFHDR) == SC_ALLOC_ELFHDR){
-		ctx->saved_sc_data = calloc(dataLength, 1);
-		ctx->saved_sc_size = dataLength;
+		ctx->platform.saved_sc_data = calloc(dataLength, 1);
+		ctx->platform.saved_sc_size = dataLength;
 
-		if(remote_read(ctx, ctx->saved_sc_data, sc_base, dataLength) != dataLength){
+		if(remote_read(ctx, ctx->platform.saved_sc_data, sc_base, dataLength) != dataLength){
 			PERROR("failed to backup data");
 			return -1;
 		}
@@ -278,17 +278,17 @@ EZAPI remote_sc_free(struct ezinj_ctx *ctx, int flags, uintptr_t sc_base){
 			return -1;
 		}
 #else
-		if(remote_write(ctx, sc_base, ctx->saved_sc_data, ctx->saved_sc_size) != ctx->saved_sc_size){
+		if(remote_write(ctx, sc_base, ctx->platform.saved_sc_data, ctx->platform.saved_sc_size) != ctx->platform.saved_sc_size){
 			PERROR("remote_write failed");
 			return -1;
 		}
 #endif
-		if(ctx->saved_sc_data != NULL){
-			free(ctx->saved_sc_data);
-			ctx->saved_sc_data = NULL;
+		if(ctx->platform.saved_sc_data != NULL){
+			free(ctx->platform.saved_sc_data);
+			ctx->platform.saved_sc_data = NULL;
 		}
 	} else if((flags & SC_ALLOC_MMAP) == SC_ALLOC_MMAP){
-		if(CHECK(RSCALL2(ctx, __NR_munmap, sc_base, ctx->saved_sc_size)) != 0){
+		if(CHECK(RSCALL2(ctx, __NR_munmap, sc_base, ctx->platform.saved_sc_size)) != 0){
 			ERR("remote munmap failed");
 			return -1;
 		}
@@ -312,8 +312,8 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 	if(call->argc > 0){
 		switch(call->argv[0]){
 			case __NR_mmap2:
-				DBGPTR(call->libc_mmap.fptr);
-				if(call->libc_mmap.fptr != NULL){
+				DBGPTR(call->platform.libc_mmap.fptr);
+				if(call->platform.libc_mmap.fptr != NULL){
 					return r_current_sc_base + sc_mmap_offset;
 				}
 				break;
@@ -322,14 +322,14 @@ static inline uintptr_t _get_wrapper_target(struct injcode_call *call){
 			#elif defined(__NR_openat)
 			case __NR_openat:
 			#endif
-				DBGPTR(call->libc_open.fptr);
-				if(call->libc_open.fptr != NULL){
+				DBGPTR(call->platform.libc_open.fptr);
+				if(call->platform.libc_open.fptr != NULL){
 					return r_current_sc_base + sc_open_offset;
 				}
 				break;
 			case __NR_read:
-				DBGPTR(call->libc_read.fptr);
-				if(call->libc_read.fptr != NULL){
+				DBGPTR(call->platform.libc_read.fptr);
+				if(call->platform.libc_read.fptr != NULL){
 					return r_current_sc_base + sc_read_offset;
 				}
 				break;

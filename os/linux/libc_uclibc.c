@@ -36,13 +36,13 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 
 #ifdef EZ_ARCH_MIPS
 	ez_addr uclibc_mips_got_reloc = sym_addr(h_ldso, "_dl_perform_mips_global_got_relocations", ldso);
-	ctx->uclibc_mips_got_reloc = uclibc_mips_got_reloc;
+	ctx->platform.uclibc_mips_got_reloc = uclibc_mips_got_reloc;
 #endif
 
 	ez_addr uclibc_dl_fixup = sym_addr(h_ldso, "_dl_fixup", ldso);
-	ctx->uclibc_sym_tables = uclibc_sym_tables;
-	ctx->uclibc_loaded_modules = uclibc_loaded_modules;
-	ctx->uclibc_dl_fixup = uclibc_dl_fixup;
+	ctx->platform.uclibc_sym_tables = uclibc_sym_tables;
+	ctx->platform.uclibc_loaded_modules = uclibc_loaded_modules;
+	ctx->platform.uclibc_dl_fixup = uclibc_dl_fixup;
 	dlclose(h_ldso);
 
 	ctx->libc_dlopen = libc_dlopen;
@@ -54,7 +54,7 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	}
 
 	ez_addr libc_mmap = sym_addr(h_libc, "mmap", ctx->libc);
-	ctx->libc_mmap = libc_mmap;
+	ctx->platform.libc_mmap = libc_mmap;
 
 	dlclose(h_libc);
 	return 0;

@@ -21,7 +21,7 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 	kern_return_t kr;
 
 	uintptr_t address = 0;
-	kr = vm_allocate(ctx->task, &address, mapping_size, TRUE);
+	kr = vm_allocate(ctx->platform.task, &address, mapping_size, TRUE);
 	if(kr != KERN_SUCCESS){
 		ERR("vm_allocate failed: %s", mach_error_string(kr));
 		return 0;
@@ -33,7 +33,7 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 	}
 
 	kr = vm_protect(
-		ctx->task,
+		ctx->platform.task,
 		(vm_address_t)address,
 		mapping_size,
 		false,
@@ -49,7 +49,7 @@ uintptr_t remote_pl_alloc(struct ezinj_ctx *ctx, size_t mapping_size){
 EZAPI remote_pl_free(struct ezinj_ctx *ctx, uintptr_t remote_shmaddr){
 	struct injcode_bearing *br = (struct injcode_bearing *)ctx->mapped_mem.local;
 	kern_return_t kr = vm_deallocate(
-		ctx->task,
+		ctx->platform.task,
 		(vm_address_t)remote_shmaddr,
 		br->mapping_size
 	);

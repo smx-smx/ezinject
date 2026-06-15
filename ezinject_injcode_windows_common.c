@@ -17,10 +17,10 @@ void PLAPI inj_puts(struct injcode_ctx *ctx, char *str){
 	DWORD nWritten = 0;
 
 	int l = inj_strlen(str);
-	br->WriteFile(ctx->log_handle, str, l, &nWritten, NULL);
+	br->platform.WriteFile(ctx->log_handle, str, l, &nWritten, NULL);
 
 	char nl[2];
 	nl[0] = '\r'; nl[1] = '\n';
-	br->WriteFile(ctx->log_handle, nl, sizeof(nl), &nWritten, NULL);
+	br->platform.WriteFile(ctx->log_handle, nl, sizeof(nl), &nWritten, NULL);
 #endif
 }

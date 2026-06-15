@@ -32,7 +32,7 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char 
 	if((self = pid == getpid())){
 		task = mach_task_self();
 	} else if(pid == ctx->target) {
-		task = ctx->task;
+		task = ctx->platform.task;
 	} else {
 		ERR("invalid pid specified");
 		return NULL;

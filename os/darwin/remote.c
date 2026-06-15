@@ -45,8 +45,8 @@ EZAPI remote_attach(struct ezinj_ctx *ctx){
 		ERR("no thread available");
 		return -1;
 	}
-	ctx->task = task;
-	ctx->thread = thread_list[0];
+	ctx->platform.task = task;
+	ctx->platform.thread = thread_list[0];
 
 	return ptrace(PT_ATTACH, ctx->target, 0, 0);
 }
@@ -66,7 +66,7 @@ EZAPI remote_step(struct ezinj_ctx *ctx, int signal){
 EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
 	mach_msg_type_number_t count = MACHINE_THREAD_STATE_COUNT;
 	kern_return_t kr = thread_get_state(
-		ctx->thread, MACHINE_THREAD_STATE,
+		ctx->platform.thread, MACHINE_THREAD_STATE,
 		(thread_state_t)regs, &count
 	);
 
@@ -87,7 +87,7 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 	kern_return_t kr;
 	mach_msg_type_number_t count = MACHINE_THREAD_STATE_COUNT;
 	kr = thread_set_state(
-		ctx->thread, MACHINE_THREAD_STATE,
+		ctx->platform.thread, MACHINE_THREAD_STATE,
 		(thread_state_t)regs, count
 	);
 
@@ -104,7 +104,7 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 
 	void *dataPointer = NULL;
 	kern_return_t kr = vm_read(
-		ctx->task,
+		ctx->platform.task,
 		(vm_address_t)source,
 		(vm_size_t)size,
 		(vm_offset_t *)&dataPointer,
@@ -134,7 +134,7 @@ EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t s
 	memcpy(mem, source, size);
 
 	kr = vm_write(
-		ctx->task,
+		ctx->platform.task,
 		(vm_address_t)dest,
 		(vm_offset_t)mem,
 		(mach_msg_type_number_t)size
@@ -153,7 +153,7 @@ EZAPI remote_sc_check(struct ezinj_ctx *ctx){
 }
 
 bool remote_use_remoting(struct ezinj_ctx *ctx){
-	return ctx->pthread_create_from_mach_thread.local != 0;
+	return ctx->platform.pthread_create_from_mach_thread.local != 0;
 }
 
 EZAPI remote_start_thread(struct ezinj_ctx *ctx, regs_t *regs){
@@ -172,11 +172,11 @@ EZAPI remote_start_thread(struct ezinj_ctx *ctx, regs_t *regs){
 	thread_state_flavor_t thread_flavor = x86_THREAD_STATE64;
 	mach_msg_type_number_t thread_flavor_count = x86_THREAD_STATE64_COUNT;
 	kern_return_t kr = thread_create_running(
-		ctx->task,
+		ctx->platform.task,
 		thread_flavor,
 		(thread_state_t)regs,
 		thread_flavor_count,
-		&ctx->thread
+		&ctx->platform.thread
 	);
 	if (kr != KERN_SUCCESS) {
 		ERR("thread_create_running failed: %s", mach_error_string(kr));

@@ -16,15 +16,6 @@
 
 #include <sys/types.h>
 
-#ifdef EZ_TARGET_LINUX
-#include <asm/ptrace.h>
-#include <sys/user.h>
-#endif
-
-#ifdef EZ_TARGET_DARWIN
-#include <mach/mach.h>
-#endif
-
 #include "ezinject_injcode.h"
 
 typedef struct {
@@ -39,10 +30,18 @@ typedef struct {
 
 #define REGION_LENGTH(r) PTRDIFF((r).end, (r).start)
 
-// base.local + (addr - remote.base)
 #define EZ_LOCAL(ref, remote_addr) (ref.local + (PTRDIFF(remote_addr, ref.remote)))
-// base.remote - (addr - local.base)
 #define EZ_REMOTE(ref, local_addr) (ref.remote + (PTRDIFF(local_addr, ref.local)))
+
+#if defined(EZ_TARGET_LINUX)
+#include "ezinject_ctx_linux_inl.h"
+#elif defined(EZ_TARGET_WINDOWS)
+#include "ezinject_ctx_windows_inl.h"
+#elif defined(EZ_TARGET_DARWIN)
+#include "ezinject_ctx_darwin_inl.h"
+#elif defined(EZ_TARGET_FREEBSD)
+#include "ezinject_ctx_freebsd_inl.h"
+#endif
 
 extern ez_region region_pl_code;
 
@@ -65,6 +64,8 @@ struct ezinj_strings {
 
 struct ezinj_ctx;
 
+// base.local + (addr - remote.base)
+// base.remote + (addr - local.base)
 #define PL_REMOTE(ctx, addr) (ctx->mapped_mem.remote + PTRDIFF(addr, ctx->mapped_mem.local))
 #define PL_REMOTE_CODE(ctx, addr) PL_REMOTE(ctx, ctx->pl.code_start) + PTRDIFF(addr, region_pl_code.start)
 
@@ -91,25 +92,6 @@ struct ezinj_ctx {
 	const char *libdl_name;
 	const char *libpthread_name;
 	size_t pagesize;
-#ifdef EZ_TARGET_WINDOWS
-	int wait_call_seq;
-	DEBUG_EVENT ev;
-	HANDLE hProc;
-	HANDLE hThread;
-	DWORD target_tid;
-	uintptr_t r_ezstate_addr;
-#endif
-#ifdef EZ_TARGET_DARWIN
-	task_t task;
-	thread_t thread;
-#endif
-#if defined(EZ_TARGET_LINUX) || defined(EZ_TARGET_FREEBSD) || defined(EZ_TARGET_WINDOWS) \
-|| defined(EZ_TARGET_DARWIN)
-	// holds the overwritten ELF header
-	uint8_t *saved_sc_data;
-	ssize_t saved_sc_size;
-	int force_mmap_syscall;
-#endif
 	ez_addr libc;
 	ez_addr libdl;
 	ez_addr entry_insn;
@@ -122,40 +104,6 @@ struct ezinj_ctx {
 	ez_addr libc_dlopen;
 	ez_addr libc_got;
 	ez_addr libdl_got;
-#ifdef EZ_TARGET_DARWIN
-	ez_addr pthread_create_from_mach_thread;
-	ez_addr pthread_create;
-	ez_addr pthread_join;
-	ez_addr pthread_detach;
-	ez_addr pthread_self;
-	ez_addr mach_thread_self;
-	ez_addr task_self_trap;
-	ez_addr mach_port_allocate;
-	ez_addr thread_terminate;
-#endif
-#ifdef EZ_TARGET_LINUX
-	ez_addr libc_mmap;
-	ez_addr libc_open;
-	ez_addr libc_read;
-	ez_addr libc_close;
-#endif
-#ifdef HAVE_DL_LOAD_SHARED_LIBRARY
-	ez_addr uclibc_sym_tables;
-	ez_addr uclibc_loaded_modules;
-	ez_addr uclibc_mips_got_reloc;
-	ez_addr uclibc_dl_fixup;
-#endif
-#ifdef EZ_TARGET_WINDOWS
-	ez_addr virtual_alloc;
-	ez_addr virtual_free;
-	ez_addr suspend_thread;
-	ez_addr get_current_thread;
-	ez_addr create_file;
-	ez_addr write_file;
-	ez_addr close_handle;
-	ez_addr nt_register_dll_noti;
-	ez_addr nt_unregister_dll_noti;
-#endif
 	ptrdiff_t dlopen_offset;
 	ptrdiff_t dlclose_offset;
 	ptrdiff_t dlsym_offset;
@@ -163,9 +111,10 @@ struct ezinj_ctx {
 	int shm_id;
 	int sem_id;
 	ez_addr mapped_mem;
-
 	struct ezinj_pl pl;
 	struct ezinj_ctx_plapi plapi;
+
+	struct ctx_platform platform;
 };
 
 #define CALL_HAS_ARG(call, i) ((call).argmask & (1 << i))

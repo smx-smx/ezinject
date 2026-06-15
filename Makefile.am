@@ -421,6 +421,14 @@ EXTRA_DIST += \
 	config.h.cmake.in \
 	build.sh \
 	CMakeLists.txt \
+	ezinject_injcode_linux_inl.h \
+	ezinject_injcode_windows_inl.h \
+	ezinject_injcode_darwin_inl.h \
+	ezinject_injcode_freebsd_inl.h \
+	ezinject_ctx_linux_inl.h \
+	ezinject_ctx_windows_inl.h \
+	ezinject_ctx_darwin_inl.h \
+	ezinject_ctx_freebsd_inl.h \
 	cmake/config.cmake.in \
 	cmake/ezinject.cmake \
 	cmake-modules/FindCAPSTONE.cmake \

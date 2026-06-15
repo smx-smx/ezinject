@@ -75,19 +75,19 @@ void os_strings_init(struct ezinj_ctx *ctx, struct ezinj_strings *strings, struc
 
 void os_bearing_setup(struct injcode_bearing *br, struct ezinj_ctx *ctx, struct os_builder_ctx *os_ctx){
 	UNUSED(os_ctx);
-	br->libc_dlopen.fptr = (void *)ctx->libc_dlopen.remote;
-	br->libc_dlopen.got = (void *)ctx->libdl_got.remote;
+	br->platform.libc_dlopen.fptr = (void *)ctx->libc_dlopen.remote;
+	br->platform.libc_dlopen.got = (void *)ctx->libdl_got.remote;
 	br->libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
 	br->libc_syscall.got = (void *)ctx->libc_got.remote;
-	DBGPTR(br->libc_dlopen.fptr);
-	DBGPTR(br->libc_dlopen.got);
+	DBGPTR(br->platform.libc_dlopen.fptr);
+	DBGPTR(br->platform.libc_dlopen.got);
 	DBGPTR(br->libc_syscall.fptr);
 	br->libc_got = (void *)ctx->libc_got.remote;
 	br->libdl_got = (void *)ctx->libdl_got.remote;
 }
 
 void os_rcall_setup(struct ezinj_ctx *ctx, struct injcode_call *rcall, uintptr_t r_call_args){
-	rcall->libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
-	rcall->libc_syscall.got = (void *)ctx->libc_got.remote;
-	rcall->libc_syscall.self = (void *)r_call_args + offsetof(struct injcode_call, libc_syscall);
+	rcall->platform.libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
+	rcall->platform.libc_syscall.got = (void *)ctx->libc_got.remote;
+	rcall->platform.libc_syscall.self = (void *)r_call_args + offsetof(struct injcode_call, platform.libc_syscall);
 }

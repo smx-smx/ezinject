@@ -22,7 +22,7 @@ EZAPI crt_thread_create(struct injcode_bearing *br, crt_thread_func_t pfnThreadE
 		0,
 		&dwThreadId
 	);
-	br->hThread = hThread;
+	br->platform.hThread = hThread;
 	br->user_tid = dwThreadId;
 	DBG("tid: %"PRIuMAX, (uintmax_t)br->user_tid);
 
@@ -34,7 +34,7 @@ EZAPI crt_thread_create(struct injcode_bearing *br, crt_thread_func_t pfnThreadE
 }
 
 EZAPI crt_thread_notify(struct injcode_bearing *br){
-	if(SetEvent(br->hEvent) == FALSE){
+	if(SetEvent(br->platform.hEvent) == FALSE){
 		PERROR("SetEvent");
 		return -1;
 	}

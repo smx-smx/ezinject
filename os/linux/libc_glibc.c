@@ -84,13 +84,13 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 		.remote = EZ_REMOTE(ctx->libc, libdl_got)
 	};
 
-	ctx->libc_mmap = libc_mmap;
-	ctx->libc_open = libc_open;
-	ctx->libc_read = libc_read;
+	ctx->platform.libc_mmap = libc_mmap;
+	ctx->platform.libc_open = libc_open;
+	ctx->platform.libc_read = libc_read;
 
-	DBGPTR(ctx->libc_mmap.remote);
-	DBGPTR(ctx->libc_open.remote);
-	DBGPTR(ctx->libc_read.remote);
+	DBGPTR(ctx->platform.libc_mmap.remote);
+	DBGPTR(ctx->platform.libc_open.remote);
+	DBGPTR(ctx->platform.libc_read.remote);
 
 	dlclose(h_libc);
 	return 0;

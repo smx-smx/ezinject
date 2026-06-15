@@ -65,17 +65,17 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 	ez_addr virtual_free = sym_addr(h_kernel32, "VirtualFree", kernel32);
 	ez_addr suspend_thread = sym_addr(h_kernel32, "SuspendThread", kernel32);
 	ez_addr get_current_thread = sym_addr(h_kernel32, "GetCurrentThread", kernel32);
-	ctx->virtual_alloc = virtual_alloc;
-	ctx->virtual_free = virtual_free;
-	ctx->suspend_thread = suspend_thread;
-	ctx->get_current_thread = get_current_thread;
+	ctx->platform.virtual_alloc = virtual_alloc;
+	ctx->platform.virtual_free = virtual_free;
+	ctx->platform.suspend_thread = suspend_thread;
+	ctx->platform.get_current_thread = get_current_thread;
 
 	ez_addr create_file = sym_addr(h_kernel32, "CreateFileA", kernel32);
 	ez_addr write_file = sym_addr(h_kernel32, "WriteFile", kernel32);
 	ez_addr close_handle = sym_addr(h_kernel32, "CloseHandle", kernel32);
-	ctx->create_file = create_file;
-	ctx->write_file = write_file;
-	ctx->close_handle = close_handle;
+	ctx->platform.create_file = create_file;
+	ctx->platform.write_file = write_file;
+	ctx->platform.close_handle = close_handle;
 
 	DBGADDR(virtual_alloc);
 	DBGADDR(virtual_free);
@@ -92,8 +92,8 @@ EZAPI resolve_libc_symbols(struct ezinj_ctx *ctx){
 		DBGADDR(nt_unregister_dll_noti);
 
 		ctx->libc_dlopen = libc_dlopen;
-		ctx->nt_register_dll_noti = nt_register_dll_noti;
-		ctx->nt_unregister_dll_noti = nt_unregister_dll_noti;
+		ctx->platform.nt_register_dll_noti = nt_register_dll_noti;
+		ctx->platform.nt_unregister_dll_noti = nt_unregister_dll_noti;
 	}
 
 	ez_addr load_library = sym_addr(h_kernel32, "LoadLibraryA", kernel32);

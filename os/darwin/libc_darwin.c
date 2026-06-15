@@ -50,10 +50,10 @@ static EZAPI _resolve_kernel(struct ezinj_ctx *ctx){
 		return -1;
 	}
 
-	ctx->mach_thread_self = mach_thread_self;
-	ctx->thread_terminate = thread_terminate;
-	ctx->mach_port_allocate = mach_port_allocate;
-	ctx->task_self_trap = task_self_trap;
+	ctx->platform.mach_thread_self = mach_thread_self;
+	ctx->platform.thread_terminate = thread_terminate;
+	ctx->platform.mach_port_allocate = mach_port_allocate;
+	ctx->platform.task_self_trap = task_self_trap;
 
 	dlclose(h_self);
 	return 0;
@@ -96,11 +96,11 @@ static EZAPI _resolve_pthread(struct ezinj_ctx *ctx){
 
 	ctx->libpthread_name = libpthread_name;
 
-	ctx->pthread_create = pthread_create;
-	ctx->pthread_join = pthread_join;
-	ctx->pthread_create_from_mach_thread = pthread_create_from_mach_thread;
-	ctx->pthread_detach = pthread_detach;
-	ctx->pthread_self = pthread_self;
+	ctx->platform.pthread_create = pthread_create;
+	ctx->platform.pthread_join = pthread_join;
+	ctx->platform.pthread_create_from_mach_thread = pthread_create_from_mach_thread;
+	ctx->platform.pthread_detach = pthread_detach;
+	ctx->platform.pthread_self = pthread_self;
 
 	dlclose(h_self);
 	return 0;

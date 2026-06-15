@@ -65,7 +65,7 @@ EZAPI remote_attach(struct ezinj_ctx *ctx){
 		PERROR("OpenProcess failed");
 		return -1;
 	}
-	ctx->hProc = hProc;
+	ctx->platform.hProc = hProc;
 
 	DWORD main_tid = _GetProcessThread(ctx->target);
 	DBG("main_tid: %lu", main_tid);
@@ -74,7 +74,7 @@ EZAPI remote_attach(struct ezinj_ctx *ctx){
 		PERROR("OpenThread");
 		return -1;
 	}
-	ctx->hThread = hThread;
+	ctx->platform.hThread = hThread;
 
 	if(remote_suspend(ctx) != 0){
 		ERR("remote_suspend failed");
@@ -84,7 +84,7 @@ EZAPI remote_attach(struct ezinj_ctx *ctx){
 }
 
 EZAPI remote_suspend(struct ezinj_ctx *ctx){
-	if(SuspendThread(ctx->hThread) == (DWORD)-1){
+	if(SuspendThread(ctx->platform.hThread) == (DWORD)-1){
 		PERROR("SuspendThread");
 		return -1;
 	}
@@ -95,7 +95,7 @@ EZAPI remote_suspend(struct ezinj_ctx *ctx){
 EZAPI remote_continue(struct ezinj_ctx *ctx, int signal){
 	UNUSED(signal);
 
-	if(ResumeThread(ctx->hThread) == (DWORD)-1){
+	if(ResumeThread(ctx->platform.hThread) == (DWORD)-1){
 		/*PERROR("ResumeThread");
 		return -1;
 		*/
@@ -114,16 +114,16 @@ EZAPI remote_detach(struct ezinj_ctx *ctx){
 
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	SIZE_T read = 0;
-	ReadProcessMemory(ctx->hProc, (LPCVOID)source, dest, size, &read);
+	ReadProcessMemory(ctx->platform.hProc, (LPCVOID)source, dest, size, &read);
 	return read;
 }
 
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	SIZE_T written = 0;
 	DWORD oldProtect = 0;
-	VirtualProtectEx(ctx->hProc, (LPVOID)dest, size, PAGE_EXECUTE_READWRITE, &oldProtect);
-	WriteProcessMemory(ctx->hProc, (LPVOID)dest, source, size, &written);
-	VirtualProtectEx(ctx->hProc, (LPVOID)dest, size, oldProtect, &oldProtect);
+	VirtualProtectEx(ctx->platform.hProc, (LPVOID)dest, size, PAGE_EXECUTE_READWRITE, &oldProtect);
+	WriteProcessMemory(ctx->platform.hProc, (LPVOID)dest, source, size, &written);
+	VirtualProtectEx(ctx->platform.hProc, (LPVOID)dest, size, oldProtect, &oldProtect);
 	return written;
 }
 
@@ -170,7 +170,7 @@ static EZAPI _remote_hijack(struct ezinj_ctx *ctx, regs_t *regs_save){
 	memset(regs_save, 0x00, sizeof(*regs_save));
 	// get original PC
 	regs_save->ContextFlags = CONTEXT_CONTROL;
-	if(GetThreadContext(ctx->hThread, regs_save) == FALSE){
+	if(GetThreadContext(ctx->platform.hThread, regs_save) == FALSE){
 		PERROR("GetThreadContext failed");
 		return -1;
 	}
@@ -183,7 +183,7 @@ static EZAPI _remote_hijack(struct ezinj_ctx *ctx, regs_t *regs_save){
 
 	// write detour PC value
 	REG(regs, REG_PC) = new_pc;
-	if(SetThreadContext(ctx->hThread, &regs) == FALSE){
+	if(SetThreadContext(ctx->platform.hThread, &regs) == FALSE){
 		PERROR("SetThreadContext failed");
 		return -1;
 	}
@@ -197,7 +197,7 @@ static EZAPI _remote_hijack(struct ezinj_ctx *ctx, regs_t *regs_save){
 	DBG("Waiting for trap hit at %p", VPTR(jmp_addr));
 	for(;;){
 		// sample new register values
-		if(GetThreadContext(ctx->hThread, &regs) == FALSE){
+		if(GetThreadContext(ctx->platform.hThread, &regs) == FALSE){
 			PERROR("GetThreadContext failed");
 			return -1;
 		}
@@ -233,7 +233,7 @@ EZAPI remote_getregs(struct ezinj_ctx *ctx, regs_t *regs){
 		return -1;
 	}
 	// restore original regs
-	if(SetThreadContext(ctx->hThread, regs) == FALSE){
+	if(SetThreadContext(ctx->platform.hThread, regs) == FALSE){
 		PERROR("SetThreadContext");
 		return -1;
 	}
@@ -251,7 +251,7 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 
 	// set the desired registers (with thread suspended)
 	regs->ContextFlags = CONTEXT_ALL;
-	if(SetThreadContext(ctx->hThread, regs) == FALSE){
+	if(SetThreadContext(ctx->platform.hThread, regs) == FALSE){
 		PERROR("SetThreadContext");
 		return -1;
 	}
@@ -265,7 +265,7 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 	}
 
 	// restore original regs
-	if(SetThreadContext(ctx->hThread, regs) == FALSE){
+	if(SetThreadContext(ctx->platform.hThread, regs) == FALSE){
 		PERROR("SetThreadContext");
 		return -1;
 	}
@@ -360,7 +360,7 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 	while(1){
 		uintptr_t ezstate = 0;
 		if(remote_read(ctx,
-			&ezstate, ctx->r_ezstate_addr,
+			&ezstate, ctx->platform.r_ezstate_addr,
 			sizeof(ezstate)) != sizeof(ezstate)
 		){
 			ERR("remote_read failed");
@@ -412,9 +412,9 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 	 * get a handle to the thread that generated this event
 	 **/
 	/*
-	if(ctx->hThread == NULL || ctx->hThread == INVALID_HANDLE_VALUE){
-		ctx->hThread = OpenThread(THREAD_ALL_ACCESS, false, userTid);
-		if(ctx->hThread == INVALID_HANDLE_VALUE){
+	if(ctx->platform.hThread == NULL || ctx->platform.hThread == INVALID_HANDLE_VALUE){
+		ctx->platform.hThread = OpenThread(THREAD_ALL_ACCESS, false, userTid);
+		if(ctx->platform.hThread == INVALID_HANDLE_VALUE){
 			PERROR("OpenThread failed");
 			return -1;
 		}
@@ -428,9 +428,9 @@ EZAPI remote_wait(struct ezinj_ctx *ctx, int expected_signal){
 		return -1;
 	}
 	DBG("Target Thread ID: %lu", userTid);
-	//ctx->target_tid = userTid;
-	ctx->hThread = OpenThread(THREAD_ALL_ACCESS, false, userTid);
-	if(ctx->hThread == INVALID_HANDLE_VALUE){
+	//ctx->platform.target_tid = userTid;
+	ctx->platform.hThread = OpenThread(THREAD_ALL_ACCESS, false, userTid);
+	if(ctx->platform.hThread == INVALID_HANDLE_VALUE){
 		PERROR("OpenThread failed");
 		return -1;
 	}

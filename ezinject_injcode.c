@@ -62,7 +62,7 @@ void SCAPI injected_sc_trap(void){
  **/
 intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc){
 	//EMIT_LOOP();
-	return (intptr_t)CALL_FPTR(sc->libc_mmap, 
+	return (intptr_t)CALL_FPTR(sc->platform.libc_mmap, 
 		(void *)sc->argv[1], (size_t)sc->argv[2],
 		(int)sc->argv[3], (int)sc->argv[4],
 		(int)sc->argv[5], (off_t)sc->argv[6]
@@ -71,10 +71,10 @@ intptr_t SCAPI injected_mmap(volatile struct injcode_call *sc){
 
 intptr_t SCAPI injected_open(volatile struct injcode_call *sc){
 #if defined(__NR_open)
-	return (intptr_t)CALL_FPTR(sc->libc_open,
+	return (intptr_t)CALL_FPTR(sc->platform.libc_open,
 		(const char *)sc->argv[1], (int)sc->argv[2]);
 #elif defined(__NR_openat)
-	return (intptr_t)CALL_FPTR(sc->libc_open,
+	return (intptr_t)CALL_FPTR(sc->platform.libc_open,
 		(const char *)sc->argv[2], (int)sc->argv[3]);
 #else
 #error "Unsupported build flags"
@@ -82,15 +82,15 @@ intptr_t SCAPI injected_open(volatile struct injcode_call *sc){
 }
 
 intptr_t SCAPI injected_read(volatile struct injcode_call *sc){
-	return (intptr_t)CALL_FPTR(sc->libc_read,
+	return (intptr_t)CALL_FPTR(sc->platform.libc_read,
 		(int)sc->argv[1], (void *)sc->argv[2], (size_t)sc->argv[3]);
 }
 #endif
 
 #if defined(EZ_TARGET_POSIX)
 INLINE void injected_sc_stop(struct injcode_call *sc){
-	CALL_FPTR(sc->libc_syscall, __NR_kill,
-		CALL_FPTR(sc->libc_syscall, __NR_getpid),
+	CALL_FPTR(sc->platform.libc_syscall, __NR_kill,
+		CALL_FPTR(sc->platform.libc_syscall, __NR_getpid),
 		SIGSTOP
 	);
 }
@@ -430,7 +430,7 @@ intptr_t PLAPI injected_fn(void *arg){
 #ifdef EZ_ARCH_HPPA
 	// set function descriptors
 	br->libc_syscall.self = VPTR(PTRADD(br, offsetof(struct injcode_bearing, libc_syscall)));
-	br->libc_dlopen.self = VPTR(PTRADD(br, offsetof(struct injcode_bearing, libc_dlopen)));
+	br->platform.libc_dlopen.self = VPTR(PTRADD(br, offsetof(struct injcode_bearing, platform.libc_dlopen)));
 #endif
 
 	if(br->pl_debug){
@@ -444,16 +444,16 @@ intptr_t PLAPI injected_fn(void *arg){
 
 	#ifdef EZ_TARGET_DARWIN
 	bool thread_is_parent = false;
-	if(br->pthread_create_from_mach_thread){
-		thread_is_parent = br->tid == 0;
+	if(br->platform.pthread_create_from_mach_thread){
+		thread_is_parent = br->platform.tid == 0;
 		if(thread_is_parent){
 			PCALL(ctx, inj_dchar, 't');
 
-			br->mach_thread = br->mach_thread_self();
+			br->platform.mach_thread = br->platform.mach_thread_self();
 
 			// spawn child thread with TLS
-			if(br->pthread_create_from_mach_thread(
-				&br->tid, NULL, (void * (*)(void *))br->entry.wrapper.target.fptr, ctx
+			if(br->platform.pthread_create_from_mach_thread(
+				&br->platform.tid, NULL, (void * (*)(void *))br->entry.wrapper.target.fptr, ctx
 			) != 0){
 				PCALL(ctx, inj_dchar, '!');
 				result = INJ_ERR_DARWIN_THREAD;
@@ -464,13 +464,13 @@ intptr_t PLAPI injected_fn(void *arg){
 		} else {
 			// detach ourselves to free resources
 			// (the parent can't do it because it has no TLS)
-			if(br->pthread_detach(br->pthread_self()) != 0){
+			if(br->platform.pthread_detach(br->platform.pthread_self()) != 0){
 				PCALL(ctx, inj_dchar, '!');
 			}
 
 			// kill the parent thread
 			// (the parent can't do it because it has no TLS within `thread_terminate`)
-			if(br->thread_terminate(br->mach_thread) != KERN_SUCCESS){
+			if(br->platform.thread_terminate(br->platform.mach_thread) != KERN_SUCCESS){
 				PCALL(ctx, inj_dchar, '!');
 			}
 		}

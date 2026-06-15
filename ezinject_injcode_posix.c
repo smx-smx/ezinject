@@ -8,7 +8,7 @@
  */
 
 intptr_t SCAPI injected_sc6(volatile struct injcode_call *sc){
-	return CALL_FPTR(sc->libc_syscall,
+	return CALL_FPTR(sc->platform.libc_syscall,
 		sc->argv[0], sc->argv[1],
 		sc->argv[2], sc->argv[3],
 		sc->argv[4], sc->argv[5],

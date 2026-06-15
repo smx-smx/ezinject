@@ -16,7 +16,7 @@
 
 INLINE unsigned _get_global_scope_offset(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
-	struct elf_resolve_hdr *elf_tpnt = *(br->uclibc_loaded_modules);
+	struct elf_resolve_hdr *elf_tpnt = *(br->platform.uclibc_loaded_modules);
 
 #define IS_PTR(x) ( ((x) != 0) && ABS(PTRDIFF(x, elf_tpnt)) < 0x1000 )
 // if we are still in pointer range after subtracting, not a pointer (small enough value)
@@ -54,12 +54,12 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 
 	// get to the last symbol chain
 	struct dyn_elf *rpnt;
-	for (rpnt = *(br->uclibc_sym_tables); rpnt && rpnt->next; rpnt = rpnt->next){
+	for (rpnt = *(br->platform.uclibc_sym_tables); rpnt && rpnt->next; rpnt = rpnt->next){
 		continue;
 	}
 
 	// calls _dl_load_shared_library, will insert tpnt into rpnt->next
-	tpnt = CALL_FPTR(br->libc_dlopen,
+	tpnt = CALL_FPTR(br->platform.libc_dlopen,
 		0, &rpnt, NULL, libdl_name, 0);
 	if(tpnt == NULL){
 		PCALL(ctx, inj_dchar, '!');
@@ -67,7 +67,7 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 	}
 
 #ifdef EZ_ARCH_MIPS
-	CALL_FPTR(br->uclibc_mips_got_reloc,
+	CALL_FPTR(br->platform.uclibc_mips_got_reloc,
 		tpnt, 0);
 #endif
 
@@ -84,7 +84,7 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
 		return NULL;
 	}
 
-	struct elf_resolve_hdr *elf_tpnt = *(br->uclibc_loaded_modules);
+	struct elf_resolve_hdr *elf_tpnt = *(br->platform.uclibc_loaded_modules);
 	struct r_scope_elem *global_scope = (struct r_scope_elem *)(PTRADD(elf_tpnt, scope_offset));
 	PCALL(ctx, inj_dbgptr, global_scope);
 
@@ -100,10 +100,10 @@ INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
  	  * -- symbol 'dl_cleanup': can't resolve symbol
  	  */
 #ifdef UCLIBC_OLD
-	CALL_FPTR(br->uclibc_dl_fixup,
+	CALL_FPTR(br->platform.uclibc_dl_fixup,
 		&dyn, RTLD_NOW);
 #else
-	CALL_FPTR(br->uclibc_dl_fixup,
+	CALL_FPTR(br->platform.uclibc_dl_fixup,
 		&dyn, global_scope, RTLD_NOW);
 #endif
 

@@ -9,7 +9,7 @@
 
 
 intptr_t SCAPI injected_virtual_alloc(volatile struct injcode_call *sc){
-	return (intptr_t)sc->VirtualAlloc(
+	return (intptr_t)sc->platform.VirtualAlloc(
 		(LPVOID)sc->argv[1],
 		(SIZE_T)sc->argv[2],
 		(DWORD)sc->argv[3],
@@ -18,7 +18,7 @@ intptr_t SCAPI injected_virtual_alloc(volatile struct injcode_call *sc){
 }
 
 intptr_t SCAPI injected_virtual_free(volatile struct injcode_call *sc){
-	return (intptr_t)sc->VirtualFree(
+	return (intptr_t)sc->platform.VirtualFree(
 		(LPVOID)sc->argv[1],
 		(SIZE_T)sc->argv[2],
 		(DWORD)sc->argv[3]
@@ -44,12 +44,12 @@ INLINE intptr_t inj_thread_wait(
 	struct injcode_bearing *br = ctx->br;
 	struct thread_api *api = &ctx->libthread;
 
-	if(br->hEvent == INVALID_HANDLE_VALUE){
+	if(br->platform.hEvent == INVALID_HANDLE_VALUE){
 		return -1;
 	}
 
-	DWORD result = api->WaitForSingleObject(br->hEvent, INFINITE);
-	api->CloseHandle(br->hEvent);
+	DWORD result = api->WaitForSingleObject(br->platform.hEvent, INFINITE);
+	api->CloseHandle(br->platform.hEvent);
 
 	if(result != WAIT_OBJECT_0){
 		return -1;
@@ -58,8 +58,8 @@ INLINE intptr_t inj_thread_wait(
 	DWORD exitStatus = 0;
 
 	do {
-		api->WaitForSingleObject(br->hThread, INFINITE);
-		result = api->GetExitCodeThread(br->hThread, &exitStatus);
+		api->WaitForSingleObject(br->platform.hThread, INFINITE);
+		result = api->GetExitCodeThread(br->platform.hThread, &exitStatus);
 	} while(result != FALSE && exitStatus == STILL_ACTIVE);
 
 	PCALL(ctx, inj_dbgptr, VPTR(UPTR(exitStatus)));
@@ -88,7 +88,7 @@ INLINE void *_inj_get_kernel32(struct injcode_bearing *br){
 		.Buffer = (PWSTR)&buf[0]
 	};
 	PVOID baseAddr = NULL;
-	br->libc_dlopen(
+	br->platform.libc_dlopen(
 		NULL, // SearchPath
 		NULL, // DllCharacteristics
 		&kernel32Name,
@@ -111,21 +111,21 @@ INLINE intptr_t inj_api_init(struct injcode_ctx *ctx){
 }
 
 INLINE void *inj_get_libdl(struct injcode_ctx *ctx){
-	return (void *)ctx->br->kernel32_base;
+	return (void *)ctx->br->platform.kernel32_base;
 	//return _inj_get_kernel32(ctx->br);
 }
 
 INLINE intptr_t inj_remove_chrome_sandbox(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
-	if(br->LdrRegisterDllNotification == NULL
-	|| br->LdrUnregisterDllNotification == NULL){
+	if(br->platform.LdrRegisterDllNotification == NULL
+	|| br->platform.LdrUnregisterDllNotification == NULL){
 		return 0;
 	}
 
 	PVOID cookie = NULL;
 	// register a dummy invalid CB to get the list tail
-	br->LdrRegisterDllNotification(0, ctx, ctx, &cookie);
+	br->platform.LdrRegisterDllNotification(0, ctx, ctx, &cookie);
 
 	// this is not documented, but cookie is actually a PLIST_ENTRY
 	// in the internal NTDLL linked list for registered callbacks
@@ -133,7 +133,7 @@ INLINE intptr_t inj_remove_chrome_sandbox(struct injcode_ctx *ctx){
 	PLIST_ENTRY head = our_cb->Flink;
 
 	// unregister the CB first
-	br->LdrUnregisterDllNotification(cookie);
+	br->platform.LdrUnregisterDllNotification(cookie);
 
 	// now modify the head
 	head->Flink = head;
@@ -144,10 +144,10 @@ INLINE intptr_t inj_remove_chrome_sandbox(struct injcode_ctx *ctx){
 INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
 	struct injcode_bearing *br = ctx->br;
 
-	//br->AllocConsole();
+	//br->platform.AllocConsole();
 
-	br->hEvent = ctx->libthread.CreateEventA(NULL, TRUE, FALSE, NULL);
-	if(br->hEvent == INVALID_HANDLE_VALUE){
+	br->platform.hEvent = ctx->libthread.CreateEventA(NULL, TRUE, FALSE, NULL);
+	if(br->platform.hEvent == INVALID_HANDLE_VALUE){
 		return -1;
 	}
 
@@ -162,7 +162,7 @@ INLINE intptr_t inj_loginit(struct injcode_ctx *ctx){
 	HANDLE log_handle = (HANDLE)STD_OUTPUT_HANDLE;
 
 	if(inj_strlen(log_filename) > 0){
-		HANDLE new_log_handle = ctx->br->CreateFileA(
+		HANDLE new_log_handle = ctx->br->platform.CreateFileA(
 			log_filename,
 			GENERIC_WRITE,
 			// we must allow concurrent write from crt
@@ -183,7 +183,7 @@ INLINE intptr_t inj_loginit(struct injcode_ctx *ctx){
 
 INLINE intptr_t inj_logfini(struct injcode_ctx *ctx){
 	if(ctx->log_handle != (HANDLE)STD_OUTPUT_HANDLE){
-		ctx->br->CloseHandle(ctx->log_handle);
+		ctx->br->platform.CloseHandle(ctx->log_handle);
 	}
 	return 0;
 }

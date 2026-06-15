@@ -50,7 +50,7 @@ void os_invoke_begin(struct ezinj_ctx *ctx, struct injcode_call *rcall){
 
 uintptr_t os_alloc_retry(struct ezinj_ctx *ctx, uintptr_t result, size_t mapping_size){
 	if(result == 0){
-		ctx->force_mmap_syscall = 1;
+		ctx->platform.force_mmap_syscall = 1;
 		WARN("mmap(3) failed, trying mmap(2)");
 		result = remote_pl_alloc(ctx, mapping_size);
 	}
@@ -92,47 +92,47 @@ void os_strings_init(struct ezinj_ctx *ctx, struct ezinj_strings *strings, struc
 void os_bearing_setup(struct injcode_bearing *br, struct ezinj_ctx *ctx, struct os_builder_ctx *os_ctx){
 	UNUSED(os_ctx);
 
-	br->libc_dlopen.fptr = (void *)ctx->libc_dlopen.remote;
-	br->libc_dlopen.got = (void *)ctx->libdl_got.remote;
+	br->platform.libc_dlopen.fptr = (void *)ctx->libc_dlopen.remote;
+	br->platform.libc_dlopen.got = (void *)ctx->libdl_got.remote;
 
 	br->libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
 	br->libc_syscall.got = (void *)ctx->libc_got.remote;
 
-	DBGPTR(br->libc_dlopen.fptr);
-	DBGPTR(br->libc_dlopen.got);
+	DBGPTR(br->platform.libc_dlopen.fptr);
+	DBGPTR(br->platform.libc_dlopen.got);
 	DBGPTR(br->libc_syscall.fptr);
 
 	br->libc_got = (void *)ctx->libc_got.remote;
 	br->libdl_got = (void *)ctx->libdl_got.remote;
 
 #ifdef HAVE_DL_LOAD_SHARED_LIBRARY
-	br->uclibc_sym_tables = (void *)ctx->uclibc_sym_tables.remote;
-	br->uclibc_dl_fixup.fptr = (void *)ctx->uclibc_dl_fixup.remote;
-	br->uclibc_loaded_modules = (void *)ctx->uclibc_loaded_modules.remote;
+	br->platform.uclibc_sym_tables = (void *)ctx->platform.uclibc_sym_tables.remote;
+	br->platform.uclibc_dl_fixup.fptr = (void *)ctx->platform.uclibc_dl_fixup.remote;
+	br->platform.uclibc_loaded_modules = (void *)ctx->platform.uclibc_loaded_modules.remote;
 #ifdef EZ_ARCH_MIPS
-	br->uclibc_mips_got_reloc.fptr = (void *)ctx->uclibc_mips_got_reloc.remote;
+	br->platform.uclibc_mips_got_reloc.fptr = (void *)ctx->platform.uclibc_mips_got_reloc.remote;
 #endif
 #endif
 }
 
 void os_rcall_setup(struct ezinj_ctx *ctx, struct injcode_call *rcall, uintptr_t r_call_args){
-	rcall->libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
-	rcall->libc_syscall.got = (void *)ctx->libc_got.remote;
-	rcall->libc_syscall.self = (void *)r_call_args + offsetof(struct injcode_call, libc_syscall);
+	rcall->platform.libc_syscall.fptr = (void *)ctx->libc_syscall.remote;
+	rcall->platform.libc_syscall.got = (void *)ctx->libc_got.remote;
+	rcall->platform.libc_syscall.self = (void *)r_call_args + offsetof(struct injcode_call, platform.libc_syscall);
 
-	if(ctx->force_mmap_syscall){
-		rcall->libc_mmap.fptr = NULL;
+	if(ctx->platform.force_mmap_syscall){
+		rcall->platform.libc_mmap.fptr = NULL;
 	} else {
-		rcall->libc_mmap.fptr = (void *)ctx->libc_mmap.remote;
+		rcall->platform.libc_mmap.fptr = (void *)ctx->platform.libc_mmap.remote;
 	}
-	rcall->libc_mmap.got = (void *)ctx->libc_got.remote;
-	rcall->libc_mmap.self = (void *)r_call_args + offsetof(struct injcode_call, libc_mmap);
+	rcall->platform.libc_mmap.got = (void *)ctx->libc_got.remote;
+	rcall->platform.libc_mmap.self = (void *)r_call_args + offsetof(struct injcode_call, platform.libc_mmap);
 
-	rcall->libc_open.fptr = (void *)ctx->libc_open.remote;
-	rcall->libc_open.got = (void *)ctx->libc_got.remote;
-	rcall->libc_open.self = (void *)r_call_args + offsetof(struct injcode_call, libc_open);
+	rcall->platform.libc_open.fptr = (void *)ctx->platform.libc_open.remote;
+	rcall->platform.libc_open.got = (void *)ctx->libc_got.remote;
+	rcall->platform.libc_open.self = (void *)r_call_args + offsetof(struct injcode_call, platform.libc_open);
 
-	rcall->libc_read.fptr = (void *)ctx->libc_read.remote;
-	rcall->libc_read.got = (void *)ctx->libc_got.remote;
-	rcall->libc_read.self = (void *)r_call_args + offsetof(struct injcode_call, libc_read);
+	rcall->platform.libc_read.fptr = (void *)ctx->platform.libc_read.remote;
+	rcall->platform.libc_read.got = (void *)ctx->libc_got.remote;
+	rcall->platform.libc_read.self = (void *)r_call_args + offsetof(struct injcode_call, platform.libc_read);
 }
