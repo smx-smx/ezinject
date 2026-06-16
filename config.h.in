@@ -87,6 +87,9 @@
 /* Define to 1 if dlopen is in libc */
 #undef HAVE_LIBDL_IN_LIBC
 
+/* Define to 1 if you have the 'procstat' library (-lprocstat). */
+#undef HAVE_LIBPROCSTAT
+
 /* Define to 1 if you have the <minix/config.h> header file. */
 #undef HAVE_MINIX_CONFIG_H
 

@@ -11,6 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
@@ -104,6 +105,52 @@ void os_plt_resolve(void){
 }
 
 void os_print_maps(void){}
-int  os_sc_init(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf){ *r_sc_elf=0; return 0; }
-int  os_sc_relocate(struct ezinj_ctx *ctx, uintptr_t r_sc_elf, uintptr_t *r_sc_vmem){ *r_sc_vmem=0; return 0; }
-int  os_sc_cleanup_vmem(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf, uintptr_t r_sc_vmem){ return 0; }
+int  os_sc_init(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf){
+	*r_sc_elf = 0;
+#ifdef HAVE_SHELLCODE
+	INFO("target: allocating sc");
+	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+		ERR("remote_sc_alloc: failed to overwrite ELF header");
+		return -1;
+	}
+	remote_sc_set(ctx, *r_sc_elf);
+	ctx->syscall_mode = true;
+	if(remote_sc_check(ctx) != 0){
+		ERR("remote_sc_check failed");
+		return -1;
+	}
+#endif
+	return 0;
+}
+
+int  os_sc_relocate(struct ezinj_ctx *ctx, uintptr_t r_sc_elf, uintptr_t *r_sc_vmem){
+	*r_sc_vmem = 0;
+#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
+	INFO("target: relocating sc");
+	if(remote_sc_alloc(ctx, SC_ALLOC_MMAP, r_sc_vmem) != 0){
+		ERR("remote_sc_alloc: mmap failed");
+		return -1;
+	}
+	remote_sc_set(ctx, *r_sc_vmem);
+	if(remote_sc_free(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+		ERR("remote_sc_free: ELF header restore failed");
+		return -1;
+	}
+#endif
+	return 0;
+}
+
+int  os_sc_cleanup_vmem(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf, uintptr_t r_sc_vmem){
+#if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
+	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
+		ERR("remote_sc_alloc: failed to overwrite ELF header");
+		return -1;
+	}
+	remote_sc_set(ctx, *r_sc_elf);
+	if(remote_sc_free(ctx, SC_ALLOC_MMAP, r_sc_vmem) != 0){
+		ERR("remote_sc_free: failed to free memory map");
+		return -1;
+	}
+#endif
+	return 0;
+}

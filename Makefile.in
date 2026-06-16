@@ -126,7 +126,7 @@ bin_PROGRAMS = ezinject$(EXEEXT) $(am__EXEEXT_1) target$(EXEEXT) \
 
 # FreeBSD OS layer
 @EZ_TARGET_FREEBSD_TRUE@am__append_13 = libos_freebsd.la
-@EZ_TARGET_FREEBSD_TRUE@am__append_14 = libos_freebsd.la
+@EZ_TARGET_FREEBSD_TRUE@am__append_14 = libos_freebsd.la -lprocstat
 
 # Android OS layer
 @EZ_TARGET_ANDROID_TRUE@am__append_15 = libos_android.la
@@ -451,9 +451,10 @@ am_ezinject_OBJECTS = ezinject-ezinject.$(OBJEXT) $(am__objects_13)
 @EZ_ARCH_HPPA_TRUE@nodist_ezinject_OBJECTS =  \
 @EZ_ARCH_HPPA_TRUE@	ezinject_injcode_patched.$(OBJEXT)
 ezinject_OBJECTS = $(am_ezinject_OBJECTS) $(nodist_ezinject_OBJECTS)
+@EZ_TARGET_FREEBSD_TRUE@am__DEPENDENCIES_5 = libos_freebsd.la
 ezinject_DEPENDENCIES = libezinject_util.la libezinject_log.la \
 	$(am__append_4) $(am__append_10) libos_posix_shellcode.la \
-	$(am__append_12) $(am__append_14) $(am__append_16) \
+	$(am__append_12) $(am__DEPENDENCIES_5) $(am__append_16) \
 	$(am__append_18) $(am__DEPENDENCIES_4)
 ezinject_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(ezinject_CFLAGS) \

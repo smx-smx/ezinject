@@ -310,7 +310,6 @@ INLINE intptr_t inj_libdl_init(struct injcode_ctx *ctx){
 	struct dl_api *libdl = &ctx->libdl;
 
 	void *libdl_handle = br->libdl_handle;
-	// acquire libdl
 	if(libdl_handle == NULL){
 		PCALL(ctx, inj_dchar, 'l');
 

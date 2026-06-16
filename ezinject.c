@@ -476,6 +476,7 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 	}
 	ctx->libc = libc;
 
+#if !defined(HAVE_LIBDL_IN_LIBC)
 	{
 		void *h_libdl = LIB_OPEN(ctx->libdl_name);
 		if(!h_libdl){
@@ -510,6 +511,7 @@ static int libc_init_default(struct ezinj_ctx *ctx){
 
 		LIB_CLOSE(h_libdl);
 	}
+#endif
 
 	#ifdef EZ_TARGET_POSIX
 	uintptr_t libc_got = UPTR(code_data(&syscall, CODE_DATA_DPTR));

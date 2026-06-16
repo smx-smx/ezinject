@@ -211,10 +211,17 @@ else
   fi
 
   dnl Find DL library
-  if test "x$EZ_TARGET_LINUX" = xyes || test "x$EZ_TARGET_FREEBSD" = xyes; then
+  if test "x$EZ_TARGET_LINUX" = xyes; then
     DL_LIBRARY_NAME="libdl.so.2"
     AC_CHECK_LIB([dl], [dlopen], [HAVE_DLOPEN=yes])
     AC_CHECK_LIB([dl], [dlsym], [HAVE_DLSYM=yes])
+  elif test "x$EZ_TARGET_FREEBSD" = xyes; then
+    dnl FreeBSD has dl functions in the dynamic linker, not a separate libdl
+    if test "x$EZ_ARCH_AMD64" = xyes; then
+      DL_LIBRARY_NAME="ld-elf.so.1"
+    else
+      DL_LIBRARY_NAME="ld-elf32.so.1"
+    fi
   elif test "x$EZ_TARGET_DARWIN" = xyes; then
     DL_LIBRARY_NAME="libdl.dylib"
   fi
@@ -258,6 +265,8 @@ else
     AC_CHECK_FILE([/usr/lib/libsystem_pthread.dylib],
       [PTHREAD_LIBRARY_NAME="libsystem_pthread.dylib"],
       [PTHREAD_LIBRARY_NAME="libSystem.B.dylib"])
+  elif test "x$EZ_TARGET_FREEBSD" = xyes; then
+    PTHREAD_LIBRARY_NAME="libthr.so.3"
   else
     AC_CHECK_LIB([pthread], [pthread_create],
       [PTHREAD_LIBRARY_NAME="libpthread.so.0"],
@@ -534,6 +543,8 @@ if test "x$EZ_TARGET_LINUX" = xyes; then
 fi
 if test "x$EZ_TARGET_FREEBSD" = xyes; then
   AC_DEFINE([EZ_TARGET_FREEBSD], [1], [Define to 1 for FreeBSD])
+  AC_CHECK_LIB([procstat], [procstat_open_sysctl], [],
+    [AC_MSG_ERROR([procstat library required on FreeBSD])])
 fi
 if test "x$EZ_TARGET_POSIX" = xyes; then
   AC_DEFINE([EZ_TARGET_POSIX], [1], [Define to 1 for POSIX])

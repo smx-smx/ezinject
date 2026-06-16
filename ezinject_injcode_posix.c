@@ -68,13 +68,16 @@ INLINE intptr_t inj_thread_wait(
 INLINE intptr_t _inj_init_libdl(struct injcode_ctx *ctx){
 	PCALL(ctx, inj_puts, ctx->libdl_name);
 
-	// just to make sure it's really loaded
+#if defined(HAVE_LIBDL_IN_LIBC)
+	ctx->h_libdl = ctx->br->libdl_handle;
+#else
 	ctx->h_libdl = CALL_FPTR(ctx->libdl.dlopen,
 		ctx->libdl_name, RTLD_NOLOAD);
 	if(ctx->h_libdl == NULL){
 		ctx->h_libdl = CALL_FPTR(ctx->libdl.dlopen,
 			ctx->libdl_name, RTLD_NOW | RTLD_GLOBAL);
 	}
+#endif
 	PCALL(ctx, inj_dbgptr, ctx->h_libdl);
 
 	if(ctx->h_libdl == NULL){

@@ -128,7 +128,7 @@ libos_freebsd_la_SOURCES = \
 	os/freebsd/util.c \
 	os/freebsd/builder.c
 
-ezinject_LDADD += libos_freebsd.la
+ezinject_LDADD += libos_freebsd.la -lprocstat
 endif
 
 # Android OS layer
