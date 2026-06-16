@@ -101,6 +101,6 @@ void os_rcall_setup(struct ezinj_ctx *ctx, struct injcode_call *rcall, uintptr_t
 
 void os_plt_resolve(void){}
 void os_print_maps(void){}
-int  os_sc_init(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf){ *r_sc_elf=0; return 0; }
-int  os_sc_relocate(struct ezinj_ctx *ctx, uintptr_t r_sc_elf, uintptr_t *r_sc_vmem){ *r_sc_vmem=0; return 0; }
-int  os_sc_cleanup_vmem(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf, uintptr_t r_sc_vmem){ return 0; }
+int  os_sc_init(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf){ return os_sc_init_impl(ctx, r_sc_elf); }
+int  os_sc_relocate(struct ezinj_ctx *ctx, uintptr_t r_sc_elf, uintptr_t *r_sc_vmem){ return os_sc_relocate_impl(ctx, r_sc_elf, r_sc_vmem); }
+int  os_sc_cleanup_vmem(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf, uintptr_t r_sc_vmem){ return os_sc_cleanup_impl(ctx, r_sc_elf, r_sc_vmem); }

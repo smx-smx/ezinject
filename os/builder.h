@@ -48,7 +48,7 @@ static inline void os_strings_posix(struct ezinj_strings *strings)
 #endif
 }
 
-static inline int os_sc_init_posix(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf)
+static inline int os_sc_init_impl(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf)
 {
 	*r_sc_elf = 0;
 #ifdef HAVE_SHELLCODE
@@ -67,7 +67,7 @@ static inline int os_sc_init_posix(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf)
 	return 0;
 }
 
-static inline int os_sc_relocate_posix(struct ezinj_ctx *ctx, uintptr_t r_sc_elf, uintptr_t *r_sc_vmem)
+static inline int os_sc_relocate_impl(struct ezinj_ctx *ctx, uintptr_t r_sc_elf, uintptr_t *r_sc_vmem)
 {
 	*r_sc_vmem = 0;
 #if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
@@ -85,7 +85,7 @@ static inline int os_sc_relocate_posix(struct ezinj_ctx *ctx, uintptr_t r_sc_elf
 	return 0;
 }
 
-static inline int os_sc_cleanup_posix(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf, uintptr_t r_sc_vmem)
+static inline int os_sc_cleanup_impl(struct ezinj_ctx *ctx, uintptr_t *r_sc_elf, uintptr_t r_sc_vmem)
 {
 #if !defined(HAVE_REMOTING) && defined(HAVE_SHELLCODE)
 	if(remote_sc_alloc(ctx, SC_ALLOC_ELFHDR, r_sc_elf) != 0){
