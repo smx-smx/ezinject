@@ -1,6 +1,10 @@
 # escape=`
 
-FROM cirrusci/windowsservercore:cmake-2022.06.23
+# Windows Server 2025 base: Windows containers under process isolation
+# require the image OS to match the host (0xc0370101 otherwise), so this
+# tracks the windows-2025 GitHub runner. MSYS2/MinGW is installed at build
+# time; tasks select the toolchain via MSYSTEM (MINGW32/MINGW64).
+FROM mcr.microsoft.com/windows/servercore:ltsc2025
 SHELL ["powershell", "-Command"]
 
 ENV CIRRUS_SHELL="powershell"

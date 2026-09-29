@@ -1,3 +1,7 @@
+# NOTE: this file is also the CI source for GitHub Actions.
+# .github/workflows/cirrus.yml runs every task below via smx-smx/cirrus-cli
+# (see https://github.com/smx-smx/cirrus-gha-test). Windows tasks are
+# pinned to os_version 2025 to match the windows-2025 runner + image.
 env:
   EZSDK_SMOKE_TEST: 1
 
@@ -153,6 +157,9 @@ freebsd_x64_task:
 windows_x86_task:
   windows_container:
     dockerfile: .ci/windows/Dockerfile
+    # must match the windows-2025 runner host (process isolation,
+    # 0xc0370101 on mismatch); see .ci/windows/Dockerfile
+    os_version: "2025"
   env:
     CIRRUS_SHELL: powershell
     MSYS: winsymlinks:nativestrict
@@ -170,6 +177,9 @@ windows_x86_task:
 windows_x64_task:
   windows_container:
     dockerfile: .ci/windows/Dockerfile
+    # must match the windows-2025 runner host (process isolation,
+    # 0xc0370101 on mismatch); see .ci/windows/Dockerfile
+    os_version: "2025"
   env:
     CIRRUS_SHELL: powershell
     MSYS: winsymlinks:nativestrict
