@@ -169,7 +169,7 @@ windows_x86_task:
   script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "mkdir build"
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake .. -G 'MSYS Makefiles'"
-    - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake --build . -j $(nproc)"
+    - C:\tools\msys64\usr\bin\bash.exe -lc 'cd build && cmake --build . -j $(nproc)'
     - exit $LastExitCode
   test_script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && ctest -V"
@@ -189,7 +189,7 @@ windows_x64_task:
   script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "mkdir build"
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake .. -G 'MSYS Makefiles'"
-    - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake --build . -j $(nproc)"
+    - C:\tools\msys64\usr\bin\bash.exe -lc 'cd build && cmake --build . -j $(nproc)'
     - exit $LastExitCode
   test_script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && ctest -V"
