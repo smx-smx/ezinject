@@ -9,6 +9,17 @@
 #ifndef __EZINJECT_AARCH64_H
 #define __EZINJECT_AARCH64_H
 
+#include "config.h"
+
+/* struct user_pt_regs lives in the kernel headers on AArch64;
+ * glibc's <sys/user.h> only provides struct user_regs_struct /
+ * struct user_fpsimd_struct, so regs_t stays incomplete without
+ * this (breaks sizeof(*regs) in os/linux/remote.c). Include it
+ * directly where the compiler confirms it exists. */
+#if defined(EZ_ARCH_ARM64) && defined(__linux__) && defined(__has_include) && __has_include(<asm/ptrace.h>)
+#  include <asm/ptrace.h>
+#endif
+
 #define REG_PC pc
 #define REG_SP sp
 
