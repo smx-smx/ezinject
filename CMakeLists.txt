@@ -384,6 +384,14 @@ set(ezinject_headers
 	ezinject_common.h
 	ezinject_compat.h
 	ezinject_injcode.h
+	ezinject_injcode_linux_inl.h
+	ezinject_injcode_windows_inl.h
+	ezinject_injcode_darwin_inl.h
+	ezinject_injcode_freebsd_inl.h
+	ezinject_ctx_linux_inl.h
+	ezinject_ctx_windows_inl.h
+	ezinject_ctx_darwin_inl.h
+	ezinject_ctx_freebsd_inl.h
 	ezinject_module.h
 	ezinject_util.h
 	ezinject.h
@@ -411,6 +419,7 @@ install(
 install(
 	FILES
 		crt/lh/interface/if_hook.h
+		crt/lh/interface/if_cpu.h
 	DESTINATION include/ezinject/interface
 )
 
