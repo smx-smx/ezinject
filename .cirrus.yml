@@ -150,6 +150,10 @@ freebsd_x64_task:
   freebsd_instance:
     image_family: freebsd-14-5
 
+  env:
+    # pristine images lack pkg itself; allow its non-interactive bootstrap
+    ASSUME_ALWAYS_YES: yes
+
   install_script:
     - pkg update
     - pkg install -y bash cmake capstone pkgconf
