@@ -16,8 +16,10 @@
  * struct user_fpsimd_struct, so regs_t stays incomplete without
  * this (breaks sizeof(*regs) in os/linux/remote.c). Include it
  * directly where the compiler confirms it exists. */
-#if defined(EZ_ARCH_ARM64) && defined(__linux__) && defined(__has_include) && __has_include(<asm/ptrace.h>)
-#  include <asm/ptrace.h>
+#if defined(EZ_ARCH_ARM64) && defined(__linux__) && defined(__has_include)
+#  if __has_include(<asm/ptrace.h>)
+#    include <asm/ptrace.h>
+#  endif
 #endif
 
 #define REG_PC pc

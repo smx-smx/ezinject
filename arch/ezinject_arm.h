@@ -22,8 +22,10 @@
  * the LG TV sysroot.) The fallback macros below cover toolchains
  * whose headers lack them; the values are architectural (CPSR is
  * uregs[16], Thumb flag is bit 5). */
-#if defined(EZ_ARCH_ARM) && defined(__linux__) && defined(__has_include) && __has_include(<asm/ptrace.h>)
-#  include <asm/ptrace.h>
+#if defined(EZ_ARCH_ARM) && defined(__linux__) && defined(__has_include)
+#  if __has_include(<asm/ptrace.h>)
+#    include <asm/ptrace.h>
+#  endif
 #endif
 #ifndef ARM_cpsr
 #define ARM_cpsr uregs[16]
