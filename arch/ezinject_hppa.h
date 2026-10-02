@@ -9,6 +9,18 @@
 #ifndef __EZINJECT_HPPA_H
 #define __EZINJECT_HPPA_H
 
+#include "config.h"
+
+/* struct user_regs_struct lives in the kernel headers on HPPA;
+ * the libc headers do not provide it, so regs_t stays incomplete
+ * without this (breaks sizeof(*regs) in os/linux/remote.c).
+ * Include it directly where the compiler confirms it exists. */
+#if defined(EZ_ARCH_HPPA) && defined(__linux__) && defined(__has_include)
+#  if __has_include(<asm/ptrace.h>)
+#    include <asm/ptrace.h>
+#  endif
+#endif
+
 // from <sys/uncontext.h>
 #ifdef REG_PC
 #undef REG_PC
