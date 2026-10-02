@@ -148,7 +148,7 @@ linux_riscv64_task:
 
 freebsd_x64_task:
   freebsd_instance:
-    image_family: freebsd-14-2
+    image_family: freebsd-14-5
 
   install_script:
     - pkg update
