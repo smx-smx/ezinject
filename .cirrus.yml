@@ -8,6 +8,10 @@ env:
 linux_arm64_task:
   arm_container:
     dockerfile: .ci/linux_arm64/Dockerfile
+    # injection test needs ptrace (sibling attach), which Yama
+    # scope=1 denies in unprivileged containers (needs cirrus-cli
+    # with privileged support for main containers)
+    privileged: true
 
   env:
     PATH: /usr/local/bin:${PATH}
