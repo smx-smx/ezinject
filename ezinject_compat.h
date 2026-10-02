@@ -34,6 +34,13 @@
 #define PTRACE_O_TRACESYSGOOD 1
 #endif
 
+/* old Bionic (e.g. Android API 9 NDK) lacks WSTOPSIG even with
+ * <sys/wait.h> included; wait statuses encode the stop signal in
+ * bits 8-15, same as glibc's __WSTOPSIG */
+#ifndef WSTOPSIG
+#define WSTOPSIG(status) (((status) >> 8) & 0xff)
+#endif
+
 #ifdef EZ_TARGET_WINDOWS
 #define SIGSTOP 0
 #define SIGTRAP 0
