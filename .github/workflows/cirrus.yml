@@ -1,19 +1,14 @@
 #
-# GitHub Actions CI, driven by smx-smx/cirrus-cli.
+# GitHub Actions CI, driven by smx-smx/cirrus-cli (zero-config).
 #
-# Linux and FreeBSD tasks from .cirrus.yml are executed by the cirrus CLI
-# (same builder as https://github.com/smx-smx/cirrus-gha-test):
-#   - Dockerfile images are built once and pushed to ghcr.io
-#     (--dockerfile-image-push, needs packages: write)
-#   - the freebsd_instance task boots the FreeBSD BASIC-CI image under
-#     QEMU on the ubuntu runner (needs the QEMU/KVM steps below)
-#   - arm_container tasks run natively on the ubuntu-24.04-arm leg;
-#     foreign-arch tasks are skipped per runner automatically
-#
-# windows_container tasks run on the pinned windows-2025 leg via the
-# cirrus CLI (MSYS2 image from .ci/windows/Dockerfile, built once and
-# pushed to ghcr.io). Runner and image OS are pinned to match: Windows
-# containers under process isolation fail otherwise (0xc0370101).
+# .cirrus.yml is the single source of truth — this workflow has no task list.
+# The action builds cirrus from source and runs every task, relying on the
+# CLI's OS/arch routing to skip non-matching tasks per runner:
+#   - ubuntu-24.04: all `container:` tasks + `freebsd_instance` under QEMU
+#     (QEMU/KVM set up inside the action; Dockerfile images pushed to ghcr.io)
+#   - ubuntu-24.04-arm: `arm_container` tasks natively
+#   - windows-2025: `windows_container` tasks (runner pinned to match
+#     os_version/image base in .ci/windows/Dockerfile, else 0xc0370101)
 #
 name: Cirrus CLI
 on:
@@ -41,82 +36,10 @@ jobs:
         with:
           clean: false
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-
-      - name: Install QEMU
-        shell: bash
-        # Only the x64 leg needs system emulation (freebsd task); the ARM
-        # leg would just burn minutes installing qemu-system-x86.
-        run: |
-          if [ "$(uname -m)" = "x86_64" ]; then
-            sudo apt-get update && sudo apt-get install -y qemu-system-x86
-          else
-            echo "non-x64 runner, skipping QEMU install"
-          fi
-
-      - name: Enable KVM for the runner user
-        shell: bash
-        # /dev/kvm exists on x64 hosted runners but as root:kvm 0660; ARM
-        # runners have no KVM device at all, so skip there.
-        # See https://github.com/actions/runner-images/issues/8542
-        run: |
-          if [ -e /dev/kvm ]; then
-            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-            sudo udevadm control --reload-rules
-            sudo udevadm trigger --name-match=kvm || true
-            ls -l /dev/kvm
-          else
-            echo "no /dev/kvm on this runner, skipping"
-          fi
-
-      - name: Checkout cirrus-cli
-        uses: actions/checkout@v4
-        with:
-          repository: smx-smx/cirrus-cli
-          path: cirrus-cli
-
-      - name: Build cirrus
-        working-directory: cirrus-cli
-        shell: bash
-        run: go build -o cirrus ./cmd/cirrus/main.go
-
-      - name: Add cirrus to PATH
-        shell: bash
-        run: echo "${{ github.workspace }}/cirrus-cli" >> $GITHUB_PATH
-
-      - name: Expose GHA runtime vars
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env['ACTIONS_RUNTIME_TOKEN']);
-            core.exportVariable('ACTIONS_RESULTS_URL', process.env['ACTIONS_RESULTS_URL']);
-            // mask the token in logs: it stays env-visible to later steps
-            core.setSecret(process.env['ACTIONS_RUNTIME_TOKEN']);
-
-      - name: Validate cirrus config
-        shell: bash
-        run: cirrus validate
-
-      - name: Run cirrus tasks
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # x64 leg: all container tasks (share .ci/linux/Dockerfile,
-          # built once and pushed to ghcr.io) plus freebsd under QEMU.
-          # ARM leg: the arm_container task only, run natively.
-          if [ "$(uname -m)" = "x86_64" ]; then
-            TASKS="linux_x64 linux_lgtv linux_android_armel linux_android_aarch64 linux_uclibc_armel linux_uclibc_mipsbe linux_glibc_armv4 linux_parisc32 linux_powerpc64le linux_riscv64 freebsd_x64"
-          else
-            TASKS="linux_arm64"
-          fi
-          for task in $TASKS; do
-            echo "===== cirrus run $task ====="
-            cirrus run --dockerfile-image-push --container-lazy-pull "$task"
-          done
+      - name: Run Cirrus tasks
+        # Zero-config: re-uses .cirrus.yml, no task list needed.
+        # Pin to a tag/SHA in production (e.g. smx-smx/cirrus-cli@v1).
+        uses: smx-smx/cirrus-cli@main
 
   cirrus-windows:
     name: cirrus (windows-2025)
@@ -126,53 +49,11 @@ jobs:
       contents: read
       packages: write
       actions: write # cache translation talks to the GHA cache service
-    strategy:
-      fail-fast: false
     steps:
       - name: Checkout project
         uses: actions/checkout@v4
         with:
           clean: false
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25'
-
-      - name: Checkout cirrus-cli
-        uses: actions/checkout@v4
-        with:
-          repository: smx-smx/cirrus-cli
-          path: cirrus-cli
-
-      - name: Build cirrus
-        working-directory: cirrus-cli
-        shell: bash
-        run: go build -o cirrus ./cmd/cirrus/main.go
-
-      - name: Add cirrus to PATH
-        shell: bash
-        run: echo "${{ github.workspace }}/cirrus-cli" >> $GITHUB_PATH
-
-      - name: Expose GHA runtime vars
-        uses: actions/github-script@v7
-        with:
-          script: |
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env['ACTIONS_RUNTIME_TOKEN']);
-            core.exportVariable('ACTIONS_RESULTS_URL', process.env['ACTIONS_RESULTS_URL']);
-            // mask the token in logs: it stays env-visible to later steps
-            core.setSecret(process.env['ACTIONS_RUNTIME_TOKEN']);
-
-      - name: Validate cirrus config
-        shell: bash
-        run: cirrus validate
-
-      - name: Run cirrus tasks
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          for task in windows_x86 windows_x64; do
-            echo "===== cirrus run $task ====="
-            cirrus run --dockerfile-image-push --container-lazy-pull "$task"
-          done
+      - name: Run Cirrus tasks
+        uses: smx-smx/cirrus-cli@main
