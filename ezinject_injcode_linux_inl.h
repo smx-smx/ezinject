@@ -43,13 +43,17 @@ struct bearing_platform {
 	struct elf_resolve_hdr **uclibc_loaded_modules;
 #elif defined(HAVE_LIBC_DLOPEN_MODE) || defined(HAVE_LIBC_DL_OPEN)
 	struct {
-		void *(*fptr)(const char *name, int mode);
+		/* variadic: __libc_dlopen_mode takes (name, mode) while
+		 * the old HAVE_LIBC_DL_OPEN path passes an extra
+		 * caller argument (NULL); extras are ignored by
+		 * 2-argument callees on all supported ABIs */
+		void *(*fptr)(const char *name, int mode, ...);
 		void *got;
 		void *self;
 	} libc_dlopen;
 #else
 	struct {
-		void *(*fptr)(const char *name, int mode);
+		void *(*fptr)(const char *name, int mode, ...);
 		void *got;
 		void *self;
 	} libc_dlopen;
