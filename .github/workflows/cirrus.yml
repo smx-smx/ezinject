@@ -1,0 +1,59 @@
+#
+# GitHub Actions CI, driven by smx-smx/cirrus-cli (zero-config).
+#
+# .cirrus.yml is the single source of truth — this workflow has no task list.
+# The action builds cirrus from source and runs every task, relying on the
+# CLI's OS/arch routing to skip non-matching tasks per runner:
+#   - ubuntu-24.04: all `container:` tasks + `freebsd_instance` under QEMU
+#     (QEMU/KVM set up inside the action; Dockerfile images pushed to ghcr.io)
+#   - ubuntu-24.04-arm: `arm_container` tasks natively
+#   - windows-2025: `windows_container` tasks (runner pinned to match
+#     os_version/image base in .ci/windows/Dockerfile, else 0xc0370101)
+#
+name: Cirrus CLI
+on:
+  workflow_dispatch:
+  push:
+  pull_request:
+
+jobs:
+  cirrus:
+    name: cirrus (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      packages: write
+      actions: write # cache translation talks to the GHA cache service
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+          - os: ubuntu-24.04-arm
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Run Cirrus tasks
+        # Zero-config: re-uses .cirrus.yml, no task list needed.
+        # Pin to a tag/SHA in production (e.g. smx-smx/cirrus-cli@v1).
+        uses: smx-smx/cirrus-cli@main
+
+  cirrus-windows:
+    name: cirrus (windows-2025)
+    # pinned: must match os_version/image base in .ci/windows/Dockerfile
+    runs-on: windows-2025
+    permissions:
+      contents: read
+      packages: write
+      actions: write # cache translation talks to the GHA cache service
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Run Cirrus tasks
+        uses: smx-smx/cirrus-cli@main

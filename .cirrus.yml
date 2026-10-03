@@ -1,9 +1,17 @@
+# NOTE: this file is also the CI source for GitHub Actions.
+# .github/workflows/cirrus.yml runs every task below via smx-smx/cirrus-cli
+# (see https://github.com/smx-smx/cirrus-gha-test). Windows tasks are
+# pinned to os_version 2025 to match the windows-2025 runner + image.
 env:
   EZSDK_SMOKE_TEST: 1
 
 linux_arm64_task:
   arm_container:
     dockerfile: .ci/linux_arm64/Dockerfile
+    # injection test needs ptrace (sibling attach), which Yama
+    # scope=1 denies in unprivileged containers (needs cirrus-cli
+    # with privileged support for main containers)
+    privileged: true
 
   env:
     PATH: /usr/local/bin:${PATH}
@@ -140,7 +148,11 @@ linux_riscv64_task:
 
 freebsd_x64_task:
   freebsd_instance:
-    image_family: freebsd-14-2
+    image_family: freebsd-14-5
+
+  env:
+    # pristine images lack pkg itself; allow its non-interactive bootstrap
+    ASSUME_ALWAYS_YES: yes
 
   install_script:
     - pkg update
@@ -153,6 +165,9 @@ freebsd_x64_task:
 windows_x86_task:
   windows_container:
     dockerfile: .ci/windows/Dockerfile
+    # must match the windows-2025 runner host (process isolation,
+    # 0xc0370101 on mismatch); see .ci/windows/Dockerfile
+    os_version: "2025"
   env:
     CIRRUS_SHELL: powershell
     MSYS: winsymlinks:nativestrict
@@ -162,7 +177,7 @@ windows_x86_task:
   script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "mkdir build"
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake .. -G 'MSYS Makefiles'"
-    - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake --build . -j $(nproc)"
+    - C:\tools\msys64\usr\bin\bash.exe -lc 'cd build && cmake --build . -j $(nproc)'
     - exit $LastExitCode
   test_script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && ctest -V"
@@ -170,6 +185,9 @@ windows_x86_task:
 windows_x64_task:
   windows_container:
     dockerfile: .ci/windows/Dockerfile
+    # must match the windows-2025 runner host (process isolation,
+    # 0xc0370101 on mismatch); see .ci/windows/Dockerfile
+    os_version: "2025"
   env:
     CIRRUS_SHELL: powershell
     MSYS: winsymlinks:nativestrict
@@ -179,7 +197,7 @@ windows_x64_task:
   script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "mkdir build"
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake .. -G 'MSYS Makefiles'"
-    - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && cmake --build . -j $(nproc)"
+    - C:\tools\msys64\usr\bin\bash.exe -lc 'cd build && cmake --build . -j $(nproc)'
     - exit $LastExitCode
   test_script:
     - C:\tools\msys64\usr\bin\bash.exe -lc "cd build && ctest -V"

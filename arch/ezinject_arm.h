@@ -16,6 +16,24 @@
 
 #define REG(u, r) (u).regs.r
 
+/* CPSR accessors live in the kernel headers; include them directly
+ * where the compiler confirms they exist. (Transitive inclusion via
+ * <sys/ptrace.h> holds on newer toolchains but not older ones, e.g.
+ * the LG TV sysroot.) The fallback macros below cover toolchains
+ * whose headers lack them; the values are architectural (CPSR is
+ * uregs[16], Thumb flag is bit 5). */
+#if defined(EZ_ARCH_ARM) && defined(__linux__) && defined(__has_include)
+#  if __has_include(<asm/ptrace.h>)
+#    include <asm/ptrace.h>
+#  endif
+#endif
+#ifndef ARM_cpsr
+#define ARM_cpsr uregs[16]
+#endif
+#ifndef PSR_T_BIT
+#define PSR_T_BIT 0x20
+#endif
+
 #ifdef USE_ARM_THUMB
 #define EMIT_POP(var) \
 	asm volatile( \
