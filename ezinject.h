@@ -84,6 +84,9 @@ struct ezinj_ctx {
 	bool syscall_mode;
 	bool bail;
 	bool module_persist;
+#ifdef HAVE_ELFLOADER
+	bool elfloader;
+#endif
 	pid_t target;
 	uintptr_t r_xpage_base;
 	char *module_logfile;

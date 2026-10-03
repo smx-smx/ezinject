@@ -253,6 +253,37 @@ struct injcode_bearing
 	unsigned num_strings;
 	int thread_exit_code;
 
+	/**
+	 * nonzero when the injector mapped the user library itself
+	 * (-m) instead of dlopen in the target. kept outside any
+	 * ifdef so the payload can test it without ifdefs; when set,
+	 * everything in br->elfloader below was resolved host-side
+	 * and is a remote address (or 0 when absent).
+	 **/
+	int manual_use;
+	/* host-resolved addresses for manual_use (see above).
+	 * always present; filled by the injector-side ELF loader. */
+	struct injcode_elfloader {
+		void *base;	/* mapped base of the user library (remote) */
+		uintptr_t bias;	/* load bias of the user library (remote) */
+		void *crt_init;	/* crt_init (remote, replaces dlsym) */
+		/* pre-resolved libc/libpthread symbols (replace inj_fetchsym) */
+		void *lib_dlerror;
+		void *lib_pthread_mutex_init;
+		void *lib_pthread_mutex_lock;
+		void *lib_pthread_mutex_unlock;
+		void *lib_pthread_cond_init;
+		void *lib_pthread_cond_wait;
+#define EZ_ELFLOADER_MAX_INIT 8
+		/* initializers, dependency order (deps first, user lib last) */
+		int ninit;
+		struct {
+			void *init;	/* DT_INIT (remote, or 0) */
+			void *init_array;	/* DT_INIT_ARRAY (remote, or 0) */
+			size_t init_arraysz;	/* DT_INIT_ARRAYSZ (bytes) */
+		} inits[EZ_ELFLOADER_MAX_INIT];
+	} elfloader;
+
 	struct bearing_platform platform;
 
 	size_t dyn_total_size;

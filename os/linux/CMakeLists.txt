@@ -6,6 +6,10 @@ add_library(os_linux
 	builder.c
 )
 
+if(HAVE_ELFLOADER)
+	target_sources(os_linux PRIVATE elfloader.c)
+endif()
+
 if(HAVE_LIBC_DLOPEN_MODE OR HAVE_LIBC_DL_OPEN)
 	target_sources(os_linux PRIVATE libc_glibc.c)
 elseif(HAVE_DL_LOAD_SHARED_LIBRARY)

@@ -48,6 +48,18 @@ dnl C++ test support
 AM_CONDITIONAL([HAVE_CXX], [test "x$ac_cv_prog_cxx_works" != xno && test -n "$CXX"])
 
 dnl ---------------------------------------------------------------------------
+dnl ELF loader (injector-side, Linux -m)
+dnl ---------------------------------------------------------------------------
+AC_ARG_ENABLE([elfloader],
+  [AS_HELP_STRING([--disable-elfloader], [disable injector-side ELF loader (Linux -m)])],
+  [enable_elfloader=$enableval],
+  [enable_elfloader=yes])
+AM_CONDITIONAL([ENABLE_ELFLOADER], [test "x$enable_elfloader" != xno])
+if test "x$enable_elfloader" != xno; then
+  AC_DEFINE([HAVE_ELFLOADER], [1], [Define to 1 to enable the injector-side ELF loader])
+fi
+
+dnl ---------------------------------------------------------------------------
 dnl Static build
 dnl ---------------------------------------------------------------------------
 AC_ARG_ENABLE([static],

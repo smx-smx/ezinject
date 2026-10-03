@@ -29,6 +29,7 @@
 #cmakedefine HAVE_PTRACE_SETREGS
 #cmakedefine HAVE_PSR_T_BIT
 #cmakedefine HAVE_PROPER_LIBGCC
+#cmakedefine HAVE_ELFLOADER
 #cmakedefine USE_ANDROID_ASHMEM
 #cmakedefine USE_ARM_THUMB
 #cmakedefine USE_CAPSTONE

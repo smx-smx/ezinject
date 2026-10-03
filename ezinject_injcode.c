@@ -460,6 +460,48 @@ intptr_t PLAPI injected_fn(void *arg){
 	ctx->libdl_name = BR_STRTBL(br)[EZSTR_API_LIBDL].str;
 	ctx->libpthread_name = BR_STRTBL(br)[EZSTR_API_LIBPTHREAD].str;
 
+#if defined(EZ_TARGET_LINUX)
+	if(br->manual_use){
+		/* Mapped by the injector-side ELF loader: every address
+		 * below was resolved host-side into the bearing. NO dlopen/
+		 * dlsym runs in target (unusable on some loaders).
+		 * Early return path: must never reach any inj_dlopen below. */
+		PCALL(ctx, inj_dchar, 'M');
+		ctx->libdl.dlerror.fptr = br->elfloader.lib_dlerror;
+		ctx->libthread.pthread_mutex_init.fptr = br->elfloader.lib_pthread_mutex_init;
+		ctx->libthread.pthread_mutex_lock.fptr = br->elfloader.lib_pthread_mutex_lock;
+		ctx->libthread.pthread_mutex_unlock.fptr = br->elfloader.lib_pthread_mutex_unlock;
+		ctx->libthread.pthread_cond_init.fptr = br->elfloader.lib_pthread_cond_init;
+		ctx->libthread.pthread_cond_wait.fptr = br->elfloader.lib_pthread_cond_wait;
+		ctx->h_libthread = br->elfloader.base;
+		br->userlib = br->elfloader.base;
+		ctx->crt_init.fptr = br->elfloader.crt_init;
+		/* run initializers in dependency order (deps first, user lib
+		 * last), loader semantics (DT_INIT, then INIT_ARRAY) */
+		for(int k = 0; k < br->elfloader.ninit; k++){
+			if(br->elfloader.inits[k].init){
+				PCALL(ctx, inj_dchar, 'i');
+				((void (*)(void))br->elfloader.inits[k].init)();
+			}
+			if(br->elfloader.inits[k].init_array && br->elfloader.inits[k].init_arraysz){
+				size_t n = br->elfloader.inits[k].init_arraysz / sizeof(void *);
+				void (**arr)(void) = (void (**)(void))br->elfloader.inits[k].init_array;
+				for(size_t j = 0; j < n; j++){
+					if(arr[j]){
+						arr[j]();
+					}
+				}
+			}
+		}
+		PCALL(ctx, inj_dchar, 'u');
+		if(ctx->crt_init.fptr && CALL_FPTR(ctx->crt_init, br) != 0){
+			result = INJ_ERR_DLOPEN;
+			goto pl_exit;
+		}
+		goto manual_mapped;
+	}
+#endif
+
 	if(inj_libdl_init(ctx) != 0){
 		PCALL(ctx, inj_dchar, '!');
 		result = INJ_ERR_LIBDL;
@@ -511,18 +553,25 @@ intptr_t PLAPI injected_fn(void *arg){
 		goto pl_exit;
 	}
 
+manual_mapped:;
+
 	// wait for the thread to notify us
 	PCALL(ctx, inj_dchar, 'w');
 
 	// exit status from lib_main
 	if(inj_thread_wait(ctx, &result) != 0){
 		PCALL(ctx, inj_dchar, '!');
+		if(!br->manual_use)
 		CALL_FPTR(ctx->libdl.dlclose, ctx->h_libthread);
 		result = INJ_ERR_WAIT;
 		goto pl_exit;
 	}
 
 	if(br->user.persist == 0){
+		if(br->manual_use){
+			/* manually mapped: not dlopened, cannot dlclose */
+		} else
+		{
 		// cleanup
 		PCALL(ctx, inj_dchar, 'c');
 		/**
@@ -530,6 +579,7 @@ intptr_t PLAPI injected_fn(void *arg){
 		 * the segfault will be trapped by ezinject, so (hopefully) the process can continue
 		 **/
 		CALL_FPTR(ctx->libdl.dlclose, br->userlib);
+		}
 	}
 
 	result = 0;

@@ -12,4 +12,8 @@
 #include "ezinject.h"
 EZAPI linux_resolve_libc_symbols_generic(struct ezinj_ctx *ctx);
 
+#ifdef HAVE_ELFLOADER
+EZAPI elfloader_load(struct ezinj_ctx *ctx, struct injcode_bearing *br, const char *libpath);
+#endif
+
 #endif

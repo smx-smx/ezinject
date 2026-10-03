@@ -712,6 +712,8 @@ EZ_TARGET_FREEBSD_FALSE
 EZ_TARGET_FREEBSD_TRUE
 EZ_TARGET_LINUX_FALSE
 EZ_TARGET_LINUX_TRUE
+ENABLE_ELFLOADER_FALSE
+ENABLE_ELFLOADER_TRUE
 HAVE_CXX_FALSE
 HAVE_CXX_TRUE
 ENABLE_CPP_SAMPLES_FALSE
@@ -868,6 +870,7 @@ with_sysroot
 enable_libtool_lock
 enable_debug
 enable_cpp_samples
+enable_elfloader
 enable_arm_thumb
 with_libc
 with_libc_variant
@@ -1534,6 +1537,7 @@ Optional Features:
   --disable-libtool-lock  avoid locking (might break parallel builds)
   --disable-debug         disable debug build mode
   --disable-cpp-samples   disable C++ sample module
+  --disable-elfloader     disable injector-side ELF loader (Linux -m)
   --enable-static         build ezinject as a static binary
   --enable-arm-thumb      use Thumb mode on ARM (default: ARM mode)
 
@@ -19272,6 +19276,29 @@ else
 fi
 
 
+# Check whether --enable-elfloader was given.
+if test ${enable_elfloader+y}
+then :
+  enableval=$enable_elfloader; enable_elfloader=$enableval
+else case e in #(
+  e) enable_elfloader=yes ;;
+esac
+fi
+
+ if test "x$enable_elfloader" != xno; then
+  ENABLE_ELFLOADER_TRUE=
+  ENABLE_ELFLOADER_FALSE='#'
+else
+  ENABLE_ELFLOADER_TRUE='#'
+  ENABLE_ELFLOADER_FALSE=
+fi
+
+if test "x$enable_elfloader" != xno; then
+
+printf '%s\n' "#define HAVE_ELFLOADER 1" >>confdefs.h
+
+fi
+
 # Check whether --enable-static was given.
 if test ${enable_static+y}
 then :
@@ -21347,6 +21374,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${HAVE_CXX_TRUE}" && test -z "${HAVE_CXX_FALSE}"; then
   as_fn_error $? "conditional \"HAVE_CXX\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${ENABLE_ELFLOADER_TRUE}" && test -z "${ENABLE_ELFLOADER_FALSE}"; then
+  as_fn_error $? "conditional \"ENABLE_ELFLOADER\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${EZ_TARGET_LINUX_TRUE}" && test -z "${EZ_TARGET_LINUX_FALSE}"; then

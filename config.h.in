@@ -72,6 +72,9 @@
 /* Define to 1 for uClibc _dl_load_shared_library */
 #undef HAVE_DL_LOAD_SHARED_LIBRARY
 
+/* Define to 1 to enable the injector-side ELF loader */
+#undef HAVE_ELFLOADER
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 

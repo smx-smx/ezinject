@@ -44,6 +44,10 @@
 
 #include "os/builder.h"
 
+#ifdef EZ_TARGET_LINUX
+#include "os/linux/common.h"
+#endif
+
 #include "log.h"
 
 static struct ezinj_ctx ctx; // only to be used for sigint handler
@@ -178,6 +182,10 @@ intptr_t setregs_syscall(
 	}
 
 	// write the remote call onto the stack
+	DBGPTR((void *)r_call_args);
+	DBGPTR((void *)rcall->para.trampoline.fn_addr);
+	DBGPTR((void *)rcall->para.trampoline.fn_arg);
+	DBGPTR((void *)rcall->wrapper.target.fptr);
 	if(remote_write(
 		ctx,
 		r_call_args,
@@ -820,6 +828,18 @@ int ezinject_main(
 
 		ctx->mapped_mem.remote = remote_shm_ptr;
 
+#if defined(EZ_TARGET_LINUX) && defined(HAVE_ELFLOADER)
+		/* elfloader needs the syscall stub up (runs after sc_init
+		 * + payload alloc) and must fill br before os_pl_copy */
+		if(ctx->elfloader){
+			INFO("elfloader requested for %s", argv[0]);
+			if(elfloader_load(ctx, br, argv[0]) != 0){
+				ERR("elfloader_load failed");
+				return -1;
+			}
+		}
+#endif
+
 		struct ezinj_pl *pl = &ctx->pl;
 
 		INFO("target: copying payload");
@@ -907,8 +927,16 @@ int main(int argc, char *argv[]){
 
 	{
 		int c;
-		while ((c = getopt (argc, argv, "hdrl:v:")) != -1){
+		while ((c = getopt (argc, argv, "hdrl:v:m")) != -1){
 			switch(c){
+				case 'm':
+#ifdef HAVE_ELFLOADER
+					ctx.elfloader = true;
+#else
+					fprintf(stderr, "elfloader support disabled in this build\n");
+					return 1;
+#endif
+					break;
 				case 'd':
 					WARN("payload debugging enabled");
 					ctx.pl_debug = 1;
@@ -935,8 +963,12 @@ int main(int argc, char *argv[]){
 	if(argc < 3) {
 		usage:
 		fprintf(stderr,
-			"Usage: %s [-h|-d|-r|-l <log_path>|-v <verbosity>] <pid> <library.so> -- [args...]\n"
+			"Usage: %s [-h|-d|-r|-m|-l <log_path>|-v <verbosity>] <pid> <library.so> -- [args...]\n"
 			"  -r: resident/persistent user module (won't be unloaded). NOTE: may still be overridden by the loaded module\n"
+#ifdef HAVE_ELFLOADER
+			"  -m: elfloader: map the library from the injector, without the target loader.\n"
+			"      all addresses are resolved host-side; no dlopen/dlsym runs in the target.\n"
+#endif
 			"  -l <log path>: specify log file for payload/module log messages\n"
 			"  -d: payload debug mode (skips thread wait/cleanup)\n", argv[0]
 		);

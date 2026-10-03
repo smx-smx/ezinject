@@ -11,6 +11,8 @@
 #include <sys/wait.h>
 #include <sys/uio.h>
 #include <elf.h>
+#include <errno.h>
+#include <string.h>
 
 #include "ezinject.h"
 #include "ezinject_arch.h"
@@ -64,24 +66,62 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 }
 
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
-	uintptr_t *destWords = (uintptr_t *)dest;
+	uint8_t *out = (uint8_t *)dest;
 
 	size_t read;
-	for(read=0; read < size; read+=sizeof(uintptr_t), destWords++){
-		*destWords = (uintptr_t)ptrace(PTRACE_PEEKTEXT, ctx->target, source + read, 0);
+	for(read = 0; read + sizeof(uintptr_t) <= size; read += sizeof(uintptr_t)){
+		errno = 0;
+		long word = ptrace(PTRACE_PEEKTEXT, ctx->target, (void *)(source + read), 0);
+		if(word == -1 && errno != 0){
+			return read;
+		}
+		memcpy(out + read, &word, sizeof(word));
 	}
+
+	// trailing bytes: peek a whole word, copy what's left
+	if(read < size){
+		errno = 0;
+		long word = ptrace(PTRACE_PEEKTEXT, ctx->target, (void *)(source + read), 0);
+		if(word == -1 && errno != 0){
+			return read;
+		}
+		memcpy(out + read, &word, size - read);
+		read = size;
+	}
+
 	return read;
 }
 
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
-	uintptr_t *sourceWords = (uintptr_t *)source;
+	uint8_t *bytes = (uint8_t *)source;
 
 	size_t written;
-	for(written=0; written < size; written+=sizeof(uintptr_t), sourceWords++){
-		if(ptrace(PTRACE_POKETEXT, ctx->target, dest + written, *sourceWords) < 0){
+	for(written = 0; written + sizeof(uintptr_t) <= size; written += sizeof(uintptr_t)){
+		uintptr_t word;
+		memcpy(&word, bytes + written, sizeof(word));
+		if(ptrace(PTRACE_POKETEXT, ctx->target, (void *)(dest + written), (void *)word) < 0){
 			ERR("ptrace write failed at %p: %s", VPTR(dest + written), strerror(errno));
+			return written;
 		}
 	}
+
+	// partial tail: read-modify-write, neighbours are preserved
+	if(written < size){
+		errno = 0;
+		long cur = ptrace(PTRACE_PEEKTEXT, ctx->target, (void *)(dest + written), 0);
+		if(cur == -1 && errno != 0){
+			ERR("ptrace read failed at %p: %s", VPTR(dest + written), strerror(errno));
+			return written;
+		}
+		uintptr_t word = (uintptr_t)cur;
+		memcpy(&word, bytes + written, size - written);
+		if(ptrace(PTRACE_POKETEXT, ctx->target, (void *)(dest + written), (void *)word) < 0){
+			ERR("ptrace write failed at %p: %s", VPTR(dest + written), strerror(errno));
+			return written;
+		}
+		written = size;
+	}
+
 	return written;
 }
 

@@ -98,6 +98,11 @@ if(NOT DEFINED DEBUG)
 	endif()
 endif()
 
+option(USE_ELFLOADER "Enable injector-side ELF loader (Linux -m)" OFF)
+if(USE_ELFLOADER)
+	set(HAVE_ELFLOADER TRUE)
+endif()
+
 include_directories(
 	${CMAKE_BINARY_DIR} 
 	${CMAKE_SOURCE_DIR}

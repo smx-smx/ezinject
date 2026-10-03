@@ -84,6 +84,9 @@ endif
 if GENERIC_LIBC_COND
 libos_linux_la_SOURCES += os/linux/libc_generic.c
 endif
+if ENABLE_ELFLOADER
+libos_linux_la_SOURCES += os/linux/elfloader.c
+endif
 
 ezinject_LDADD += libos_linux.la libos_linux_util.la
 endif
