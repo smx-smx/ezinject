@@ -38,6 +38,21 @@ linux_x64_task:
   #test_script:
   #  - (cd build; ctest -V)
 
+# autotools must stay in sync with CMake (sources, options, install
+# rules); this task fails on drift such as files missing from Makefile.am
+linux_x64_autotools_task:
+  container:
+    dockerfile: .ci/linux/Dockerfile
+
+  env:
+    PATH: /usr/local/bin:${PATH}
+
+  script:
+    - sh configure
+    - make -j$(nproc)
+    - sh configure --disable-elfloader
+    - make -j$(nproc)
+
 # targeting LG NC4/WebOS (ARM Cortex A9, glibc 2.12)
 linux_lgtv_task:
   container:
