@@ -93,7 +93,6 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-@EZ_TARGET_WINDOWS_TRUE@am__append_1 = -D_GNU_SOURCE
 bin_PROGRAMS = ezinject$(EXEEXT) $(am__EXEEXT_1) target$(EXEEXT) \
 	$(am__EXEEXT_2)
 
@@ -106,78 +105,78 @@ bin_PROGRAMS = ezinject$(EXEEXT) $(am__EXEEXT_1) target$(EXEEXT) \
 # ---------------------------------------------------------------------------
 
 # Linux OS layer
-@EZ_TARGET_LINUX_TRUE@am__append_2 = libelfparse.la \
+@EZ_TARGET_LINUX_TRUE@am__append_1 = libelfparse.la \
 @EZ_TARGET_LINUX_TRUE@	libos_linux_util.la libos_linux.la
-@EZ_TARGET_LINUX_TRUE@am__append_3 = ezpatch
-@EZ_TARGET_LINUX_TRUE@am__append_4 = libelfparse.la libos_linux.la \
+@EZ_TARGET_LINUX_TRUE@am__append_2 = ezpatch
+@EZ_TARGET_LINUX_TRUE@am__append_3 = libelfparse.la libos_linux.la \
 @EZ_TARGET_LINUX_TRUE@	libos_linux_util.la
-@EZ_TARGET_LINUX_TRUE@@HAVE_LIBC_DLOPEN_MODE_COND_TRUE@am__append_5 = os/linux/libc_glibc.c
-@EZ_TARGET_LINUX_TRUE@@HAVE_LIBC_DL_OPEN_COND_TRUE@am__append_6 = os/linux/libc_glibc.c
-@EZ_TARGET_LINUX_TRUE@@HAVE_DL_LOAD_SHARED_LIBRARY_COND_TRUE@am__append_7 = os/linux/libc_uclibc.c
-@EZ_TARGET_LINUX_TRUE@@GENERIC_LIBC_COND_TRUE@am__append_8 = os/linux/libc_generic.c
-@ENABLE_ELFLOADER_TRUE@@EZ_TARGET_LINUX_TRUE@am__append_9 = os/linux/elfloader.c
+@EZ_TARGET_LINUX_TRUE@@HAVE_LIBC_DLOPEN_MODE_COND_TRUE@am__append_4 = os/linux/libc_glibc.c
+@EZ_TARGET_LINUX_TRUE@@HAVE_LIBC_DL_OPEN_COND_TRUE@am__append_5 = os/linux/libc_glibc.c
+@EZ_TARGET_LINUX_TRUE@@HAVE_DL_LOAD_SHARED_LIBRARY_COND_TRUE@am__append_6 = os/linux/libc_uclibc.c
+@EZ_TARGET_LINUX_TRUE@@GENERIC_LIBC_COND_TRUE@am__append_7 = os/linux/libc_generic.c
+@ENABLE_ELFLOADER_TRUE@@EZ_TARGET_LINUX_TRUE@am__append_8 = os/linux/elfloader.c
 
 # POSIX shared layer
+@EZ_TARGET_POSIX_TRUE@am__append_9 = libos_posix.la libos_posix_util.la
 @EZ_TARGET_POSIX_TRUE@am__append_10 = libos_posix.la libos_posix_util.la
-@EZ_TARGET_POSIX_TRUE@am__append_11 = libos_posix.la libos_posix_util.la
 
 # Darwin OS layer
+@EZ_TARGET_DARWIN_TRUE@am__append_11 = libos_darwin.la
 @EZ_TARGET_DARWIN_TRUE@am__append_12 = libos_darwin.la
-@EZ_TARGET_DARWIN_TRUE@am__append_13 = libos_darwin.la
 
 # FreeBSD OS layer
-@EZ_TARGET_FREEBSD_TRUE@am__append_14 = libos_freebsd.la
-@EZ_TARGET_FREEBSD_TRUE@am__append_15 = libos_freebsd.la -lprocstat
+@EZ_TARGET_FREEBSD_TRUE@am__append_13 = libos_freebsd.la
+@EZ_TARGET_FREEBSD_TRUE@am__append_14 = libos_freebsd.la -lprocstat
 
 # Android OS layer
-@EZ_TARGET_ANDROID_TRUE@am__append_16 = libos_android.la
-@EZ_TARGET_ANDROID_TRUE@am__append_17 = libos_android.la libelfparse.la
+@EZ_TARGET_ANDROID_TRUE@am__append_15 = libos_android.la
+@EZ_TARGET_ANDROID_TRUE@am__append_16 = libos_android.la libelfparse.la
 
 # Windows OS layer
+@EZ_TARGET_WINDOWS_TRUE@am__append_17 = libos_windows.la libos_windows_util.la libwindows_injlib.la
 @EZ_TARGET_WINDOWS_TRUE@am__append_18 = libos_windows.la libos_windows_util.la libwindows_injlib.la
-@EZ_TARGET_WINDOWS_TRUE@am__append_19 = libos_windows.la libos_windows_util.la libwindows_injlib.la
 
 # Injection code - handle HPPA special case separately
 # For HPPA: compile to .s, patch with PHP, assemble patched .s
-@EZ_ARCH_HPPA_TRUE@am__append_20 = ezinject_injcode.s ezinject_injcode_patched.s
-@EZ_ARCH_HPPA_FALSE@am__append_21 = ezinject_injcode.c
+@EZ_ARCH_HPPA_TRUE@am__append_19 = ezinject_injcode.s ezinject_injcode_patched.s
+@EZ_ARCH_HPPA_FALSE@am__append_20 = ezinject_injcode.c
 
 # POSIX linker flag
-@EZ_TARGET_POSIX_TRUE@am__append_22 = $(LIBDL_LINK)
+@EZ_TARGET_POSIX_TRUE@am__append_21 = $(LIBDL_LINK)
 
 # Static build
-@ENABLE_STATIC_TRUE@am__append_23 = -static
+@ENABLE_STATIC_TRUE@am__append_22 = -static
 
 # ---------------------------------------------------------------------------
 # libhooker (lh) libraries - installed for out-of-tree module building
 # ---------------------------------------------------------------------------
-@LH_ENABLED_TRUE@am__append_24 = liblh_ifcpu.la liblh_ifhook.la
-@LH_CPU_ARM_TRUE@@LH_ENABLED_TRUE@am__append_25 = crt/lh/interface/cpu/arm/cpu_arm.c
-@LH_CPU_ARM64_TRUE@@LH_ENABLED_TRUE@am__append_26 = crt/lh/interface/cpu/arm64/cpu_arm64.c
-@LH_CPU_MIPS_TRUE@@LH_ENABLED_TRUE@am__append_27 = crt/lh/interface/cpu/mips/cpu_mips.c
-@LH_CPU_MIPS_TRUE@@LH_ENABLED_TRUE@am__append_28 = -fPIC
-@LH_CPU_INTEL_TRUE@@LH_ENABLED_TRUE@am__append_29 = \
+@LH_ENABLED_TRUE@am__append_23 = liblh_ifcpu.la liblh_ifhook.la
+@LH_CPU_ARM_TRUE@@LH_ENABLED_TRUE@am__append_24 = crt/lh/interface/cpu/arm/cpu_arm.c
+@LH_CPU_ARM64_TRUE@@LH_ENABLED_TRUE@am__append_25 = crt/lh/interface/cpu/arm64/cpu_arm64.c
+@LH_CPU_MIPS_TRUE@@LH_ENABLED_TRUE@am__append_26 = crt/lh/interface/cpu/mips/cpu_mips.c
+@LH_CPU_MIPS_TRUE@@LH_ENABLED_TRUE@am__append_27 = -fPIC
+@LH_CPU_INTEL_TRUE@@LH_ENABLED_TRUE@am__append_28 = \
 @LH_CPU_INTEL_TRUE@@LH_ENABLED_TRUE@	crt/lh/interface/cpu/intel/common_intel.c
 
-@EZ_ARCH_AMD64_TRUE@@LH_CPU_INTEL_TRUE@@LH_ENABLED_TRUE@am__append_30 = crt/lh/interface/cpu/intel/cpu_x86_64.c
-@EZ_ARCH_I386_TRUE@@LH_CPU_INTEL_TRUE@@LH_ENABLED_TRUE@am__append_31 = crt/lh/interface/cpu/intel/cpu_i386.c
-@LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@am__append_32 = $(CAPSTONE_CFLAGS)
-@LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@am__append_33 = $(CAPSTONE_LIBS)
-@LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@am__append_34 = $(CAPSTONE_CFLAGS)
-@LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@am__append_35 = $(CAPSTONE_LIBS)
-@EZ_TARGET_POSIX_TRUE@am__append_36 = crt/crt_posix.c
-@EZ_TARGET_WINDOWS_TRUE@am__append_37 = crt/crt_windows.c os/windows/util.c os/windows/util.h
-@EZ_TARGET_WINDOWS_TRUE@am__append_38 = -Wl,-entry=MyDllMainCRTStartup
-@EZ_TARGET_ANDROID_FALSE@@EZ_TARGET_POSIX_TRUE@am__append_39 = $(LIBDL_LINK)
+@EZ_ARCH_AMD64_TRUE@@LH_CPU_INTEL_TRUE@@LH_ENABLED_TRUE@am__append_29 = crt/lh/interface/cpu/intel/cpu_x86_64.c
+@EZ_ARCH_I386_TRUE@@LH_CPU_INTEL_TRUE@@LH_ENABLED_TRUE@am__append_30 = crt/lh/interface/cpu/intel/cpu_i386.c
+@LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@am__append_31 = $(CAPSTONE_CFLAGS)
+@LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@am__append_32 = $(CAPSTONE_LIBS)
+@LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@am__append_33 = $(CAPSTONE_CFLAGS)
+@LH_ENABLED_TRUE@@USE_CAPSTONE_TRUE@am__append_34 = $(CAPSTONE_LIBS)
+@EZ_TARGET_POSIX_TRUE@am__append_35 = crt/crt_posix.c
+@EZ_TARGET_WINDOWS_TRUE@am__append_36 = crt/crt_windows.c os/windows/util.c os/windows/util.h
+@EZ_TARGET_WINDOWS_TRUE@am__append_37 = -Wl,-entry=MyDllMainCRTStartup
+@EZ_TARGET_ANDROID_FALSE@@EZ_TARGET_POSIX_TRUE@am__append_38 = $(LIBDL_LINK)
+@EZ_TARGET_POSIX_TRUE@am__append_39 = $(LIBDL_LINK)
 @EZ_TARGET_POSIX_TRUE@am__append_40 = $(LIBDL_LINK)
-@EZ_TARGET_POSIX_TRUE@am__append_41 = $(LIBDL_LINK)
-@EZ_TARGET_ANDROID_FALSE@@EZ_TARGET_POSIX_TRUE@am__append_42 = $(LIBPTHREAD_LINK)
-@EZ_TARGET_WINDOWS_TRUE@am__append_43 = -lws2_32 -lpthread
+@EZ_TARGET_ANDROID_FALSE@@EZ_TARGET_POSIX_TRUE@am__append_41 = $(LIBPTHREAD_LINK)
+@EZ_TARGET_WINDOWS_TRUE@am__append_42 = -lws2_32 -lpthread
 
 # POSIX dl-based test target
-@EZ_TARGET_POSIX_TRUE@am__append_44 = target_dl
+@EZ_TARGET_POSIX_TRUE@am__append_43 = target_dl
 @HAVE_CXX_TRUE@check_PROGRAMS = test_basic_injection$(EXEEXT)
-@HAVE_CXX_TRUE@am__append_45 = test_runner.sh
+@HAVE_CXX_TRUE@am__append_44 = test_runner.sh
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/ax_check_compile_flag.m4 \
@@ -455,9 +454,9 @@ am_ezinject_OBJECTS = ezinject-ezinject.$(OBJEXT) $(am__objects_14)
 ezinject_OBJECTS = $(am_ezinject_OBJECTS) $(nodist_ezinject_OBJECTS)
 @EZ_TARGET_FREEBSD_TRUE@am__DEPENDENCIES_5 = libos_freebsd.la
 ezinject_DEPENDENCIES = libezinject_util.la libezinject_log.la \
-	$(am__append_4) $(am__append_11) libos_posix_shellcode.la \
-	$(am__append_13) $(am__DEPENDENCIES_5) $(am__append_17) \
-	$(am__append_19) $(am__DEPENDENCIES_4)
+	$(am__append_3) $(am__append_10) libos_posix_shellcode.la \
+	$(am__append_12) $(am__DEPENDENCIES_5) $(am__append_16) \
+	$(am__append_18) $(am__DEPENDENCIES_4)
 ezinject_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(ezinject_CFLAGS) \
 	$(CFLAGS) $(ezinject_LDFLAGS) $(LDFLAGS) -o $@
@@ -1036,8 +1035,13 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 ACLOCAL_AMFLAGS = -I m4
-AM_CFLAGS = -Wall $(POSIX_PIC_FLAG) $(ARM_ARCH_FLAG) \
-	-D__STDC_FORMAT_MACROS $(am__append_1)
+AM_CFLAGS = \
+	-Wall \
+	$(POSIX_PIC_FLAG) \
+	$(ARM_ARCH_FLAG) \
+	-D__STDC_FORMAT_MACROS \
+	-D_GNU_SOURCE
+
 AM_CPPFLAGS = \
 	-I$(top_srcdir) \
 	-I$(top_builddir) \
@@ -1047,7 +1051,7 @@ AM_CPPFLAGS = \
 # ---------------------------------------------------------------------------
 # Sample shared library modules
 # ---------------------------------------------------------------------------
-lib_LTLIBRARIES = $(am__append_24) libdummy.la libpyloader.la \
+lib_LTLIBRARIES = $(am__append_23) libdummy.la libpyloader.la \
 	libnetapi.la
 
 # ---------------------------------------------------------------------------
@@ -1062,11 +1066,11 @@ lib_LTLIBRARIES = $(am__append_24) libdummy.la libpyloader.la \
 
 # Separate lib for crt_injcode.c - needs special injection code flags
 noinst_LTLIBRARIES = libezinject_util.la libezinject_log.la \
-	$(am__append_2) $(am__append_10) libos_posix_shellcode.la \
-	$(am__append_12) $(am__append_14) $(am__append_16) \
-	$(am__append_18) libezinject_crt.la libezinject_crt_injcode.la
+	$(am__append_1) $(am__append_9) libos_posix_shellcode.la \
+	$(am__append_11) $(am__append_13) $(am__append_15) \
+	$(am__append_17) libezinject_crt.la libezinject_crt_injcode.la
 EXTRA_LTLIBRARIES = 
-CLEANFILES = $(am__append_20) $(am__append_45)
+CLEANFILES = $(am__append_19) $(am__append_44)
 
 # ---------------------------------------------------------------------------
 # Extra distribution files
@@ -1127,15 +1131,15 @@ EXTRA_DIST = config.h.cmake.in build.sh CMakeLists.txt \
 # ---------------------------------------------------------------------------
 ezinject_SOURCES = ezinject.c ezinject.h ezinject_arch.h \
 	ezinject_common.h ezinject_compat.h ezinject_injcode.h \
-	ezinject_module.h dlfcn_compat.h $(am__append_21)
+	ezinject_module.h dlfcn_compat.h $(am__append_20)
 ezinject_CFLAGS = $(AM_CFLAGS)
 ezinject_LDADD = libezinject_util.la libezinject_log.la \
-	$(am__append_4) $(am__append_11) libos_posix_shellcode.la \
-	$(am__append_13) $(am__append_15) $(am__append_17) \
-	$(am__append_19) $(am__append_22)
+	$(am__append_3) $(am__append_10) libos_posix_shellcode.la \
+	$(am__append_12) $(am__append_14) $(am__append_16) \
+	$(am__append_18) $(am__append_21)
 
 # Linker flags
-ezinject_LDFLAGS = $(am__append_23) $(UNDEFINED_FLAG)
+ezinject_LDFLAGS = $(am__append_22) $(UNDEFINED_FLAG)
 libezinject_util_la_SOURCES = ezinject_util.c ezinject_util.h
 libezinject_log_la_SOURCES = log.c log.h
 libezinject_log_la_CFLAGS = $(AM_CFLAGS)
@@ -1147,9 +1151,9 @@ libezinject_log_la_CFLAGS = $(AM_CFLAGS)
 @EZ_TARGET_LINUX_TRUE@libos_linux_la_SOURCES = os/linux/common.c \
 @EZ_TARGET_LINUX_TRUE@	os/linux/inject.c os/linux/remote.c \
 @EZ_TARGET_LINUX_TRUE@	os/linux/builder.c os/builder.h \
-@EZ_TARGET_LINUX_TRUE@	$(am__append_5) $(am__append_6) \
-@EZ_TARGET_LINUX_TRUE@	$(am__append_7) $(am__append_8) \
-@EZ_TARGET_LINUX_TRUE@	$(am__append_9)
+@EZ_TARGET_LINUX_TRUE@	$(am__append_4) $(am__append_5) \
+@EZ_TARGET_LINUX_TRUE@	$(am__append_6) $(am__append_7) \
+@EZ_TARGET_LINUX_TRUE@	$(am__append_8)
 @EZ_TARGET_POSIX_TRUE@libos_posix_la_SOURCES = os/posix/remote.c
 @EZ_TARGET_POSIX_TRUE@libos_posix_util_la_SOURCES = os/posix/util.c
 libos_posix_shellcode_la_SOURCES = os/posix/inject.c
@@ -1189,42 +1193,42 @@ libos_posix_shellcode_la_SOURCES = os/posix/inject.c
 @EZ_ARCH_HPPA_TRUE@nodist_ezinject_SOURCES = ezinject_injcode_patched.s
 @LH_ENABLED_TRUE@liblh_ifcpu_la_SOURCES =  \
 @LH_ENABLED_TRUE@	crt/lh/interface/cpu/cpu_common.c \
-@LH_ENABLED_TRUE@	$(am__append_25) $(am__append_26) \
-@LH_ENABLED_TRUE@	$(am__append_27) $(am__append_29) \
-@LH_ENABLED_TRUE@	$(am__append_30) $(am__append_31)
+@LH_ENABLED_TRUE@	$(am__append_24) $(am__append_25) \
+@LH_ENABLED_TRUE@	$(am__append_26) $(am__append_28) \
+@LH_ENABLED_TRUE@	$(am__append_29) $(am__append_30)
 @LH_ENABLED_TRUE@liblh_ifcpu_la_CFLAGS = $(AM_CFLAGS) -DLH_JUMP_ABS \
-@LH_ENABLED_TRUE@	-fPIC $(am__append_28) $(am__append_32)
+@LH_ENABLED_TRUE@	-fPIC $(am__append_27) $(am__append_31)
 @LH_ENABLED_TRUE@liblh_ifcpu_la_LIBADD = libezinject_log.la \
-@LH_ENABLED_TRUE@	libezinject_util.la $(am__append_33)
+@LH_ENABLED_TRUE@	libezinject_util.la $(am__append_32)
 @LH_ENABLED_TRUE@liblh_ifcpu_la_LDFLAGS = $(UNDEFINED_FLAG) -avoid-version
 @LH_ENABLED_TRUE@liblh_ifhook_la_SOURCES = crt/lh/interface/hook/lh_hook.c
 @LH_ENABLED_TRUE@liblh_ifhook_la_CFLAGS = $(AM_CFLAGS) -DLH_JUMP_ABS \
-@LH_ENABLED_TRUE@	-fPIC $(am__append_34)
+@LH_ENABLED_TRUE@	-fPIC $(am__append_33)
 @LH_ENABLED_TRUE@liblh_ifhook_la_LIBADD = liblh_ifcpu.la \
 @LH_ENABLED_TRUE@	libezinject_log.la libezinject_util.la \
-@LH_ENABLED_TRUE@	$(am__append_35)
+@LH_ENABLED_TRUE@	$(am__append_34)
 @LH_ENABLED_TRUE@liblh_ifhook_la_LDFLAGS = $(UNDEFINED_FLAG) -avoid-version
 libezinject_crt_la_SOURCES = crt/crt.c crt/crt.h crt/crt_user.c \
-	ezinject_util.c ezinject_util.h log.c log.h $(am__append_36) \
-	$(am__append_37)
+	ezinject_util.c ezinject_util.h log.c log.h $(am__append_35) \
+	$(am__append_36)
 libezinject_crt_la_CFLAGS = $(AM_CFLAGS) -fPIC
 libezinject_crt_injcode_la_SOURCES = crt/crt_injcode.c crt/crt_injcode.h
 libezinject_crt_injcode_la_CFLAGS = $(AM_CFLAGS) $(INJCODE_CFLAGS) -fPIC
 libdummy_la_SOURCES = samples/dummy/libdummy.c
 libdummy_la_CFLAGS = $(AM_CFLAGS) -fPIC -D__USE_MINGW_ANSI_STDIO=0
 libdummy_la_LIBADD = libezinject_crt.la libezinject_crt_injcode.la \
-	$(LIBPTHREAD_LINK) $(am__append_39)
+	$(LIBPTHREAD_LINK) $(am__append_38)
 libdummy_la_LDFLAGS = -module -avoid-version -shared $(UNDEFINED_FLAG) \
-	$(am__append_38)
+	$(am__append_37)
 libpyloader_la_SOURCES = samples/pyloader/pyloader.c
 libpyloader_la_CFLAGS = $(AM_CFLAGS) -fPIC
 libpyloader_la_LIBADD = libezinject_crt.la libezinject_crt_injcode.la \
-	$(LIBPTHREAD_LINK) $(am__append_40)
+	$(LIBPTHREAD_LINK) $(am__append_39)
 libpyloader_la_LDFLAGS = -module -avoid-version -shared $(UNDEFINED_FLAG)
 libnetapi_la_SOURCES = samples/netapi/netapi.c
 libnetapi_la_CFLAGS = $(AM_CFLAGS) -fPIC
 libnetapi_la_LIBADD = libezinject_crt.la libezinject_crt_injcode.la \
-	$(am__append_41) $(am__append_42) $(am__append_43)
+	$(am__append_40) $(am__append_41) $(am__append_42)
 libnetapi_la_LDFLAGS = -module -avoid-version -shared $(UNDEFINED_FLAG)
 target_SOURCES = samples/dummy/target.c
 target_CFLAGS = $(AM_CFLAGS)

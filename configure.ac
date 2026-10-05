@@ -51,7 +51,7 @@ dnl ---------------------------------------------------------------------------
 dnl ELF loader (injector-side, Linux -m)
 dnl ---------------------------------------------------------------------------
 AC_ARG_ENABLE([elfloader],
-  [AS_HELP_STRING([--disable-elfloader], [disable injector-side ELF loader (Linux -m)])],
+  [AS_HELP_STRING([--enable-elfloader], [enable injector-side ELF loader (Linux -m)])],
   [enable_elfloader=$enableval],
   [enable_elfloader=no])
 AM_CONDITIONAL([ENABLE_ELFLOADER], [test "x$enable_elfloader" != xno])

@@ -4,11 +4,8 @@ AM_CFLAGS = \
 	-Wall \
 	$(POSIX_PIC_FLAG) \
 	$(ARM_ARCH_FLAG) \
-	-D__STDC_FORMAT_MACROS
-
-if EZ_TARGET_WINDOWS
-AM_CFLAGS += -D_GNU_SOURCE
-endif
+	-D__STDC_FORMAT_MACROS \
+	-D_GNU_SOURCE
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir) \

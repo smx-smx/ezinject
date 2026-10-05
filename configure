@@ -1537,7 +1537,7 @@ Optional Features:
   --disable-libtool-lock  avoid locking (might break parallel builds)
   --disable-debug         disable debug build mode
   --disable-cpp-samples   disable C++ sample module
-  --disable-elfloader     disable injector-side ELF loader (Linux -m)
+  --enable-elfloader      enable injector-side ELF loader (Linux -m)
   --enable-static         build ezinject as a static binary
   --enable-arm-thumb      use Thumb mode on ARM (default: ARM mode)
 
@@ -19281,7 +19281,7 @@ if test ${enable_elfloader+y}
 then :
   enableval=$enable_elfloader; enable_elfloader=$enableval
 else case e in #(
-  e) enable_elfloader=yes ;;
+  e) enable_elfloader=no ;;
 esac
 fi
 

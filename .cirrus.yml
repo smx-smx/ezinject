@@ -48,6 +48,9 @@ linux_x64_autotools_task:
     PATH: /usr/local/bin:${PATH}
 
   script:
+    # git checkout order can leave configure.ac newer than the generated
+    # files, triggering a rebuild with the image's (older) autotools
+    - touch aclocal.m4 configure Makefile.in config.h.in
     - sh configure
     - make -j$(nproc)
     - sh configure --enable-elfloader
