@@ -50,7 +50,7 @@ linux_x64_autotools_task:
   script:
     - sh configure
     - make -j$(nproc)
-    - sh configure --disable-elfloader
+    - sh configure --enable-elfloader
     - make -j$(nproc)
 
 # targeting LG NC4/WebOS (ARM Cortex A9, glibc 2.12)
