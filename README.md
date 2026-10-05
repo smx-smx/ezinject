@@ -117,10 +117,14 @@ The following is an example on Debian and derivates, needs to be adjusted for ea
 - libcapstone-dev
 - pkg-config
 
-2. Build the project
+2. Build the project (uses CMake by default)
 ```sh
 ./build.sh
 ```
+
+**NOTE**: Both CMake and autotools are supported, for older POSIX-like systems.
+Keep them in sync when adding sources, build options or
+install rules. CI builds both (see `.cirrus.yml`).
 
 ## Sample usage
 
