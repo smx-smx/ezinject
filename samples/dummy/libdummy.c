@@ -127,6 +127,10 @@ int lib_loginit(log_config_t *log_cfg){
 #endif
 }
 
+/* Persistent modules must never self-unload: set from user->persist
+ * in lib_preinit, honoured where the worker thread is spawned. */
+static int auto_unload = 0;
+
 int lib_preinit(struct injcode_user *user){
 	/**
 	 * this is needed for hooks pointing to code in this library
@@ -135,6 +139,7 @@ int lib_preinit(struct injcode_user *user){
 	 * this is *NOT* needed for code allocated elsewhere, e.g. on the heap (sljit)
 	 **/
 	user->persist = 1;
+	auto_unload = !user->persist;
 	return 0;
 }
 
@@ -168,11 +173,14 @@ int lib_main(int argc, char *argv[]){
 		lprintf("argv[%d] = %s\n", i, argv[i]);
 	}
 	#if !defined(EZ_TARGET_DARWIN) && !defined(EZ_ARCH_HPPA)
+	/* no self-unload for persistent modules (see auto_unload) */
+	if(auto_unload){
 	#ifdef EZ_TARGET_POSIX
 	pthread_create(&tid, NULL, library_unload_worker, NULL);
 	#else
 	CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)library_unload_worker, NULL, 0, NULL);
 	#endif
+	}
 	#endif
 
 	#ifdef USE_LH
