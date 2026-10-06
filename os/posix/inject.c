@@ -14,6 +14,13 @@
 #include <sys/mman.h>
 #endif
 
+#ifdef EZ_TARGET_LINUX
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <errno.h>
+#endif
+
 #ifdef EZ_TARGET_WINDOWS
 #include "win32_syscalls.h"
 #endif
@@ -134,6 +141,76 @@ uintptr_t _remote_sc_addr(struct ezinj_ctx *ctx, uintptr_t addr){
 	return r_current_sc_base + rela_offset;
 }
 
+#ifdef EZ_TARGET_LINUX
+/* File-backed fallback for the ELFHDR scratch backup below. Some
+ * mappings may not be readable through the target (e.g. XIP flashserves EIO to reads without write intent)
+ * while the file behind them reads fine.
+ * Resolve [base, base+len) through the target's maps to pathname + file offset,
+ * then fetch the original bytes from there
+ **/
+static int xpage_backup_via_file(struct ezinj_ctx *ctx, uintptr_t base, void *buf, size_t len){
+	char maps[64], line[512], path[256], perms[8];
+	unsigned long start, end, offset, inode;
+	snprintf(maps, sizeof(maps), "/proc/%u/maps", ctx->target);
+	FILE *fp = fopen(maps, "r");
+	if(!fp){
+		return -1;
+	}
+	int rc = -1;
+	while(fgets(line, sizeof(line), fp) != NULL){
+		int n = sscanf(line, "%lx-%lx %7s %lx %*x:%*x %lu %255s",
+			&start, &end, perms, &offset, &inode, path);
+		/* NB: the two %*x conversions are suppressed and do not count
+		 * toward sscanf's return value: n == 6 (file-backed) or
+		 * 5 (anonymous, no path). */
+		if(n < 5){
+			continue;
+		}
+		if(base < start || end - base < len){
+			continue;
+		}
+		if(n < 6 || path[0] != '/'){
+			break; /* anonymous: no file to read through */
+		}
+		int fd = open(path, O_RDONLY);
+		if(fd < 0){
+			break;
+		}
+		/* Two candidate file offsets: the maps-reported one
+		 * (correct for ordinary files) and the VMA-relative one
+		 * (covers XIP mounts, where the reported offset is a
+		 * flash address, not a file offset). First full read wins. */
+		unsigned long cand[2] = { offset + (base - start), base - start };
+		for(int c = 0; c < 2 && rc != 0; c++){
+			if(c == 1 && cand[1] == cand[0]){
+				continue;
+			}
+			size_t done = 0;
+			while(done < len){
+				ssize_t r = pread(fd, (char *)buf + done, len - done,
+					(off_t)(cand[c] + done));
+				if(r < 0 && errno == EINTR){
+					continue;
+				}
+				if(r <= 0){
+					break;
+				}
+				done += (size_t)r;
+			}
+			if(done == len){
+				INFO("xpage backup: %zu bytes via %s (file offset 0x%lx)",
+					len, path, cand[c]);
+				rc = 0;
+			}
+		}
+		close(fd);
+		break;
+	}
+	fclose(fp);
+	return rc;
+}
+#endif
+
 uintptr_t _remote_sc_base(struct ezinj_ctx *ctx, int flags, ssize_t size){
 	uintptr_t sc_base = 0;
 	if((flags & SC_ALLOC_ELFHDR) == SC_ALLOC_ELFHDR){
@@ -204,8 +281,15 @@ EZAPI remote_sc_alloc(struct ezinj_ctx *ctx, int flags, uintptr_t *out_sc_base){
 		ctx->platform.saved_sc_size = dataLength;
 
 		if(remote_read(ctx, ctx->platform.saved_sc_data, sc_base, dataLength) != dataLength){
-			PERROR("failed to backup data");
-			return -1;
+			/* Unreadable scratch (e.g. XIP flash): fetch the
+			 * original bytes through the mapped file instead.
+			 * Only the zeroed buffer remains when even that
+			 * fails; the write below still has to verify. */
+#ifdef EZ_TARGET_LINUX
+			if(xpage_backup_via_file(ctx, sc_base,
+				ctx->platform.saved_sc_data, dataLength) != 0)
+#endif
+				WARN("failed to backup data; proceeding without backup");
 		}
 	}
 
