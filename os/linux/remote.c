@@ -13,6 +13,9 @@
 #include <elf.h>
 #include <errno.h>
 #include <string.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "ezinject.h"
 #include "ezinject_arch.h"
@@ -65,9 +68,45 @@ EZAPI remote_setregs(struct ezinj_ctx *ctx, regs_t *regs){
 #endif
 }
 
+static ssize_t remote_read_procmem(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
+	char path[64];
+	snprintf(path, sizeof(path), "/proc/%u/mem", ctx->target);
+
+	int fd = open(path, O_RDONLY);
+	if(fd < 0){
+		return -1;
+	}
+
+	uint8_t *out = (uint8_t *)dest;
+	size_t done = 0;
+	while(done < size){
+		ssize_t n = pread(fd, out + done, size - done, (off_t)(source + done));
+		if(n < 0){
+			if(errno == EINTR){
+				continue;
+			}
+			break;
+		}
+		if(n == 0){
+			break;
+		}
+		done += (size_t)n;
+	}
+
+	close(fd);
+	return (ssize_t)done;
+}
+
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uint8_t *out = (uint8_t *)dest;
 
+	// try /proc/<pid>/mem first
+	ssize_t via_mem = remote_read_procmem(ctx, dest, source, size);
+	if(via_mem == (ssize_t)size){
+		return via_mem;
+	}
+
+	// fall back to ptrace word-at-a-time
 	size_t read;
 	for(read = 0; read + sizeof(uintptr_t) <= size; read += sizeof(uintptr_t)){
 		errno = 0;
@@ -92,8 +131,43 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 	return read;
 }
 
+static ssize_t remote_write_procmem(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
+	char path[64];
+	snprintf(path, sizeof(path), "/proc/%u/mem", ctx->target);
+
+	int fd = open(path, O_WRONLY);
+	if(fd < 0){
+		return -1;
+	}
+
+	uint8_t *bytes = (uint8_t *)source;
+	size_t done = 0;
+	while(done < size){
+		ssize_t n = pwrite(fd, bytes + done, size - done, (off_t)(dest + done));
+		if(n < 0){
+			if(errno == EINTR){
+				continue;
+			}
+			break;
+		}
+		if(n == 0){
+			break;
+		}
+		done += (size_t)n;
+	}
+
+	close(fd);
+	return (ssize_t)done;
+}
+
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	uint8_t *bytes = (uint8_t *)source;
+
+	// try /proc/<pid>/mem first
+	ssize_t via_mem = remote_write_procmem(ctx, dest, source, size);
+	if(via_mem == (ssize_t)size){
+		return via_mem;
+	}
 
 	size_t written;
 	for(written = 0; written + sizeof(uintptr_t) <= size; written += sizeof(uintptr_t)){
