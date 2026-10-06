@@ -74,6 +74,7 @@ static ssize_t remote_read_procmem(struct ezinj_ctx *ctx, void *dest, uintptr_t 
 
 	int fd = open(path, O_RDONLY);
 	if(fd < 0){
+		PERROR("remote_read_procmem: failed to open memory");
 		return -1;
 	}
 
@@ -100,11 +101,15 @@ static ssize_t remote_read_procmem(struct ezinj_ctx *ctx, void *dest, uintptr_t 
 EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t size){
 	uint8_t *out = (uint8_t *)dest;
 
+	DBG("remote_read(src=0x"LX", size=%zu, mode=procmem)", source, size);
+
 	// try /proc/<pid>/mem first
 	ssize_t via_mem = remote_read_procmem(ctx, dest, source, size);
 	if(via_mem == (ssize_t)size){
 		return via_mem;
 	}
+
+	DBG("remote_read(src=0x"LX", size=%zu, mode=ptrace)", source, size);
 
 	// fall back to ptrace word-at-a-time
 	size_t read;
@@ -112,6 +117,8 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 		errno = 0;
 		long word = ptrace(PTRACE_PEEKTEXT, ctx->target, (void *)(source + read), 0);
 		if(word == -1 && errno != 0){
+			ERR("remote_read: PEEKTEXT failed at 0x"LX" (+%zu): %s",
+				source + read, read, strerror(errno));
 			return read;
 		}
 		memcpy(out + read, &word, sizeof(word));
@@ -122,6 +129,8 @@ EZAPI remote_read(struct ezinj_ctx *ctx, void *dest, uintptr_t source, size_t si
 		errno = 0;
 		long word = ptrace(PTRACE_PEEKTEXT, ctx->target, (void *)(source + read), 0);
 		if(word == -1 && errno != 0){
+			ERR("remote_read: PEEKTEXT failed at 0x"LX" (+%zu): %s",
+				source + read, read, strerror(errno));
 			return read;
 		}
 		memcpy(out + read, &word, size - read);
@@ -137,6 +146,7 @@ static ssize_t remote_write_procmem(struct ezinj_ctx *ctx, uintptr_t dest, void 
 
 	int fd = open(path, O_WRONLY);
 	if(fd < 0){
+		PERROR("remote_write_procmem: failed to open memory");
 		return -1;
 	}
 
@@ -163,11 +173,15 @@ static ssize_t remote_write_procmem(struct ezinj_ctx *ctx, uintptr_t dest, void 
 EZAPI remote_write(struct ezinj_ctx *ctx, uintptr_t dest, void *source, size_t size){
 	uint8_t *bytes = (uint8_t *)source;
 
+	DBG("remote_write(dst=0x"LX", size=%zu, mode=procmem)", dest, size);
+
 	// try /proc/<pid>/mem first
 	ssize_t via_mem = remote_write_procmem(ctx, dest, source, size);
 	if(via_mem == (ssize_t)size){
 		return via_mem;
 	}
+
+	DBG("remote_write(dst=0x"LX", size=%zu, mode=ptrace)", dest, size);
 
 	size_t written;
 	for(written = 0; written + sizeof(uintptr_t) <= size; written += sizeof(uintptr_t)){
