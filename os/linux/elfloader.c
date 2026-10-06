@@ -259,7 +259,7 @@ static int elf_target_has(struct ezinj_ctx *ctx, const char *path){
 	if(stat(path, &st) != 0){
 		return 0;
 	}
-	char line[512], mpath[256];
+	char line[512];
 	char maps[64];
 	snprintf(maps, sizeof(maps), "/proc/%u/maps", ctx->target);
 	FILE *fp = fopen(maps, "r");
@@ -268,16 +268,12 @@ static int elf_target_has(struct ezinj_ctx *ctx, const char *path){
 	}
 	int found = 0;
 	while(fgets(line, sizeof(line), fp) != NULL){
-		unsigned long start, end, offset, inode;
-		unsigned int devmaj, devmin;
-		char perms[8];
-		int n = sscanf(line, "%lx-%lx %7s %lx %x:%x %lu %255s",
-			&start, &end, perms, &offset, &devmaj, &devmin, &inode, mpath);
-		if(n < 8 || mpath[0] != '/'){
+		struct ezinj_map_entry e;
+		if(os_parse_maps_line(line, &e) != 0 || !e.has_path){
 			continue;
 		}
 		struct stat mst;
-		if(stat(mpath, &mst) != 0){
+		if(stat(e.path, &mst) != 0){
 			continue;
 		}
 		if(mst.st_dev == st.st_dev && mst.st_ino == st.st_ino){
@@ -303,7 +299,7 @@ static uintptr_t elf_remote_of(struct ezinj_ctx *ctx, void *local){
 		ERR("elfloader: stat(%s) failed", info.dli_fname);
 		return 0;
 	}
-	char line[512], path[256];
+	char line[512];
 	char maps[64];
 	snprintf(maps, sizeof(maps), "/proc/%u/maps", ctx->target);
 	FILE *fp = fopen(maps, "r");
@@ -313,24 +309,22 @@ static uintptr_t elf_remote_of(struct ezinj_ctx *ctx, void *local){
 	}
 	uintptr_t rbase = 0;
 	while(fgets(line, sizeof(line), fp) != NULL){
-		unsigned long start, offset, inode;
-		unsigned long end;
-		unsigned int devmaj, devmin;
-		char perms[8];
-		int n = sscanf(line, "%lx-%lx %7s %lx %x:%x %lu %255s",
-			&start, &end, perms, &offset, &devmaj, &devmin, &inode, path);
-		if(n < 7 || offset != 0){
+		struct ezinj_map_entry e;
+		if(os_parse_maps_line(line, &e) != 0){
+			continue;
+		}
+		if(e.offset != 0){
 			continue; /* need the base mapping (file offset 0) */
 		}
-		if(n < 8 || path[0] != '/'){
+		if(!e.has_path){
 			continue;
 		}
 		struct stat mst;
-		if(stat(path, &mst) != 0){
+		if(stat(e.path, &mst) != 0){
 			continue;
 		}
 		if(mst.st_dev == st.st_dev && mst.st_ino == st.st_ino){
-			rbase = (uintptr_t)start;
+			rbase = e.start;
 			break;
 		}
 	}

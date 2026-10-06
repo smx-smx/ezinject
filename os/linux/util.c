@@ -15,11 +15,21 @@ EZAPI os_api_init(struct ezinj_ctx *ctx){
 	return 0;
 }
 
+int os_parse_maps_line(const char *line, struct ezinj_map_entry *out){
+	char *path = out->path;
+	memset(out, 0, sizeof(*out));
+	int n = sscanf(line, "%lx-%lx %7s %lx %*x:%*x %lu %255s",
+		&out->start, &out->end, out->perms, &out->offset, &out->inode, path);
+	if(n < 5){
+		return -1;
+	}
+	out->has_path = (n >= 6 && path[0] == '/');
+	return 0;
+}
+
 void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char **ignores) {
-	char line[256];
-	char path[128];
+	char line[512];
 	void *base;
-	char perms[8];
 	bool found = false;
 
 	int sublen = 0;
@@ -27,25 +37,28 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char 
 		sublen = strlen(substr);
 	}
 
-	snprintf(line, 256, "/proc/%u/maps", pid);
+	snprintf(line, sizeof(line), "/proc/%u/maps", pid);
 	FILE *fp = fopen(line, "r");
 	if(!fp){
 		return NULL;
 	}
 	while(fgets(line, sizeof(line), fp) != NULL){
-		strncpy(path, "[anonymous]", sizeof(path));
-
-		int filled = sscanf(line, "%p-%*p %s %*p %*x:%*x %*u %s", &base, (char *)&perms, path);
-		if(filled < 2){
+		struct ezinj_map_entry e;
+		if(os_parse_maps_line(line, &e) != 0){
 			continue;
 		}
+		base = (void *)e.start;
 
 		// pointer to the last character in the path
-		char *end = (char *)&path[0] + strlen(path);
+		char *end = &e.path[0] + strlen(e.path);
 
 		char *sub = NULL;
 		if(substr != NULL){
-			sub = strstr(path, substr);
+			if(!e.has_path){
+				// anonymous, substring cannot match
+				continue;
+			}
+			sub = strstr(e.path, substr);
 			if(sub == NULL){
 				// substring not found
 				continue;
@@ -57,7 +70,7 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char 
 
 			const char **listPtr = ignores;
 			while(*listPtr != NULL){
-				if(strstr(path, *(listPtr++))){
+				if(strstr(e.path, *(listPtr++))){
 					// found a match in the ignores list, skip this entry
 					skip = true;
 					break;
@@ -71,12 +84,12 @@ void *get_base(struct ezinj_ctx *ctx, pid_t pid, const char *substr, const char 
 
 		// if we have no substring, get the first executable segment
 		if(substr == NULL){
-			if(strchr(perms, 'x') != NULL){
+			if(strchr(e.perms, 'x') != NULL){
 				found = true;
 				break;
 			}
 		} else {
-			if(strchr(perms, 's') != NULL){
+			if(strchr(e.perms, 's') != NULL){
 				// it's a shared semgent, skip it
 				continue;
 			}

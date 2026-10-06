@@ -149,8 +149,7 @@ uintptr_t _remote_sc_addr(struct ezinj_ctx *ctx, uintptr_t addr){
  * then fetch the original bytes from there
  **/
 static int xpage_backup_via_file(struct ezinj_ctx *ctx, uintptr_t base, void *buf, size_t len){
-	char maps[64], line[512], path[256], perms[8];
-	unsigned long start, end, offset, inode;
+	char maps[64], line[512];
 	snprintf(maps, sizeof(maps), "/proc/%u/maps", ctx->target);
 	FILE *fp = fopen(maps, "r");
 	if(!fp){
@@ -158,29 +157,25 @@ static int xpage_backup_via_file(struct ezinj_ctx *ctx, uintptr_t base, void *bu
 	}
 	int rc = -1;
 	while(fgets(line, sizeof(line), fp) != NULL){
-		int n = sscanf(line, "%lx-%lx %7s %lx %*x:%*x %lu %255s",
-			&start, &end, perms, &offset, &inode, path);
-		/* NB: the two %*x conversions are suppressed and do not count
-		 * toward sscanf's return value: n == 6 (file-backed) or
-		 * 5 (anonymous, no path). */
-		if(n < 5){
+		struct ezinj_map_entry e;
+		if(os_parse_maps_line(line, &e) != 0){
 			continue;
 		}
-		if(base < start || end - base < len){
+		if(base < e.start || e.end - base < len){
 			continue;
 		}
-		if(n < 6 || path[0] != '/'){
+		if(!e.has_path){
 			break; /* anonymous: no file to read through */
 		}
-		int fd = open(path, O_RDONLY);
+		int fd = open(e.path, O_RDONLY);
 		if(fd < 0){
 			break;
 		}
-		/* Two candidate file offsets: the maps-reported one
-		 * (correct for ordinary files) and the VMA-relative one
-		 * (covers XIP mounts, where the reported offset is a
-		 * flash address, not a file offset). First full read wins. */
-		unsigned long cand[2] = { offset + (base - start), base - start };
+		/* Two candidate file offsets: the maps-reported one (right
+		 * for ordinary files) and the VMA-relative one (covers
+		 * XIP mounts, where the reported offset is a flash
+		 * address, not a file offset). First full read wins. */
+		unsigned long cand[2] = { e.offset + (base - e.start), base - e.start };
 		for(int c = 0; c < 2 && rc != 0; c++){
 			if(c == 1 && cand[1] == cand[0]){
 				continue;
@@ -199,7 +194,7 @@ static int xpage_backup_via_file(struct ezinj_ctx *ctx, uintptr_t base, void *bu
 			}
 			if(done == len){
 				INFO("xpage backup: %zu bytes via %s (file offset 0x%lx)",
-					len, path, cand[c]);
+					len, e.path, cand[c]);
 				rc = 0;
 			}
 		}
