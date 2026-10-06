@@ -621,6 +621,14 @@ struct injcode_bearing *prepare_bearing(struct ezinj_ctx *ctx, int argc, char *a
 		}
 		fclose(fh);
 
+		// the target opens the file as itself (possibly another user),
+		// so make it world-writable (a non-root target cannot chmod
+		// a root-created file itself). Not fatal: fall back to letting
+		// the target try the open as-is.
+		if(chmod(ctx->module_logfile, 0666) != 0){
+			WARN("chmod \"%s\" failed: %s", ctx->module_logfile, strerror(errno));
+		}
+
 		logPath = os_realpath(ctx->module_logfile);
 		if(!logPath){
 			ERR("realpath(%s) failed", ctx->module_logfile);

@@ -119,9 +119,9 @@ INLINE intptr_t inj_load_prepare(struct injcode_ctx *ctx){
 }
 
 #if defined(__NR_open)
-#define SYSCALL_OPEN(file, mode) __NR_open, (file), (mode)
+#define SYSCALL_OPEN(file, flags, mode) __NR_open, (file), (flags), (mode)
 #elif defined( __NR_openat)
-#define SYSCALL_OPEN(file, mode) __NR_openat, AT_FDCWD, (file), (mode)
+#define SYSCALL_OPEN(file, flags, mode) __NR_openat, AT_FDCWD, (file), (flags), (mode)
 #else
 #error "Unsupported platform"
 #endif
@@ -134,7 +134,7 @@ INLINE intptr_t inj_loginit(struct injcode_ctx *ctx){
 
 	if(inj_strlen(log_filename) > 0){
 		int new_log_handle = CALL_FPTR(br->libc_syscall,
-			SYSCALL_OPEN(log_filename, O_WRONLY));
+			SYSCALL_OPEN(log_filename, O_WRONLY | O_CREAT | O_APPEND, 0666));
 		if(new_log_handle >= 0){
 			log_handle = new_log_handle;
 		}
