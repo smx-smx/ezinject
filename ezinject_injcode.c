@@ -477,24 +477,40 @@ intptr_t PLAPI injected_fn(void *arg){
 		br->userlib = br->elfloader.base;
 		ctx->crt_init.fptr = br->elfloader.crt_init;
 		/* run initializers in dependency order (deps first, user lib
-		 * last), loader semantics (DT_INIT, then INIT_ARRAY) */
+		 * last), loader semantics (DT_INIT, then INIT_ARRAY).
+		 * On MIPS the blob is -fno-pic while the payload is PIC:
+		 * route every cross-DSO call through $25 ($t9) so the
+		 * callee .cpload derives a valid $gp. See
+		 * arch/ezinject_mips.h. */
 		for(int k = 0; k < br->elfloader.ninit; k++){
 			if(br->elfloader.inits[k].init){
 				PCALL(ctx, inj_dchar, 'i');
+#ifdef EZ_ARCH_MIPS
+				ez_mips_call_void(br->elfloader.inits[k].init);
+#else
 				((void (*)(void))br->elfloader.inits[k].init)();
+#endif
 			}
 			if(br->elfloader.inits[k].init_array && br->elfloader.inits[k].init_arraysz){
 				size_t n = br->elfloader.inits[k].init_arraysz / sizeof(void *);
 				void (**arr)(void) = (void (**)(void))br->elfloader.inits[k].init_array;
 				for(size_t j = 0; j < n; j++){
 					if(arr[j]){
+#ifdef EZ_ARCH_MIPS
+						ez_mips_call_void((void *)arr[j]);
+#else
 						arr[j]();
+#endif
 					}
 				}
 			}
 		}
 		PCALL(ctx, inj_dchar, 'u');
+#ifdef EZ_ARCH_MIPS
+		if(ctx->crt_init.fptr && ez_mips_call_br(ctx->crt_init.fptr, (void *)br) != 0){
+#else
 		if(ctx->crt_init.fptr && CALL_FPTR(ctx->crt_init, br) != 0){
+#endif
 			result = INJ_ERR_DLOPEN;
 			goto pl_exit;
 		}

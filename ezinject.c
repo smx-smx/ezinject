@@ -78,6 +78,15 @@ intptr_t setregs_syscall(
 	struct call_req *call
 ){
 	REG(*new_ctx, REG_PC) = call->insn_addr;
+#ifdef EZ_ARCH_MIPS
+	/* Trampoline is entered via PC only; $t9 ($25) would otherwise keep
+	 * the target's value. PIC code derives $gp from $t9 (.cpload), so
+	 * set $t9 to the entry point. The -fno-pic blob itself ignores $gp,
+	 * but any PIC payload reached through it must see a valid $t9.
+	 * See arch/ezinject_mips.h:ez_mips_call_* for the blob->payload hop.
+	 */
+	REG(*new_ctx, REG_T9) = call->insn_addr;
+#endif
 
 	// this will be passed on the stack
 	struct injcode_call *rcall = &call->rcall;

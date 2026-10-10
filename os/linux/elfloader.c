@@ -907,19 +907,49 @@ static int elf_map_one(struct elf_ctx *elfm, const char *path, int depth,
 	 * loader does with BIND_NOW. then bias the local GOT and fix
 	 * GOT[0] (_DYNAMIC) and GOT[1] (0: no link_map, nothing lazy
 	 * left). local GOT entries are implicitly RELATIVE per the
-	 * MIPS psABI. */
+	 * MIPS psABI.
+	 *
+	 * The manual mapping is always BIND_NOW: every global slot is
+	 * resolved up front, so GOT[0/1] (.got.plt[0/1] below) are never
+	 * executed. They are poisoned to trap a missed slot fast instead
+	 * of entering the real ld.so resolver with a mismatched
+	 * link_map/sym_index (crash at sym->st_other in
+	 * __dl_runtime_resolve). No glibc internals are emulated here. */
 	{
 		ElfW(Addr) pltgot = 0, local_gotno = 0, gotsym = 0, symtabno = 0;
+		ElfW(Addr) gotplt = 0;
 		for(size_t i = 0; i < f.dyn_cnt; i++){
 			switch(f.dyn[i].d_tag){
 				case DT_PLTGOT: pltgot = f.dyn[i].d_un.d_ptr; break;
 				case DT_MIPS_LOCAL_GOTNO: local_gotno = f.dyn[i].d_un.d_val; break;
 				case DT_MIPS_GOTSYM: gotsym = f.dyn[i].d_un.d_val; break;
 				case DT_MIPS_SYMTABNO: symtabno = f.dyn[i].d_un.d_val; break;
+#ifdef DT_MIPS_PLTGOT
+				case DT_MIPS_PLTGOT: gotplt = f.dyn[i].d_un.d_ptr; break;
+#endif
+				case DT_FLAGS:
+					INFO("elfloader: DT_FLAGS=0x%lx%s", (unsigned long)f.dyn[i].d_un.d_val,
+						(f.dyn[i].d_un.d_val & DF_BIND_NOW) ? " (BIND_NOW)" : " (lazy; loader still binds now)");
+					break;
+#ifdef DT_FLAGS_1
+				case DT_FLAGS_1:
+					INFO("elfloader: DT_FLAGS_1=0x%lx", (unsigned long)f.dyn[i].d_un.d_val);
+					break;
+#endif
+#ifdef DT_BIND_NOW
+				case DT_BIND_NOW:
+					INFO("elfloader: DT_BIND_NOW present");
+					break;
+#endif
 				default: break;
 			}
 		}
-		if(pltgot && symtabno > gotsym){
+		if(!pltgot || local_gotno < 2){
+			ERR("elfloader: bad MIPS GOT tags (pltgot=%p local_gotno=%lu)",
+				(void *)pltgot, (unsigned long)local_gotno);
+			goto out_unmap;
+		}
+		if(symtabno > gotsym){
 			INFO("elfloader: MIPS GOT walk (%u globals)",
 				(unsigned)(symtabno - gotsym));
 			int ok = 1;
@@ -932,7 +962,7 @@ static int elf_map_one(struct elf_ctx *elfm, const char *path, int depth,
 				ElfW(Sym) *sym = &f.dynsym[gotsym + i];
 				const char *name = f.dynstr + sym->st_name;
 				uintptr_t addr;
-				if(sym->st_shndx != SHN_UNDEF){
+				if(sym->st_shndx != SHN_UNDEF && sym->st_shndx != SHN_COMMON){
 					addr = bias + sym->st_value;
 				} else {
 					int is_weak = (ELF_ST_BIND(sym->st_info) == STB_WEAK);
@@ -953,6 +983,10 @@ static int elf_map_one(struct elf_ctx *elfm, const char *path, int depth,
 			if(!ok){
 				goto out_unmap;
 			}
+		} else {
+			INFO("elfloader: no MIPS global GOT entries (symtabno=%lu gotsym=%lu)",
+				(unsigned long)symtabno, (unsigned long)gotsym);
+		}
 			/* local GOT[2..local_gotno): add load bias (implicit RELATIVE).
 			 * GOT[0] = _DYNAMIC, GOT[1] = 0 (no link_map; lazy unused). */
 			{
@@ -985,8 +1019,20 @@ static int elf_map_one(struct elf_ctx *elfm, const char *path, int depth,
 				INFO("elfloader: MIPS local GOT biased (%u entries)",
 					(unsigned)local_gotno);
 			}
+			/* .got.plt (DT_MIPS_PLTGOT) JMPREL slots were resolved up
+			 * front above; poison the lazy link_map/resolver slots so
+			 * a missed PLT entry traps instead of jumping through a
+			 * stale link-time resolver address into the real ld.so
+			 * with the wrong map. Never executed when working. */
+			if(gotplt){
+				uintptr_t pltbase = remote_base + (gotplt - f.link_base);
+				if(elf_rwrite(elfm->ctx, pltbase, 0) != 0
+					|| elf_rwrite(elfm->ctx, pltbase + sizeof(ElfW(Addr)), 0) != 0){
+					ERR("elfloader: .got.plt[0/1] poison failed");
+					goto out_unmap;
+				}
+			}
 		}
-	}
 #endif
 
 	/* protect segments (RX / RO-RELRO) */

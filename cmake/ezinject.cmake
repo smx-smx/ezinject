@@ -258,6 +258,17 @@ function(add_ezinject_library target)
 
 	target_include_directories(${target} PRIVATE ${EZINJECT_INCLUDE_DIRS})
 
+	# Manual (-m) ELF loader always binds now: resolve every JMPREL and
+	# MIPS GOT slot up front, lazy resolver is never entered. Build
+	# payloads BIND_NOW so a missed slot fails at link/load time instead
+	# of entering the real ld.so with a mismatched map ($gp/sym_index).
+	if(EZ_TARGET_LINUX AND USING_GNU_LD)
+		target_link_options(${target} PRIVATE
+			"LINKER:-z,now"
+			"LINKER:-z,relro"
+		)
+	endif()
+
 	if(LIB_USE_LH)
 		target_compile_definitions(${target} PRIVATE USE_LH)
 
